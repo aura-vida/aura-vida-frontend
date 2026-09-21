@@ -1,0 +1,129 @@
+@import "@fontsource/fraunces/400.css";
+@import "@fontsource/fraunces/500.css";
+@import "@fontsource/fraunces/600.css";
+@import "@fontsource/fraunces/400-italic.css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/playfair-display/500.css";
+@import "@fontsource/playfair-display/600.css";
+@import "@fontsource/playfair-display/700.css";
+@import "@fontsource/playfair-display/500-italic.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AuraVida design system — Editorial Stone Sanctuary, brighter palette.
+   All colors HSL. Tokens defined here, consumed via tailwind.config.ts. */
+
+@layer base {
+  :root {
+    /* Surfaces — warm, bright linen */
+    --background: 40 33% 97%;       /* linen */
+    --foreground: 30 12% 16%;       /* deep stone */
+
+    --card: 40 40% 99%;
+    --card-foreground: 30 12% 16%;
+
+    --popover: 40 40% 99%;
+    --popover-foreground: 30 12% 16%;
+
+    /* Brand — vivid sage primary, bold terracotta accent */
+    --primary: 158 48% 30%;          /* vivid sage */
+    --primary-foreground: 40 40% 98%;
+    --primary-glow: 152 55% 50%;
+
+    --secondary: 32 60% 88%;         /* warm sand */
+    --secondary-foreground: 30 14% 20%;
+
+    --muted: 36 30% 90%;
+    --muted-foreground: 30 8% 38%;
+
+    --accent: 14 78% 58%;            /* bold terracotta */
+    --accent-foreground: 40 40% 98%;
+    --accent-soft: 18 85% 84%;
+
+    --destructive: 0 75% 52%;
+    --destructive-foreground: 40 40% 98%;
+
+    --border: 36 25% 84%;
+    --input: 36 25% 84%;
+    --ring: 158 48% 30%;
+
+    --radius: 1rem;
+
+    /* Gradients & shadows */
+    --gradient-warm: linear-gradient(135deg, hsl(40 60% 95%), hsl(14 78% 88%));
+    --gradient-sage: linear-gradient(135deg, hsl(158 48% 30%), hsl(152 55% 50%));
+    --gradient-aura: radial-gradient(ellipse at top left, hsl(14 80% 80% / 0.55), transparent 60%),
+                     radial-gradient(ellipse at bottom right, hsl(158 55% 70% / 0.5), transparent 60%),
+                     radial-gradient(ellipse at center, hsl(42 90% 80% / 0.35), transparent 70%);
+
+    --shadow-soft: 0 10px 40px -12px hsl(14 40% 30% / 0.18);
+    --shadow-elegant: 0 24px 60px -20px hsl(158 30% 20% / 0.25);
+    --shadow-glow: 0 0 60px hsl(14 78% 65% / 0.45);
+
+    --transition-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --sidebar-background: 40 33% 97%;
+    --sidebar-foreground: 30 12% 16%;
+    --sidebar-primary: 150 22% 32%;
+    --sidebar-primary-foreground: 40 40% 98%;
+    --sidebar-accent: 36 22% 90%;
+    --sidebar-accent-foreground: 30 12% 16%;
+    --sidebar-border: 36 20% 86%;
+    --sidebar-ring: 150 22% 32%;
+  }
+
+  .dark {
+    --background: 150 12% 8%;
+    --foreground: 40 30% 94%;
+    --card: 150 12% 10%;
+    --card-foreground: 40 30% 94%;
+    --popover: 150 12% 10%;
+    --popover-foreground: 40 30% 94%;
+    --primary: 150 30% 60%;
+    --primary-foreground: 150 20% 12%;
+    --secondary: 150 10% 18%;
+    --secondary-foreground: 40 30% 94%;
+    --muted: 150 10% 18%;
+    --muted-foreground: 40 12% 65%;
+    --accent: 18 60% 60%;
+    --accent-foreground: 40 30% 94%;
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 40 30% 94%;
+    --border: 150 10% 22%;
+    --input: 150 10% 22%;
+    --ring: 150 30% 60%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Fraunces', Georgia, serif;
+    font-feature-settings: "ss01";
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+  .bg-gradient-warm { background-image: var(--gradient-warm); }
+  .bg-gradient-sage { background-image: var(--gradient-sage); }
+  .bg-gradient-aura { background-image: var(--gradient-aura); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .transition-smooth { transition: all 500ms var(--transition-smooth); }
+  .hover-lift { transition: transform 500ms var(--transition-smooth), box-shadow 500ms var(--transition-smooth); }
+  .hover-lift:hover { transform: translateY(-6px); box-shadow: var(--shadow-elegant); }
+  .underline-grow { background-image: linear-gradient(hsl(var(--accent)), hsl(var(--accent))); background-size: 0% 2px; background-position: 0 100%; background-repeat: no-repeat; transition: background-size 400ms var(--transition-smooth); }
+  .underline-grow:hover { background-size: 100% 2px; }
+}

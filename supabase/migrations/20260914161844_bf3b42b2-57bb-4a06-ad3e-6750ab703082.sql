@@ -1,0 +1,1 @@
+alter table public.bookings add column if not exists client_name text; update public.bookings b set client_name = p.full_name from public.profiles p where p.id = b.client_id and b.client_name is null;
