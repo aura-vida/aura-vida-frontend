@@ -43,6 +43,11 @@ export default {
           foreground: "hsl(var(--accent-foreground))",
           soft: "hsl(var(--accent-soft))",
         },
+        hero: {
+          clay: "hsl(var(--hero-clay))",
+          "clay-soft": "hsl(var(--hero-clay-soft))",
+          cream: "hsl(var(--hero-cream))",
+        },
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",

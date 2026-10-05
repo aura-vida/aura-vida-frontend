@@ -21,6 +21,7 @@ const Nav = () => {
         <a href="/#digital" className="hover:text-foreground transition-colors">Library</a>
         <Link to="/guides" className="hover:text-foreground transition-colors">Guides</Link>
         <a href="/#healers" className="hover:text-foreground transition-colors">For Healers</a>
+        <Link to="/list-your-space" className="hover:text-foreground transition-colors">List your space</Link>
       </div>
       <div className="flex items-center gap-2">
         <Link to="/guides" className="md:hidden">
@@ -62,6 +63,7 @@ const Nav = () => {
           <a onClick={close} href="/#digital" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Library</a>
           <Link onClick={close} to="/guides" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Guides · Book</Link>
           <a onClick={close} href="/#healers" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">For Healers</a>
+          <Link onClick={close} to="/list-your-space" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">List your space</Link>
           <Link onClick={close} to={user ? "/account" : "/auth"}>
             <Button className="w-full mt-2 rounded-full bg-foreground text-background hover:bg-foreground/90 h-11">
               {user ? "My sessions" : "Sign in"}

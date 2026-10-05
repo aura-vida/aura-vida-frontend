@@ -43,6 +43,10 @@
     --accent-foreground: 40 40% 98%;
     --accent-soft: 18 85% 84%;
 
+    --hero-clay: 14 45% 38%;         /* terracotta clay, lighter */
+    --hero-clay-soft: 16 42% 46%;
+    --hero-cream: 38 42% 95%;
+
     --destructive: 0 75% 52%;
     --destructive-foreground: 40 40% 98%;
 

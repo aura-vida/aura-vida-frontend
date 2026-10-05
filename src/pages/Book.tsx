@@ -11,11 +11,11 @@ import { cn } from "@/lib/utils";
 type Location = "host" | "centre" | "online";
 
 const CENTRES = [
-  { name: "Anahata Wellness Studio", area: "Bandra West, Mumbai", pin: 400050 },
+  { name: "Anahata Studio", area: "Bandra West, Mumbai", pin: 400050 },
   { name: "Prana Healing House", area: "Indiranagar, Bengaluru", pin: 560038 },
   { name: "Sattva Sanctuary", area: "Hauz Khas, New Delhi", pin: 110016 },
   { name: "Tarang Centre", area: "Adyar, Chennai", pin: 600020 },
-  { name: "Bodhi Wellness Loft", area: "Koregaon Park, Pune", pin: 411001 },
+  { name: "Bodhi Loft", area: "Koregaon Park, Pune", pin: 411001 },
   { name: "Antara Healing Rooms", area: "Salt Lake, Kolkata", pin: 700091 },
   { name: "Surya Studio", area: "Banjara Hills, Hyderabad", pin: 500034 },
   { name: "Veda Sanctuary", area: "Vastrapur, Ahmedabad", pin: 380015 },
@@ -36,7 +36,7 @@ const Book = () => {
 
   const options: { id: Location; icon: typeof Home; title: string; body: string }[] = [
     { id: "host", icon: Home, title: "I'll host at home", body: "A vetted practitioner travels to your space." },
-    { id: "centre", icon: Building2, title: "A centre near me", body: "Book a session at a partner wellness space." },
+    { id: "centre", icon: Building2, title: "A partner space near me", body: "Book a session at a vetted partner space." },
     { id: "online", icon: Video, title: "Online session", body: "Join from anywhere via private video." },
   ];
 
@@ -49,7 +49,7 @@ const Book = () => {
           Where would you like your <em className="italic text-primary">session</em> to happen?
         </h1>
         <p className="text-muted-foreground mt-4 max-w-xl">
-          Choose between hosting at home, visiting a partner centre near you, or joining online.
+          Choose between hosting at home, visiting a partner space near you, or joining online.
         </p>
 
         <div className="grid md:grid-cols-3 gap-4 mt-12">
@@ -76,7 +76,7 @@ const Book = () => {
 
         {location === "centre" && (
           <div className="mt-12 rounded-[1.5rem] border border-border bg-card p-6 lg:p-8">
-            <Label htmlFor="pin" className="text-sm font-medium">Enter your PIN code to find the nearest centres</Label>
+            <Label htmlFor="pin" className="text-sm font-medium">Enter your PIN code to find the nearest partner spaces</Label>
             <div className="flex gap-2 mt-3 max-w-md">
               <Input
                 id="pin"

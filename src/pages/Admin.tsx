@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import Nav from "@/components/aura/Nav";
+import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
 
 type Practitioner = {
   id: string;
@@ -22,6 +23,7 @@ type Practitioner = {
   price_inr: number;
   image_url: string | null;
   bio: string | null;
+  keywords: string[] | null;
   sort_order: number;
   is_published: boolean;
   bookable: boolean;
@@ -49,6 +51,7 @@ const blank = (order: number): Omit<Practitioner, "id"> => ({
   price_inr: 0,
   image_url: null,
   bio: "",
+  keywords: [],
   sort_order: order,
   is_published: false,
   bookable: false,
@@ -287,6 +290,21 @@ const Admin = () => {
                     <Label>About this practitioner</Label>
                     <Textarea rows={3} value={row.bio ?? ""} onChange={(e) => update(row.id, { bio: e.target.value })} />
                   </div>
+                  <div className="sm:col-span-2">
+                    <Label>Focus areas (what clients search for — comma separated)</Label>
+                    <Input
+                      value={(row.keywords ?? []).join(", ")}
+                      placeholder="addiction, alcohol, anxiety, sleep, trauma"
+                      onChange={(e) =>
+                        update(row.id, {
+                          keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      These power the site search — include everyday words clients might type, like "alcohol" or "insomnia".
+                    </p>
+                  </div>
                   <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
                     <label className="flex items-center gap-2 text-sm">
                       <Switch checked={row.is_published} onCheckedChange={(v) => update(row.id, { is_published: v })} />
@@ -358,6 +376,8 @@ const Admin = () => {
             </section>
           ))}
         </div>
+
+        <SpaceListingsAdmin />
       </main>
     </div>
   );

@@ -180,6 +180,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_published: boolean
+          keywords: string[]
           name: string
           price_inr: number
           rating: number
@@ -197,6 +198,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_published?: boolean
+          keywords?: string[]
           name: string
           price_inr?: number
           rating?: number
@@ -214,6 +216,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_published?: boolean
+          keywords?: string[]
           name?: string
           price_inr?: number
           rating?: number
@@ -293,6 +296,60 @@ export type Database = {
         }
         Relationships: []
       }
+      space_listings: {
+        Row: {
+          address: string
+          amenities: string | null
+          availability: string | null
+          capacity: number
+          city: string
+          contact_name: string
+          created_at: string
+          email: string
+          id: string
+          notes: string | null
+          phone: string | null
+          pin: string
+          space_name: string
+          space_type: string | null
+          status: string
+        }
+        Insert: {
+          address: string
+          amenities?: string | null
+          availability?: string | null
+          capacity?: number
+          city: string
+          contact_name: string
+          created_at?: string
+          email: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          pin: string
+          space_name: string
+          space_type?: string | null
+          status?: string
+        }
+        Update: {
+          address?: string
+          amenities?: string | null
+          availability?: string | null
+          capacity?: number
+          city?: string
+          contact_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          pin?: string
+          space_name?: string
+          space_type?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -311,6 +368,24 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      waitlist: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
         }
         Relationships: []
       }

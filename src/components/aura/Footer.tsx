@@ -11,6 +11,7 @@ const Footer = () => (
           ]},
           { h: "For Healers", l: [
             { label: "Apply to join", href: "mailto:sahil.dhanani@kusala.in?subject=Practitioner%20Application%20%E2%80%94%20Ku%C5%9Bala" },
+            { label: "List your space", href: "/list-your-space" },
             { label: "Tools & pricing", href: "/#healers" },
             { label: "Practitioner academy", href: "/#healers" },
             { label: "Stories", href: "/#healers" },

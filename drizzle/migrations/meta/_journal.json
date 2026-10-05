@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790838453999,
+      "tag": "0000_add_practitioner_keywords",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790842572757,
+      "tag": "0001_create_waitlist",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790842997688,
+      "tag": "0002_create_space_listings",
+      "breakpoints": true
+    }
+  ]
+}

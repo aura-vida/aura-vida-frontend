@@ -12,6 +12,7 @@ const featured = [
 const all = [
   "Meditation", "Yoga", "Reiki & Energy Healing", "Holistic Life Coaching",
   "Breathwork", "Sound Healing", "Theta Healing", "Astrology", "Tarot",
+  "Craniosacral Therapy",
 ];
 
 const Modalities = () => (
@@ -21,7 +22,7 @@ const Modalities = () => (
         <div>
           <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Our Services</span>
           <h2 className="font-display text-4xl md:text-6xl mt-4 text-balance max-w-3xl">
-            Nine paths to healing, <em className="italic text-primary font-display">honoured.</em>
+            Ten paths to healing, <em className="italic text-primary font-display">honoured.</em>
           </h2>
         </div>
         <p className="text-muted-foreground max-w-md text-pretty">
@@ -65,9 +66,9 @@ const Modalities = () => (
         ))}
       </div>
 
-      {/* Full list of nine — editorial */}
+      {/* Full list of ten — editorial */}
       <div className="border-t border-border pt-12">
-        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-8">All nine modalities</div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-8">All ten modalities</div>
         <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-8 gap-y-2">
           {all.map((s, i) => (
             <li key={s} className="group flex items-baseline gap-5 py-5 border-b border-border/60 cursor-pointer">

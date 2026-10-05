@@ -19,11 +19,11 @@ type Location = "host" | "centre" | "online";
 type Centre = { name: string; area: string; pin: number; capacity: number };
 
 const FALLBACK_CENTRES: Centre[] = [
-  { name: "Anahata Wellness Studio", area: "Bandra West, Mumbai", pin: 400050, capacity: 6 },
+  { name: "Anahata Studio", area: "Bandra West, Mumbai", pin: 400050, capacity: 6 },
   { name: "Prana Healing House", area: "Indiranagar, Bengaluru", pin: 560038, capacity: 4 },
   { name: "Sattva Sanctuary", area: "Hauz Khas, New Delhi", pin: 110016, capacity: 6 },
   { name: "Tarang Centre", area: "Adyar, Chennai", pin: 600020, capacity: 2 },
-  { name: "Bodhi Wellness Loft", area: "Koregaon Park, Pune", pin: 411001, capacity: 6 },
+  { name: "Bodhi Loft", area: "Koregaon Park, Pune", pin: 411001, capacity: 6 },
   { name: "Antara Healing Rooms", area: "Salt Lake, Kolkata", pin: 700091, capacity: 3 },
   { name: "Surya Studio", area: "Banjara Hills, Hyderabad", pin: 500034, capacity: 5 },
   { name: "Veda Sanctuary", area: "Vastrapur, Ahmedabad", pin: 380015, capacity: 4 },
@@ -171,7 +171,7 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
 
   const options: { id: Location; icon: typeof Home; title: string; body: string }[] = [
     { id: "host", icon: Home, title: "I'll host", body: "Practitioner comes to your home" },
-    { id: "centre", icon: Building2, title: "Centre near me", body: "Book a partner space close by" },
+    { id: "centre", icon: Building2, title: "Partner space near me", body: "Book a vetted partner space close by" },
     { id: "online", icon: Video, title: "Online", body: "Live video session from anywhere" },
   ];
 
@@ -313,7 +313,7 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
 
             {searched && isGroup && (
               <p className="text-xs text-muted-foreground">
-                Showing centres that can seat all {groupSize} of you.
+                Showing partner spaces that can seat all {groupSize} of you.
               </p>
             )}
 
@@ -346,7 +346,7 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
             {searched && nearest.length === 0 && byDistance.length > 0 && (
               <div className="rounded-2xl border border-border p-4 bg-secondary/40 space-y-2">
                 <p className="text-sm text-foreground">
-                  No partner centre near you can seat {groupSize} people yet.
+                  No partner space near you can seat {groupSize} people yet.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   You could host the group at your home, meet online, book a smaller group, or{" "}
