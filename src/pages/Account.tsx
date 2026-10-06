@@ -9,20 +9,8 @@ import { CalendarDays, MapPin, Video, Home, NotebookPen, Users } from "lucide-re
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
 
-interface Booking {
-  id: string;
-  practitioner_name: string;
-  mode: string;
-  pin: string | null;
-  scheduled_at: string | null;
-  status: string;
-  amount: number | null;
-  aftercare_notes: string | null;
-  created_at: string;
-  group_size: number | null;
-  attendees: string[] | null;
-  item_id: string;
-}
+import { listPractitioners } from "@/lib/practitionersApi";
+import { getMyAppointments, type Appointment as Booking } from "@/lib/usersApi";
 
 const modeIcon = (mode: string) => (mode === "online" ? Video : mode === "host" ? Home : MapPin);
 const modeLabel = (mode: string) =>
@@ -41,24 +29,22 @@ const Account = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("bookings")
-      .select("*")
-      .eq("client_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setBookings((data ?? []) as Booking[]);
+    getMyAppointments()
+      .then((data) => {
+        setBookings(data.appointments);
+        setFetching(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load sessions:", err);
         setFetching(false);
       });
   }, [user]);
 
   useEffect(() => {
-    supabase
-      .from("practitioners")
-      .select("slug, craft")
-      .then(({ data }) => {
+    listPractitioners({ limit: 100 })
+      .then((data) => {
         const map: Record<string, string> = {};
-        (data ?? []).forEach((p) => {
+        data.practitioners.forEach((p) => {
           if (p.craft) map[p.slug] = p.craft.split("·")[0].trim();
         });
         setCraftBySlug(map);
@@ -84,7 +70,8 @@ const Account = () => {
                 <Button variant="outline" className="rounded-full h-11 px-6 border-foreground/20">Practitioner area</Button>
               </Link>
             )}
-            <Button onClick={() => signOut()} variant="outline" className="rounded-full h-11 px-6 border-foreground/20">
+            {profile?.role === "admin" && (<Link to="/admin"><Button variant="outline" className="rounded-full h-11 px-6 border-foreground/20 mr-3">Admin Dashboard</Button></Link>)}
+              <Button onClick={() => signOut()} variant="outline" className="rounded-full h-11 px-6 border-foreground/20">
               Sign out
             </Button>
           </div>

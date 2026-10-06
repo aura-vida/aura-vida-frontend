@@ -1,17 +1,20 @@
+import { useMemo } from "react";
 import programmeImg from "@/assets/digital-programme.jpg";
 import audioImg from "@/assets/digital-audio.jpg";
 import ebookImg from "@/assets/digital-ebooks.jpg";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Headphones, Layers } from "lucide-react";
+import { useServices } from "@/hooks/useServices";
+import { formatINR } from "@/lib/pricing";
+import type { Service } from "@/lib/servicesApi";
 
-const products = [
+const fallbackProducts = [
   {
     icon: Layers,
     tag: "Programmes",
     name: "Structured Healing Programmes",
     body: "Multi-week journeys built by certified guides — daily practices, reflection prompts and progress tracking.",
     img: programmeImg,
-    itemId: "digital-programme",
     price: "₹2,499",
   },
   {
@@ -20,7 +23,6 @@ const products = [
     name: "Guided Meditation Sessions",
     body: "A growing library of guided meditations from our healers — from morning grounding to deep evening rest.",
     img: audioImg,
-    itemId: "digital-audio",
     price: "₹499",
   },
   {
@@ -29,12 +31,36 @@ const products = [
     name: "Educational E-books & Guides",
     body: "Carefully written guides on modalities, philosophies and self-practice — for the curious and the committed.",
     img: ebookImg,
-    itemId: "digital-ebook",
     price: "₹799",
   },
 ];
 
+const fallbackImgs = [programmeImg, audioImg, ebookImg];
+const icons = [Layers, Headphones, BookOpen];
+
+const iconFor = (category: string | null, index: number) => {
+  const c = (category ?? "").toLowerCase();
+  if (c.includes("audio") || c.includes("meditat")) return Headphones;
+  if (c.includes("book") || c.includes("guide")) return BookOpen;
+  return icons[index % icons.length];
+};
+
+const toCard = (s: Service, index: number) => ({
+  icon: iconFor(s.category, index),
+  tag: s.category || "Service",
+  name: s.name,
+  body: s.description || (s.duration_min ? `${s.duration_min} minute session` : "A Kuśala wellness offering."),
+  img: s.image_url || fallbackImgs[index % fallbackImgs.length],
+  price: s.price_inr != null ? formatINR(s.price_inr) : "—",
+});
+
 const DigitalProducts = () => {
+  const { services } = useServices();
+  const products = useMemo(
+    () => (services.length ? services.slice(0, 6).map(toCard) : fallbackProducts),
+    [services],
+  );
+
   return (
   <section id="digital" className="bg-background py-24 lg:py-32">
     <div className="max-w-[1500px] mx-auto px-6 lg:px-12">

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { listPractitionerAppointments } from "@/lib/appointmentsApi";
 
 interface Booking {
   id: string;
@@ -35,15 +36,16 @@ const PractitionerArea = () => {
 
   useEffect(() => {
     if (!profile?.practitioner_slug) return;
-    supabase
-      .from("bookings")
-      .select("*")
-      .eq("practitioner_slug", profile.practitioner_slug)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        const rows = (data ?? []) as Booking[];
-        setBookings(rows);
-        setDrafts(Object.fromEntries(rows.map((r) => [r.id, r.aftercare_notes ?? ""])));
+    
+    // Fetch via backend API
+    listPractitionerAppointments()
+      .then((res: any) => {
+         const rows = (res.appointments ?? []) as Booking[];
+         setBookings(rows);
+         setDrafts(Object.fromEntries(rows.map((r) => [r.id, r.aftercare_notes ?? ""])));
+      })
+      .catch((err) => {
+         console.error("Failed to fetch appointments via API:", err);
       });
   }, [profile?.practitioner_slug]);
 

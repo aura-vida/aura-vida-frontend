@@ -7,6 +7,7 @@ import { Home, Building2, Video, MapPin, Search, ArrowRight, User, Users, Minus,
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { startCheckout } from "@/lib/razorpay";
+import { createAppointment } from "@/lib/appointmentsApi";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,92 +89,41 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
       return;
     }
     setPaying(true);
-    await startCheckout({
-      itemId,
-      groupSize,
-      customerName: name,
-      customerEmail: email,
-      customerPhone: phone,
-      details: {
-        location,
+    
+    try {
+      // 1. Create the appointment in our custom Node.js backend first
+      const booking = await createAppointment({
+        practitioner_slug: itemId,
+        client_name: name.trim(),
+        mode: location,
         pin: location === "centre" ? pin : null,
-        practitioner: practitionerName ?? null,
+        group_size: groupSize,
         attendees,
-      },
-      onSuccess: async () => {
-        if (user) {
-          await supabase.from("bookings").insert({
-            client_id: user.id,
-            client_name: name,
-            practitioner_slug: itemId,
-            practitioner_name: practitionerName ?? "Kuśala session",
-            item_id: itemId,
-            amount: payable ? payable * 100 : null,
-            mode: location,
-            pin: location === "centre" ? pin : null,
-            status: "upcoming",
-            group_size: groupSize,
-            attendees,
-          });
-        }
-        setPaying(false);
-        setOpen(false);
-        toast({ title: "Payment received", description: "Your session is confirmed — we'll email you the details shortly." });
-      },
-      onError: (message) => {
-        setPaying(false);
-        toast({ title: "Payment not completed", description: message, variant: "destructive" });
-      },
-      onDismiss: () => setPaying(false),
-    });
+      });
+
+      // 2. Start Razorpay checkout using the booking.id
+      await startCheckout({
+        bookingId: booking.id,
+        customerName: name,
+        customerEmail: email,
+        customerPhone: phone,
+        onSuccess: () => {
+          setPaying(false);
+          setOpen(false);
+          toast({ title: "Booking confirmed", description: "We will email you the session details shortly." });
+        },
+        onError: (msg) => {
+          setPaying(false);
+          toast({ title: "Payment failed", description: msg, variant: "destructive" });
+        },
+        onDismiss: () => setPaying(false),
+      });
+    } catch (error: any) {
+      setPaying(false);
+      toast({ title: "Booking failed", description: error.message || "Could not create appointment", variant: "destructive" });
+    }
   };
 
-  const [centres, setCentres] = useState<Centre[]>(FALLBACK_CENTRES);
-
-  useEffect(() => {
-    supabase
-      .from("centres")
-      .select("name, area, pin, capacity")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .then(({ data }) => {
-        if (data && data.length) {
-          setCentres(
-            data.map((c) => ({
-              name: c.name,
-              area: c.area,
-              pin: parseInt(c.pin, 10) || 0,
-              capacity: c.capacity,
-            })),
-          );
-        }
-      });
-  }, []);
-
-  const byDistance = useMemo(() => {
-    const n = parseInt(pin, 10);
-    if (!n || pin.length !== 6) return [];
-    return [...centres]
-      .map((c) => ({ ...c, distance: Math.abs(c.pin - n) }))
-      .sort((a, b) => a.distance - b.distance);
-  }, [pin, centres]);
-
-  const nearest = useMemo(
-    () => byDistance.filter((c) => c.capacity >= groupSize).slice(0, 3),
-    [byDistance, groupSize],
-  );
-  const tooSmall = useMemo(
-    () => byDistance.filter((c) => c.capacity < groupSize).slice(0, 2),
-    [byDistance, groupSize],
-  );
-
-  const handleSearch = () => setSearched(true);
-
-  const options: { id: Location; icon: typeof Home; title: string; body: string }[] = [
-    { id: "host", icon: Home, title: "I'll host", body: "Practitioner comes to your home" },
-    { id: "centre", icon: Building2, title: "Partner space near me", body: "Book a vetted partner space close by" },
-    { id: "online", icon: Video, title: "Online", body: "Live video session from anywhere" },
-  ];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

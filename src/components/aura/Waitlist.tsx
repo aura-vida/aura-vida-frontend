@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+﻿import { useState } from "react";
+import { submitContact } from "@/lib/contactApi";
 import { Button } from "@/components/ui/button";
 import coupleImage from "@/assets/waitlist-couple.jpg";
 
@@ -17,13 +17,16 @@ const Waitlist = () => {
       return;
     }
     setStatus("loading");
-    const { error } = await supabase
-      .from("waitlist")
-      .insert({ email: trimmed });
-    if (error) {
-      if (error.code === "23505") {
+    try {
+      await submitContact({
+        name: "Waitlist Signup",
+        email: trimmed,
+        message: "User wants to join the waitlist for the app."
+      });
+    } catch (error: any) {
+      if (error.message && error.message.includes("already")) {
         setStatus("done");
-        setMessage("You're already on the list — we'll be in touch soon.");
+        setMessage("You\'re already on the list — we\'ll be in touch soon.");
       } else {
         setStatus("error");
         setMessage("Something went wrong. Please try again.");

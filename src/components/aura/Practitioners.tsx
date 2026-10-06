@@ -2,25 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Star, MapPin, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
 import BookingDialog from "@/components/aura/BookingDialog";
+import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import p1 from "@/assets/practitioner-1.jpg";
 import p2 from "@/assets/practitioner-2.jpg";
 import p3 from "@/assets/practitioner-3.jpg";
 import p4 from "@/assets/practitioner-4.jpg";
 
-type Row = {
-  slug: string;
-  name: string;
-  craft: string;
-  city: string;
-  rating: number;
-  price_inr: number;
-  image_url: string | null;
-  bio: string | null;
-  keywords: string[] | null;
-  bookable: boolean;
-};
 
 const fallbackImages: Record<string, string> = {
   "session-lila-moreau": p1,
@@ -65,18 +53,15 @@ const expandWord = (word: string): string[] => {
 const SUGGESTIONS = ["Anxiety & stress", "Alcohol addiction", "Better sleep", "Grief & loss", "Chronic pain"];
 
 const Practitioners = () => {
-  const [people, setPeople] = useState<Row[]>([]);
+  const [people, setPeople] = useState<Practitioner[]>([]);
   const [query, setQuery] = useState(
     () => new URLSearchParams(window.location.search).get("q") ?? ""
   );
 
   useEffect(() => {
-    supabase
-      .from("practitioners")
-      .select("slug,name,craft,city,rating,price_inr,image_url,bio,keywords,bookable")
-      .eq("is_published", true)
-      .order("sort_order", { ascending: true })
-      .then(({ data }) => setPeople((data ?? []) as Row[]));
+    listPractitioners({ limit: 100 })
+      .then((data) => setPeople(data.practitioners))
+      .catch((err) => console.error("Failed to load practitioners:", err));
   }, []);
 
   const visible = useMemo(() => {

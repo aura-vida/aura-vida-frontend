@@ -8,6 +8,7 @@ import Guides from "./pages/Guides.tsx";
 import ValuesPage from "./pages/Values.tsx";
 import Book from "./pages/Book.tsx";
 import AuthPage from "./pages/Auth.tsx";
+import ResetPassword from "./pages/ResetPassword.tsx";
 import Account from "./pages/Account.tsx";
 import PractitionerArea from "./pages/PractitionerArea.tsx";
 import Admin from "./pages/Admin.tsx";
@@ -31,6 +32,8 @@ const App = () => (
             <Route path="/values" element={<ValuesPage />} />
             <Route path="/book" element={<Book />} />
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/account" element={<Account />} />
             <Route path="/practitioner" element={<PractitionerArea />} />
             <Route path="/admin" element={<Admin />} />

@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 declare global {
   interface Window {
@@ -25,12 +25,10 @@ const loadScript = () =>
   });
 
 export interface CheckoutOptions {
-  itemId: string;
-  groupSize?: number;
+  bookingId: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
-  details?: Record<string, unknown>;
   onSuccess?: () => void;
   onError?: (message: string) => void;
   onDismiss?: () => void;
@@ -40,18 +38,18 @@ export const startCheckout = async (opts: CheckoutOptions) => {
   const ok = await loadScript();
   if (!ok) return opts.onError?.("Could not load the payment window. Please check your connection.");
 
-  const { data, error } = await supabase.functions.invoke("razorpay-create-order", {
-    body: {
-      itemId: opts.itemId,
-      groupSize: opts.groupSize ?? 1,
-      customerName: opts.customerName,
-      customerEmail: opts.customerEmail,
-      customerPhone: opts.customerPhone,
-      details: opts.details ?? {},
-    },
-  });
+  let data;
+  try {
+    data = await api("/api/payments/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: { booking_id: opts.bookingId }
+    });
+  } catch (e: any) {
+    return opts.onError?.(e.message || "Could not start the payment. Please try again.");
+  }
 
-  if (error || !data?.orderId) {
+  if (!data?.orderId) {
     return opts.onError?.(data?.error ?? "Could not start the payment. Please try again.");
   }
 
@@ -70,11 +68,16 @@ export const startCheckout = async (opts: CheckoutOptions) => {
     theme: { color: "#2f8f7f" },
     modal: { ondismiss: () => opts.onDismiss?.() },
     handler: async (response: Record<string, string>) => {
-      const { data: v, error: vErr } = await supabase.functions.invoke("razorpay-verify-payment", {
-        body: response,
-      });
-      if (vErr || !v?.verified) return opts.onError?.("We couldn't confirm your payment. Please contact us.");
-      opts.onSuccess?.();
+      try {
+        await api("/api/payments/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: response
+        });
+        opts.onSuccess?.();
+      } catch (e) {
+        return opts.onError?.("We couldn't confirm your payment. Please contact us.");
+      }
     },
   });
 

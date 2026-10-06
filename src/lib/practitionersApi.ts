@@ -1,0 +1,68 @@
+import { api } from "@/lib/api";
+
+export interface Practitioner {
+  id?: string;
+  slug: string;
+  name: string;
+  bio?: string | null;
+  city: string | null;
+  craft: string | null;
+  rating: number;
+  sessions?: number;
+  price_inr: number;
+  image_url: string | null;
+  bookable: boolean;
+  is_published?: boolean;
+  sort_order?: number;
+}
+
+export interface PractitionersListResponse {
+  practitioners: Practitioner[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export const listPractitioners = (params?: { craft?: string; city?: string; bookable?: boolean; page?: number; limit?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.craft) qs.append("craft", params.craft);
+  if (params?.city) qs.append("city", params.city);
+  if (params?.bookable !== undefined) qs.append("bookable", String(params.bookable));
+  if (params?.page) qs.append("page", String(params.page));
+  if (params?.limit) qs.append("limit", String(params.limit));
+  const queryString = qs.toString();
+  return api<PractitionersListResponse>(`/api/practitioners${queryString ? `?${queryString}` : ""}`);
+};
+
+export const getPractitioner = (slug: string) => 
+  api<{ practitioner: Practitioner }>(`/api/practitioners/${slug}`);
+
+export const getMyPractitionerProfile = () => 
+  api<{ practitioner: Practitioner }>("/api/practitioners/me");
+
+export const updateMyPractitionerProfile = (fields: Partial<Practitioner>) => 
+  api<{ message: string; practitioner: Practitioner }>("/api/practitioners/me", {
+    method: "PATCH",
+    body: fields,
+  });
+
+
+export const adminCreatePractitioner = (fields: Partial<Practitioner>) => 
+  api<{ message: string; practitioner: Practitioner }>("/api/admin/practitioners", {
+    method: "POST",
+    body: fields,
+  });
+
+export const adminUpdatePractitioner = (id: string, fields: Partial<Practitioner>) => 
+  api<{ message: string; practitioner: Practitioner }>(`/api/admin/practitioners/${id}`, {
+    method: "PATCH",
+    body: fields,
+  });
+
+export const adminDeletePractitioner = (id: string) => 
+  api<{ message: string }>(`/api/admin/practitioners/${id}`, {
+    method: "DELETE",
+  });

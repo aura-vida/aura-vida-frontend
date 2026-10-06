@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,33 +11,10 @@ import { toast } from "sonner";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import Nav from "@/components/aura/Nav";
 import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
+import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 
-type Practitioner = {
-  id: string;
-  slug: string;
-  name: string;
-  craft: string;
-  city: string;
-  rating: number;
-  sessions: number;
-  price_inr: number;
-  image_url: string | null;
-  bio: string | null;
-  keywords: string[] | null;
-  sort_order: number;
-  is_published: boolean;
-  bookable: boolean;
-};
 
-type Centre = {
-  id: string;
-  name: string;
-  area: string;
-  pin: string;
-  capacity: number;
-  is_active: boolean;
-  sort_order: number;
-};
+
 
 const SIGNED_URL_TTL = 60 * 60 * 24 * 365 * 5; // 5 years
 
@@ -51,83 +28,48 @@ const blank = (order: number): Omit<Practitioner, "id"> => ({
   price_inr: 0,
   image_url: null,
   bio: "",
-  keywords: [],
   sort_order: order,
   is_published: false,
   bookable: false,
 });
 
 const Admin = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [rows, setRows] = useState<Practitioner[]>([]);
-  const [centres, setCentres] = useState<Centre[]>([]);
   const [busy, setBusy] = useState(false);
+  
 
+  
+  
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
-  }, [user]);
+    setIsAdmin(profile?.role === "admin");
+  }, [user, profile]);
 
   const load = async () => {
-    const { data, error } = await supabase
-      .from("practitioners")
-      .select("*")
-      .order("sort_order", { ascending: true });
-    if (error) toast.error(error.message);
-    else setRows((data ?? []) as Practitioner[]);
-  };
-
-  const loadCentres = async () => {
-    const { data, error } = await supabase
-      .from("centres")
-      .select("*")
-      .order("sort_order", { ascending: true });
-    if (error) toast.error(error.message);
-    else setCentres((data ?? []) as Centre[]);
+    setBusy(true);
+    try {
+      // Temporarily fetching from the public endpoint until the backend team
+      // creates a GET /api/admin/practitioners endpoint to include drafts.
+      const data = await listPractitioners({ limit: 100 });
+      setRows(data.practitioners);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load practitioners");
+    } finally {
+      setBusy(false);
+    }
   };
 
   useEffect(() => {
     if (isAdmin) {
       load();
-      loadCentres();
     }
   }, [isAdmin]);
 
-  const updateCentre = (id: string, patch: Partial<Centre>) =>
-    setCentres((c) => c.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+      
 
-  const saveCentre = async (row: Centre) => {
-    setBusy(true);
-    const { id, ...fields } = row;
-    const { error } = await supabase.from("centres").update(fields).eq("id", id);
-    setBusy(false);
-    if (error) toast.error(error.message);
-    else toast.success(`${row.name || "Centre"} saved`);
-  };
-
-  const addCentre = async () => {
-    const { data, error } = await supabase
-      .from("centres")
-      .insert({ name: "New centre", sort_order: centres.length + 1, capacity: 4, is_active: false })
-      .select()
-      .single();
-    if (error) toast.error(error.message);
-    else setCentres((c) => [...c, data as Centre]);
-  };
-
-  const removeCentre = async (row: Centre) => {
-    if (!confirm(`Remove ${row.name}?`)) return;
-    const { error } = await supabase.from("centres").delete().eq("id", row.id);
-    if (error) toast.error(error.message);
-    else setCentres((c) => c.filter((x) => x.id !== row.id));
-  };
+  
 
   const update = (id: string, patch: Partial<Practitioner>) =>
     setRows((r) => r.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -135,29 +77,34 @@ const Admin = () => {
   const save = async (row: Practitioner) => {
     setBusy(true);
     const { id, ...fields } = row;
-    const { error } = await supabase.from("practitioners").update(fields).eq("id", id);
+    try {
+      await adminUpdatePractitioner(id!, fields);
+      toast.success(`${row.name || "Profile"} saved`);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
     setBusy(false);
-    if (error) toast.error(error.message);
-    else toast.success(`${row.name || "Profile"} saved`);
   };
 
   const addNew = async () => {
     const draft = blank(rows.length + 1);
     const slug = `practitioner-${Date.now()}`;
-    const { data, error } = await supabase
-      .from("practitioners")
-      .insert({ ...draft, slug, name: "New practitioner" })
-      .select()
-      .single();
-    if (error) toast.error(error.message);
-    else setRows((r) => [...r, data as Practitioner]);
+    try {
+      const data = await adminCreatePractitioner({ ...draft, slug, name: "New practitioner" });
+      setRows((r) => [...r, data.practitioner]);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   const remove = async (row: Practitioner) => {
     if (!confirm(`Remove ${row.name}?`)) return;
-    const { error } = await supabase.from("practitioners").delete().eq("id", row.id);
-    if (error) toast.error(error.message);
-    else setRows((r) => r.filter((x) => x.id !== row.id));
+    try {
+      await adminDeletePractitioner(row.id!);
+      setRows((r) => r.filter((x) => x.id !== row.id));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   const uploadPhoto = async (row: Practitioner, file: File) => {
@@ -181,7 +128,7 @@ const Admin = () => {
       return;
     }
     update(row.id, { image_url: signed.signedUrl });
-    await supabase.from("practitioners").update({ image_url: signed.signedUrl }).eq("id", row.id);
+    await adminUpdatePractitioner(row.id, { image_url: signed.signedUrl });
     toast.success("Photo updated");
   };
 
@@ -277,7 +224,7 @@ const Admin = () => {
                       onChange={(e) => update(row.id, { sessions: Number(e.target.value) })} />
                   </div>
                   <div>
-                    <Label>Price per session (₹)</Label>
+                    <Label>Price per session (Γé╣)</Label>
                     <Input type="number" min="0" value={row.price_inr}
                       onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })} />
                   </div>
@@ -291,7 +238,7 @@ const Admin = () => {
                     <Textarea rows={3} value={row.bio ?? ""} onChange={(e) => update(row.id, { bio: e.target.value })} />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label>Focus areas (what clients search for — comma separated)</Label>
+                    <Label>Focus areas (what clients search for - comma separated)</Label>
                     <Input
                       value={(row.keywords ?? []).join(", ")}
                       placeholder="addiction, alcohol, anxiety, sleep, trauma"
@@ -302,7 +249,7 @@ const Admin = () => {
                       }
                     />
                     <p className="text-xs text-muted-foreground mt-1.5">
-                      These power the site search — include everyday words clients might type, like "alcohol" or "insomnia".
+                      These power the site search - include everyday words clients might type, like "alcohol" or "insomnia".
                     </p>
                   </div>
                   <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
@@ -327,57 +274,7 @@ const Admin = () => {
           ))}
         </div>
 
-        <div className="flex items-end justify-between gap-6 mt-20 mb-10">
-          <div>
-            <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Admin</span>
-            <h2 className="font-display text-4xl mt-3">Partner centres</h2>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Add the spaces clients can book. The PIN code is used to find the nearest centre, and capacity is how many people the room can seat.
-            </p>
-          </div>
-          <Button onClick={addCentre} className="rounded-full shrink-0"><Plus className="size-4 mr-1" /> Add</Button>
-        </div>
-
-        <div className="space-y-6">
-          {centres.map((c) => (
-            <section key={c.id} className="rounded-3xl border border-border bg-card p-6 shadow-soft grid sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <Label>Centre name</Label>
-                <Input value={c.name} onChange={(e) => updateCentre(c.id, { name: e.target.value })} />
-              </div>
-              <div>
-                <Label>Area / city</Label>
-                <Input value={c.area} onChange={(e) => updateCentre(c.id, { area: e.target.value })} placeholder="Bandra West, Mumbai" />
-              </div>
-              <div>
-                <Label>PIN code</Label>
-                <Input value={c.pin} maxLength={6} onChange={(e) => updateCentre(c.id, { pin: e.target.value.replace(/\D/g, "") })} placeholder="400050" />
-              </div>
-              <div>
-                <Label>Capacity (people)</Label>
-                <Input type="number" min="1" value={c.capacity} onChange={(e) => updateCentre(c.id, { capacity: Number(e.target.value) })} />
-              </div>
-              <div>
-                <Label>Order in list</Label>
-                <Input type="number" value={c.sort_order} onChange={(e) => updateCentre(c.id, { sort_order: Number(e.target.value) })} />
-              </div>
-              <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch checked={c.is_active} onCheckedChange={(v) => updateCentre(c.id, { is_active: v })} />
-                  Available for booking
-                </label>
-                <div className="ml-auto flex items-center gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => removeCentre(c)} aria-label={`Remove ${c.name}`}>
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
-                  <Button className="rounded-full" disabled={busy} onClick={() => saveCentre(c)}>Save</Button>
-                </div>
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <SpaceListingsAdmin />
+          <SpaceListingsAdmin />
       </main>
     </div>
   );
