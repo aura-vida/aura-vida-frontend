@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,12 @@ const FALLBACK_CENTRES: Centre[] = [
 const LARGE_GROUP_MAILTO =
   "mailto:sahil.dhanani@kusala.in?subject=Large%20group%20session%20enquiry%20%E2%80%94%20Ku%C5%9Bala";
 
+const options: { id: Location; icon: any; title: string; body: string }[] = [
+  { id: "centre", icon: MapPin, title: "Partner Centre", body: "A serene, vetted space near you." },
+  { id: "host", icon: Home, title: "At Home", body: "We come to your sanctuary." },
+  { id: "online", icon: Video, title: "Virtual", body: "Join from anywhere." },
+];
+
 interface Props {
   practitionerName?: string;
   trigger?: React.ReactNode;
@@ -49,7 +55,10 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [isGroup, setIsGroup] = useState(false);
-  const [guests, setGuests] = useState<string[]>([""]);
+  const [guests, setGuests] = useState<string[]>(['']);
+  const handleSearch = () => setSearched(true);
+
+
   const [paying, setPaying] = useState(false);
   const { toast } = useToast();
   const { user, profile } = useAuth();
@@ -68,6 +77,17 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const creditApplied = credit > 0 && total ? Math.min(credit, Math.max(0, total - 100)) : 0;
   const payable = total - creditApplied;
   const extraEach = base ? Math.round(base * 0.6) : 0;
+
+  // Derived state for centre search
+  const userPin = parseInt(pin);
+  const byDistance = FALLBACK_CENTRES.map((c) => ({
+    ...c,
+    distance: Math.abs(c.pin - (userPin || 0)),
+  })).sort((a, b) => a.distance - b.distance);
+
+  const nearest = byDistance.filter((c) => c.capacity >= groupSize).slice(0, 3);
+  const tooSmall = byDistance.filter((c) => c.capacity < groupSize).slice(0, 2);
+
 
   const addGuest = () => {
     if (guests.length >= MAX_GROUP_SIZE - 1) return;
