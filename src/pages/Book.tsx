@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
 import Practitioners from "@/components/aura/Practitioners";
@@ -25,6 +25,7 @@ const Book = () => {
   const [location, setLocation] = useState<Location>("centre");
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
+  const [selectedCentre, setSelectedCentre] = useState("");
 
   const nearest = useMemo(() => {
     const n = parseInt(pin, 10);
@@ -96,28 +97,44 @@ const Book = () => {
               </Button>
             </div>
 
-            {searched && nearest.length > 0 && (
+                        {searched && nearest.length > 0 && (
               <ul className="grid sm:grid-cols-2 gap-3 mt-6">
-                {nearest.map((c, i) => (
-                  <li
-                    key={c.name}
-                    className={cn(
-                      "flex items-start justify-between gap-3 rounded-2xl border p-4",
-                      i === 0 ? "bg-accent-soft border-primary/40" : "border-border bg-background",
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{c.name}</div>
-                        <div className="text-xs text-muted-foreground">{c.area} · {c.pin}</div>
+                {nearest.map((c, i) => {
+                  const isSelected = selectedCentre === c.name;
+                  if (selectedCentre && !isSelected) return null;
+                  return (
+                    <li
+                      key={c.name}
+                      onClick={() => setSelectedCentre(isSelected ? "" : c.name)}
+                      className={cn(
+                        "relative flex items-start justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all hover:border-accent/50",
+                        isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-background border-border",
+                        (!selectedCentre && i === 0) && "bg-accent-soft border-primary/40"
+                      )}
+                    >
+                      <div className="flex items-start gap-3 pr-12">
+                        <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{c.name}</div>
+                          <div className="text-xs text-muted-foreground">{c.area} · {c.pin} · Seats up to {c.capacity} people</div>
+                        </div>
                       </div>
-                    </div>
-                    {i === 0 && (
-                      <span className="text-[10px] uppercase tracking-widest text-accent font-medium shrink-0">Closest</span>
-                    )}
-                  </li>
-                ))}
+                      {(!selectedCentre && i === 0) && (
+                        <span className="text-[10px] uppercase tracking-widest text-accent font-medium shrink-0">Closest</span>
+                      )}
+                      {isSelected && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }} 
+                          className="absolute top-2 right-2 h-8 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Change
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

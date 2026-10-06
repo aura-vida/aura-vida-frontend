@@ -35,3 +35,20 @@ export const listServices = (params: { category?: string; page?: number; limit?:
 
 export const getService = (id: string) =>
   api<{ service: Service }>(`/api/services/${id}`);
+
+export const adminCreateService = (data: Partial<Service>) =>
+  api<{ message: string; service: Service }>(`/api/admin/services`, {
+    method: 'POST',
+    body: data,
+  });
+
+export const adminUpdateService = (id: string, data: Partial<Service>) =>
+  api<{ message: string; service: Service }>(`/api/admin/services/${id}`, {
+    method: 'PATCH',
+    body: data,
+  });
+
+export const adminDeleteService = (id: string) =>
+  api<{ message: string }>(`/api/admin/services/${id}`, {
+    method: 'DELETE',
+  });

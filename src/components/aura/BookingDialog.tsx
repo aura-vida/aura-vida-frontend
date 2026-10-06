@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +9,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { startCheckout } from "@/lib/razorpay";
 import { createAppointment } from "@/lib/appointmentsApi";
+import { useServices } from "@/hooks/useServices";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +51,9 @@ interface Props {
 const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah", price }: Props) => {
   const [open, setOpen] = useState(false);
   const [location, setLocation] = useState<Location>("centre");
+  const { services } = useServices();
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [selectedCentre, setSelectedCentre] = useState<string>("");
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
   const [name, setName] = useState("");
@@ -71,7 +76,8 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   }, [open, profile, user]);
 
   const groupSize = isGroup ? 1 + guests.length : 1;
-  const base = parsePrice(price);
+  const selectedService = services.find(s => s.id === selectedServiceId);
+  const base = selectedService?.price_inr || parsePrice(price);
   const total = base ? groupTotal(base, groupSize) : 0;
   const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
   const creditApplied = credit > 0 && total ? Math.min(credit, Math.max(0, total - 100)) : 0;
@@ -99,6 +105,14 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   };
 
   const handlePay = async () => {
+    if (!selectedServiceId) {
+      toast({ title: "Select a service", description: "Please select a service before proceeding." });
+      return;
+    }
+    if (location === "centre" && !selectedCentre) {
+      toast({ title: "Select a centre", description: "Please select a partner centre from the list before proceeding." });
+      return;
+    }
     if (!name.trim() || !email.trim()) {
       toast({ title: "Almost there", description: "Please add your name and email so we can confirm your session." });
       return;
@@ -160,7 +174,28 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
             {practitionerName ? `Book with ${practitionerName}` : "Book a session"}
           </DialogTitle>
           <DialogDescription>Choose who's coming and where you'd like your session to happen.</DialogDescription>
-        </DialogHeader>
+                </DialogHeader>
+        
+        {/* Service Selection */}
+        <div className="mt-4">
+          <Label className="text-sm font-medium mb-3 block">Select a service</Label>
+          <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
+              <SelectTrigger className="w-full h-14 rounded-2xl border-border px-4 py-3 bg-card hover:border-accent/50 transition-all text-left flex items-center justify-between">
+                <SelectValue placeholder="Choose a service..." />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl border-border max-h-[300px]">
+                {services.filter(s => s.is_active !== false).map(s => (
+                  <SelectItem key={s.id} value={s.id} className="py-3 px-4 cursor-pointer focus:bg-accent/5 focus:text-accent rounded-xl my-1 mx-1">
+                    <div className="flex flex-col">
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground mt-0.5">₹{s.price_inr} · {s.duration_min} min</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+        </div>
+
 
         {/* Solo or group */}
         <div className="grid grid-cols-2 gap-3 mt-2">
@@ -287,29 +322,44 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
               </p>
             )}
 
-            {searched && nearest.length > 0 && (
+                        {searched && nearest.length > 0 && (
               <ul className="space-y-2 pt-2">
-                {nearest.map((c, i) => (
-                  <li
-                    key={c.name}
-                    className={cn(
-                      "flex items-center justify-between gap-3 rounded-2xl border border-border p-4",
-                      i === 0 && "bg-accent-soft border-primary/40",
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{c.name}</div>
-                        <div className="text-xs text-muted-foreground">{c.area} · {c.pin}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">Seats up to {c.capacity} people</div>
+                {nearest.map((c, i) => {
+                  const isSelected = selectedCentre === c.name;
+                  if (selectedCentre && !isSelected) return null;
+                  return (
+                    <li
+                      key={c.name}
+                      onClick={() => setSelectedCentre(isSelected ? "" : c.name)}
+                      className={cn(
+                        "relative flex items-center justify-between gap-3 rounded-2xl border border-border p-4 cursor-pointer transition-all hover:border-accent/50",
+                        isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-card",
+                        (!selectedCentre && i === 0) && "bg-accent-soft border-primary/40"
+                      )}
+                    >
+                      <div className="flex items-start gap-3 w-full pr-16">
+                        <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{c.name}</div>
+                          <div className="text-xs text-muted-foreground">{c.area} · {c.pin} · Seats up to {c.capacity} people</div>
+                        </div>
                       </div>
-                    </div>
-                    {i === 0 && (
-                      <span className="text-[10px] uppercase tracking-widest text-accent font-medium">Closest</span>
-                    )}
-                  </li>
-                ))}
+                      {(!selectedCentre && i === 0) && (
+                        <span className="text-[10px] uppercase tracking-widest text-accent font-medium">Closest</span>
+                      )}
+                      {isSelected && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }} 
+                          className="absolute right-2 h-8 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Change
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -328,7 +378,7 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
               </div>
             )}
 
-            {searched && tooSmall.length > 0 && nearest.length > 0 && (
+            {searched && !selectedCentre && tooSmall.length > 0 && nearest.length > 0 && (
               <ul className="space-y-2 opacity-60">
                 {tooSmall.map((c) => (
                   <li key={c.name} className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-border p-4">

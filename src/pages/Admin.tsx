@@ -1,8 +1,21 @@
+import React from "react";
 ﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { adminCreateService, adminUpdateService, adminDeleteService } from "@/lib/servicesApi";
+import { useServices } from "@/hooks/useServices";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,14 +99,52 @@ const Admin = () => {
     setBusy(false);
   };
 
+  const [isAddPractitionerOpen, setIsAddPractitionerOpen] = useState(false);
+  const [newPractitioner, setNewPractitioner] = useState({
+    name: "",
+    craft: "",
+    city: "",
+    rating: 5,
+    sessions: 0,
+    price_inr: 1500,
+    bio: "",
+  });
+
   const addNew = async () => {
+    if (!newPractitioner.name.trim()) { toast.error("Name is required"); return; }
+    
     const draft = blank(rows.length + 1);
-    const slug = `practitioner-${Date.now()}`;
+    const slug = newPractitioner.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    
     try {
-      const data = await adminCreatePractitioner({ ...draft, slug, name: "New practitioner" });
-      setRows((r) => [...r, data.practitioner]);
+      const data = await adminCreatePractitioner({ 
+        ...draft, 
+        slug, 
+        name: newPractitioner.name.trim(),
+        craft: newPractitioner.craft.trim(),
+        city: newPractitioner.city.trim(),
+        rating: Number(newPractitioner.rating) || 5,
+        sessions: Number(newPractitioner.sessions) || 0,
+        price_inr: Number(newPractitioner.price_inr) || 0,
+        bio: newPractitioner.bio.trim(),
+        is_published: true,
+        bookable: true,
+      });
+      setRows((r) => [data.practitioner, ...r]); 
+      setIsAddPractitionerOpen(false);
+      setNewPractitioner({
+        name: "",
+        craft: "",
+        city: "",
+        rating: 5,
+        sessions: 0,
+        price_inr: 1500,
+        bio: "",
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast.success("Practitioner created!");
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to create practitioner");
     }
   };
 
@@ -166,16 +217,100 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       <Nav />
       <main className="max-w-4xl mx-auto px-6 py-16 lg:py-24">
-        <div className="flex items-end justify-between gap-6 mb-10">
-          <div>
-            <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Admin</span>
-            <h1 className="font-display text-4xl mt-3">Practitioner profiles</h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Upload a photo and edit details. Turn on "Show on site" when a profile is ready, and "Allow booking" to replace Coming soon with a booking button.
-            </p>
-          </div>
-          <Button onClick={addNew} className="rounded-full shrink-0"><Plus className="size-4 mr-1" /> Add</Button>
-        </div>
+        <Tabs defaultValue="practitioners" className="w-full">
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6 mb-10">
+              <div>
+                <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Admin Dashboard</span>
+                <h1 className="font-display text-4xl mt-3">Platform Management</h1>
+              </div>
+              <TabsList className="grid w-full sm:w-[400px] grid-cols-2 rounded-full p-1 bg-secondary border border-border">
+                <TabsTrigger value="practitioners" className="rounded-full">Practitioners</TabsTrigger>
+                <TabsTrigger value="services" className="rounded-full">Services</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="practitioners" className="mt-0">
+              <div className="flex items-center justify-between mb-8">
+                <p className="text-muted-foreground text-sm max-w-lg">
+                  Upload a photo and edit details. Turn on "Show on site" when a profile is ready, and "Allow booking" to replace Coming soon with a booking button.
+                </p>
+                <Button onClick={() => setIsAddPractitionerOpen(true)} className="rounded-full shrink-0"><Plus className="size-4 mr-1" /> Add Practitioner</Button>
+              </div>
+
+              <Dialog open={isAddPractitionerOpen} onOpenChange={setIsAddPractitionerOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Add New Practitioner</DialogTitle>
+                  </DialogHeader>
+                  <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <Label>Name</Label>
+                      <Input 
+                        value={newPractitioner.name} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, name: e.target.value }))} 
+                        placeholder="e.g. Dr. Shah" 
+                      />
+                    </div>
+                    <div>
+                      <Label>Modality / title</Label>
+                      <Input 
+                        value={newPractitioner.craft} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, craft: e.target.value }))} 
+                        placeholder="e.g. Yoga Therapist" 
+                      />
+                    </div>
+                    <div>
+                      <Label>Location</Label>
+                      <Input 
+                        value={newPractitioner.city} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, city: e.target.value }))} 
+                        placeholder="e.g. Mumbai" 
+                      />
+                    </div>
+                    <div>
+                      <Label>Rating</Label>
+                      <Input 
+                        type="number" 
+                        step="0.1" 
+                        min="1" 
+                        max="5" 
+                        value={newPractitioner.rating} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, rating: parseFloat(e.target.value) || 5 }))} 
+                      />
+                    </div>
+                    <div>
+                      <Label>Sessions completed</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        value={newPractitioner.sessions} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, sessions: parseInt(e.target.value) || 0 }))} 
+                      />
+                    </div>
+                    <div>
+                      <Label>Price per session (₹)</Label>
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        value={newPractitioner.price_inr} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, price_inr: parseInt(e.target.value) || 0 }))} 
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>About this practitioner</Label>
+                      <Textarea 
+                        value={newPractitioner.bio} 
+                        onChange={(e) => setNewPractitioner(p => ({ ...p, bio: e.target.value }))} 
+                        className="min-h-[80px]" 
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddPractitionerOpen(false)}>Cancel</Button>
+                    <Button onClick={addNew}>Save Practitioner</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
         <div className="space-y-8">
           {rows.map((row) => (
@@ -275,9 +410,275 @@ const Admin = () => {
         </div>
 
           <SpaceListingsAdmin />
-      </main>
+                  </TabsContent>
+
+            <TabsContent value="services" className="mt-0">
+              <ServicesManager />
+            </TabsContent>
+          </Tabs>
+        </main>
     </div>
   );
 };
 
 export default Admin;
+
+
+const ServicesManager = () => {
+  const { services, loading } = useServices();
+  const [localServices, setLocalServices] = React.useState(services);
+  const [busy, setBusy] = React.useState(false);
+  
+  React.useEffect(() => {
+    setLocalServices(services);
+  }, [services]);
+
+  const [isAddServiceOpen, setIsAddServiceOpen] = React.useState(false);
+  const [newService, setNewService] = React.useState({
+    name: "",
+    category: "",
+    price_inr: 1000,
+    duration_min: 60,
+    description: "",
+  });
+
+  const update = (id: string, patch: any) => {
+    setLocalServices((curr) => curr.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  };
+
+  const addNew = async () => {
+    if (!newService.name.trim()) { toast.error("Name required"); return; }
+    
+    try {
+      const res = await adminCreateService({ 
+        name: newService.name.trim(),
+        category: newService.category.trim(),
+        price_inr: Number(newService.price_inr) || 0,
+        duration_min: Number(newService.duration_min) || 60,
+        description: newService.description.trim(),
+        is_active: true,
+      });
+      setLocalServices([res.service, ...localServices]);
+      setIsAddServiceOpen(false);
+      setNewService({
+        name: "",
+        category: "",
+        price_inr: 1000,
+        duration_min: 60,
+        description: "",
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast.success("Service created!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to create service");
+    }
+  };
+
+  const save = async (row: any) => {
+    setBusy(true);
+    const { id, ...fields } = row;
+    try {
+      await adminUpdateService(id, fields);
+      toast.success(`${row.name || "Service"} saved`);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to update service");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (row: any) => {
+    if (!confirm(`Remove ${row.name}?`)) return;
+    try {
+      await adminDeleteService(row.id);
+      setLocalServices((curr) => curr.filter((s) => s.id !== row.id));
+      toast.success("Service removed");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to delete service");
+    }
+  };
+
+  const uploadPhoto = async (row: any, file: File) => {
+    setBusy(true);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `services/${row.id}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("practitioner-photos")
+      .upload(path, file, { upsert: true });
+    if (upErr) {
+      setBusy(false);
+      toast.error(upErr.message);
+      return;
+    }
+    const { data: signed, error: signErr } = await supabase.storage
+      .from("practitioner-photos")
+      .createSignedUrl(path, SIGNED_URL_TTL);
+    setBusy(false);
+    if (signErr || !signed) {
+      toast.error(signErr?.message ?? "Could not create photo link");
+      return;
+    }
+    update(row.id, { image_url: signed.signedUrl });
+    await adminUpdateService(row.id, { image_url: signed.signedUrl });
+    toast.success("Service photo updated");
+  };
+
+  if (loading) return <div className="text-muted-foreground py-8">Loading services...</div>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-8">
+        <p className="text-muted-foreground text-sm max-w-lg">
+          Add new therapies, update descriptions, categories, and prices. Turn on "Show on site" to make active.
+        </p>
+        <Button onClick={() => setIsAddServiceOpen(true)} className="rounded-full shrink-0"><Plus className="size-4 mr-1" /> Add Service</Button>
+      </div>
+
+      <Dialog open={isAddServiceOpen} onOpenChange={setIsAddServiceOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Service</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <Label>Name</Label>
+              <Input 
+                value={newService.name} 
+                onChange={(e) => setNewService(s => ({ ...s, name: e.target.value }))} 
+                placeholder="e.g. Reiki Healing" 
+              />
+            </div>
+            <div>
+              <Label>Category</Label>
+              <Input 
+                value={newService.category} 
+                onChange={(e) => setNewService(s => ({ ...s, category: e.target.value }))} 
+                placeholder="e.g. Energy Healing" 
+              />
+            </div>
+            <div>
+              <Label>Price (INR)</Label>
+              <Input 
+                type="number" 
+                min="0"
+                value={newService.price_inr} 
+                onChange={(e) => setNewService(s => ({ ...s, price_inr: parseFloat(e.target.value) || 0 }))} 
+              />
+            </div>
+            <div>
+              <Label>Duration (Min)</Label>
+              <Input 
+                type="number" 
+                min="0"
+                value={newService.duration_min} 
+                onChange={(e) => setNewService(s => ({ ...s, duration_min: parseInt(e.target.value) || 0 }))} 
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Description</Label>
+              <Textarea 
+                value={newService.description} 
+                onChange={(e) => setNewService(s => ({ ...s, description: e.target.value }))} 
+                className="min-h-[80px]" 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddServiceOpen(false)}>Cancel</Button>
+            <Button onClick={addNew}>Save Service</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="space-y-8">
+        {localServices.map((row) => (
+          <section key={row.id} className="rounded-3xl border border-border bg-card p-6 shadow-soft">
+            <div className="flex flex-col sm:flex-row gap-6">
+              <div className="sm:w-40 shrink-0">
+                <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
+                  {row.image_url ? (
+                    <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
+                  )}
+                </div>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  className="text-xs"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadPhoto(row, f);
+                  }}
+                />
+              </div>
+
+              <div className="flex-1 grid sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <Label>Name</Label>
+                  <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Category</Label>
+                  <Input value={row.category ?? ""} onChange={(e) => update(row.id, { category: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Duration (Min)</Label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    value={row.duration_min ?? 0} 
+                    onChange={(e) => update(row.id, { duration_min: Number(e.target.value) })} 
+                  />
+                </div>
+                <div>
+                  <Label>Price per session (₹)</Label>
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    value={row.price_inr ?? 0} 
+                    onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })} 
+                  />
+                </div>
+                <div>
+                  <Label>Order on page</Label>
+                  <Input 
+                    type="number" 
+                    value={row.sort_order ?? 0} 
+                    onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })} 
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Description</Label>
+                  <Textarea 
+                    rows={3} 
+                    value={row.description ?? ""} 
+                    onChange={(e) => update(row.id, { description: e.target.value })} 
+                  />
+                </div>
+                <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch 
+                      checked={row.is_active !== false} 
+                      onCheckedChange={(v) => update(row.id, { is_active: v })} 
+                    />
+                    Show on site
+                  </label>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => remove(row)} aria-label={`Remove ${row.name}`}>
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                    <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+};
