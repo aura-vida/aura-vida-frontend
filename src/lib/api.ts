@@ -1,4 +1,4 @@
-const API_URL = "https://4e59-120-72-93-46.ngrok-free.app";
+const API_URL = "https://8e37-120-72-93-46.ngrok-free.app";
 
 export const ACCESS_TOKEN_KEY = "aura_access_token";
 

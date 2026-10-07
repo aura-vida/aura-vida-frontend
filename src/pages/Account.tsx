@@ -29,14 +29,18 @@ import {
   Calendar,
   AlertCircle,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  CreditCard
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
+import { cn } from "@/lib/utils";
+import { useServices } from "@/hooks/useServices";
 
 import { listPractitioners } from "@/lib/practitionersApi";
 import { getMyAppointments, type Appointment as Booking } from "@/lib/usersApi";
 import { cancelAppointment, rescheduleAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
+import { startCheckout } from "@/lib/razorpay";
 
 const DEFAULT_SLOTS = ["09:00", "10:30", "12:00", "14:00", "15:30", "17:00", "18:30"];
 
@@ -56,8 +60,22 @@ const formatPrice = (val: number | null | undefined) => {
   return `₹${inr.toLocaleString("en-IN")}`;
 };
 
+const formatSlotRange = (slot: string, durationMin = 60) => {
+  const [h, m] = slot.split(":").map(Number);
+  const endTotalMin = h * 60 + m + durationMin;
+  const endH = Math.floor(endTotalMin / 60) % 24;
+  const endM = endTotalMin % 60;
+  const startAmpm = h >= 12 ? "PM" : "AM";
+  const endAmpm = endH >= 12 ? "PM" : "AM";
+  return {
+    start: `${h % 12 || 12}:${String(m).padStart(2, "0")} ${startAmpm}`,
+    end: `${endH % 12 || 12}:${String(endM).padStart(2, "0")} ${endAmpm}`,
+  };
+};
+
 const Account = () => {
   const { user, profile, loading, signOut } = useAuth();
+  const { services } = useServices();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -73,6 +91,9 @@ const Account = () => {
 
   // Cancel state
   const [cancelModalBooking, setCancelModalBooking] = useState<Booking | null>(null);
+
+  // Payment state
+  const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth", { replace: true });
@@ -178,6 +199,32 @@ const Account = () => {
     } finally {
       setActionBusy(false);
     }
+  };
+
+  // Handle Pay Pending action via Razorpay
+  const handlePayPending = async (b: Booking) => {
+    setPayingBookingId(b.id);
+    await startCheckout({
+      bookingId: b.id,
+      customerName: profile?.full_name || user?.user_metadata?.full_name || "",
+      customerEmail: user?.email || "",
+      customerPhone: profile?.phone || "",
+      onSuccess: () => {
+        setPayingBookingId(null);
+        toast.success("Payment completed successfully! Your session is now confirmed.");
+        setBookings((prev) =>
+          prev.map((item) => (item.id === b.id ? { ...item, status: "confirmed" } : item))
+        );
+        loadSessions();
+      },
+      onError: (err) => {
+        setPayingBookingId(null);
+        toast.error(err || "Payment failed or was cancelled.");
+      },
+      onDismiss: () => {
+        setPayingBookingId(null);
+      },
+    });
   };
 
   if (loading || !user) return null;
@@ -288,7 +335,7 @@ const Account = () => {
                             : "border-border bg-muted text-muted-foreground"
                         }`}
                       >
-                        {b.status}
+                        {isPending ? "Payment Pending" : b.status}
                       </Badge>
                     </div>
 
@@ -323,9 +370,39 @@ const Account = () => {
                   </div>
                 </div>
 
+                {/* Pending Payment Notice Banner */}
+                {isPending && (
+                  <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="size-4 shrink-0 text-amber-600" />
+                      <span>Payment pending. Complete checkout to secure your practitioner's reservation.</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Customer Action Controls */}
                 {canModify && (
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/50">
+                  <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-border/50">
+                    {isPending && (
+                      <Button
+                        size="sm"
+                        disabled={payingBookingId === b.id}
+                        onClick={() => handlePayPending(b)}
+                        className="rounded-full h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+                      >
+                        {payingBookingId === b.id ? (
+                          <>
+                            <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                            Opening Payment…
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="size-3.5 mr-1.5" />
+                            Pay Now ({formatPrice(b.amount)})
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -367,16 +444,16 @@ const Account = () => {
 
       {/* DIALOG: Reschedule Session */}
       <Dialog open={Boolean(rescheduleBooking)} onOpenChange={(open) => !open && setRescheduleBooking(null)}>
-        <DialogContent className="max-w-md rounded-3xl">
+        <DialogContent className="max-w-lg rounded-3xl p-6 sm:p-8">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl">Reschedule Session</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
               Select a new date and available time slot for your session with{" "}
               <strong>{rescheduleBooking?.practitioner_name}</strong>.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-4">
+          <div className="space-y-5 py-3">
             {/* Date Input */}
             <div className="space-y-2">
               <Label className="text-xs font-medium">Select New Date</Label>
@@ -385,34 +462,46 @@ const Account = () => {
                 min={getTomorrowDate()}
                 value={rescheduleDate}
                 onChange={(e) => setRescheduleDate(e.target.value)}
-                className="h-12 rounded-2xl bg-background"
+                className="h-12 rounded-2xl bg-background px-4 text-sm"
               />
             </div>
 
             {/* Time Slot Picker */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium">Available Time Slots</Label>
-                {loadingSlots && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> checking…</span>}
+                {loadingSlots && (
+                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="size-3 animate-spin" /> checking slots…
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {availableSlots.map((slot) => {
-                  const active = rescheduleTime === slot;
-                  const [h, m] = slot.split(":").map(Number);
-                  const ampm = h >= 12 ? "PM" : "AM";
-                  const formatted = `${h % 12 || 12}:${String(m).padStart(2, "0")} ${ampm}`;
+                  const isSelected = rescheduleTime === slot;
+                  const matchedService = services.find((s) => s.id === rescheduleBooking?.item_id);
+                  const duration = matchedService?.duration_min || 60;
+                  const { start, end } = formatSlotRange(slot, duration);
+
                   return (
                     <button
                       key={slot}
                       type="button"
                       onClick={() => setRescheduleTime(slot)}
-                      className={`h-11 rounded-xl border text-xs font-medium transition-smooth ${
-                        active
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "border-border bg-background hover:bg-secondary text-foreground"
-                      }`}
+                      className={cn(
+                        "flex flex-col items-center justify-center py-2.5 px-3 rounded-2xl border transition-all text-center",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
+                          : "border-border bg-background hover:bg-secondary/50 text-foreground hover:border-foreground/30"
+                      )}
                     >
-                      {formatted}
+                      <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
+                        {start}
+                      </span>
+                      <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                        to {end}
+                      </span>
                     </button>
                   );
                 })}
@@ -420,18 +509,18 @@ const Account = () => {
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button
               variant="outline"
               onClick={() => setRescheduleBooking(null)}
-              className="rounded-full h-11"
+              className="rounded-full h-11 px-6"
             >
               Back
             </Button>
             <Button
               onClick={handleConfirmReschedule}
               disabled={actionBusy || !rescheduleDate || !rescheduleTime}
-              className="rounded-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
+              className="rounded-full h-11 px-7 bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {actionBusy ? "Rescheduling…" : "Confirm Reschedule"}
             </Button>
