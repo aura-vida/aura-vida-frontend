@@ -43,3 +43,89 @@ export async function updatePractitionerAppointmentStatus(id: string, status: st
     body: { status, aftercare_notes },
   });
 }
+
+export type TimeSlot = {
+  start: string;
+  end: string;
+  duration_min?: number;
+  available?: boolean;
+};
+
+export async function getAvailableSlots(slug: string, date: string, serviceId?: string) {
+  const params = new URLSearchParams({ slug, date });
+  if (serviceId) params.append("serviceId", serviceId);
+  return api<{ date: string; slots: TimeSlot[] }>(`/api/appointments/available-slots?${params.toString()}`);
+}
+
+export async function cancelAppointment(id: string) {
+  return api(`/api/appointments/${id}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function rescheduleAppointment(id: string, date: string, time: string) {
+  return api(`/api/appointments/${id}/reschedule`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: { date, time },
+  });
+}
+
+export type AdminBooking = {
+  id: string;
+  client_id: string;
+  client_name?: string | null;
+  practitioner_slug?: string;
+  practitioner_name?: string | null;
+  item_id?: string;
+  amount?: number | null;
+  currency?: string;
+  mode?: string;
+  scheduled_at?: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  group_size?: number;
+  attendees?: string[];
+  meeting_location?: {
+    address?: string;
+    pincode?: string;
+    place_id?: string;
+    lat?: number;
+    lng?: number;
+  } | null;
+  created_at: string;
+  aftercare_notes?: string | null;
+};
+
+export type AdminAppointmentsResponse = {
+  data: AdminBooking[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export async function adminListAppointments(filters?: { status?: string; page?: number; limit?: number }) {
+  const params = new URLSearchParams();
+  if (filters?.status && filters.status !== "all") params.append("status", filters.status);
+  if (filters?.page) params.append("page", String(filters.page));
+  if (filters?.limit) params.append("limit", String(filters.limit));
+  const query = params.toString();
+  return api<AdminAppointmentsResponse>(`/api/admin/appointments${query ? `?${query}` : ""}`);
+}
+
+export async function adminConfirmAppointment(id: string) {
+  return api<{ message: string; appointment: AdminBooking }>(`/api/admin/appointments/${id}/confirm`, {
+    method: "POST",
+  });
+}
+
+export async function adminAssignPractitioner(id: string, practitioner_slug: string) {
+  return api<{ message: string; appointment: AdminBooking }>(`/api/admin/appointments/${id}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: { practitioner_slug },
+  });
+}
+

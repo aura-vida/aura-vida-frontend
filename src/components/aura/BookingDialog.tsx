@@ -1,14 +1,14 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Home, Building2, Video, MapPin, Search, ArrowRight, User, Users, Minus, Plus } from "lucide-react";
+import { Home, Building2, Video, MapPin, Search, ArrowRight, User, Users, Minus, Plus, Calendar as CalendarIcon, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { startCheckout } from "@/lib/razorpay";
-import { createAppointment } from "@/lib/appointmentsApi";
+import { createAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { useServices } from "@/hooks/useServices";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +16,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { MAX_GROUP_SIZE, formatINR, groupTotal, parsePrice } from "@/lib/pricing";
 
 type Location = "host" | "centre" | "online";
+
+// Helper for default booking date
+const getTomorrowDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+};
+const getTodayDate = () => new Date().toISOString().split("T")[0];
+
+const DEFAULT_SLOTS = ["09:00", "10:30", "12:00", "14:00", "15:30", "17:00", "18:30"];
 
 // Mock partner centres across India with PIN codes. `capacity` is how many
 // people the room can seat for one session.
@@ -54,6 +64,11 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const { services } = useServices();
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedCentre, setSelectedCentre] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>(getTomorrowDate());
+  const [selectedTime, setSelectedTime] = useState<string>("10:00");
+  const [availableSlots, setAvailableSlots] = useState<string[]>(DEFAULT_SLOTS);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
   const [name, setName] = useState("");
@@ -62,7 +77,6 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const [isGroup, setIsGroup] = useState(false);
   const [guests, setGuests] = useState<string[]>(['']);
   const handleSearch = () => setSearched(true);
-
 
   const [paying, setPaying] = useState(false);
   const { toast } = useToast();
@@ -74,6 +88,30 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
     if (user?.email && !email) setEmail(user.email);
     if (profile?.phone && !phone) setPhone(profile.phone);
   }, [open, profile, user]);
+
+  // Fetch available slots dynamically when date or service changes
+  useEffect(() => {
+    if (!open || !selectedDate || !itemId) return;
+    setLoadingSlots(true);
+    getAvailableSlots(itemId, selectedDate, selectedServiceId)
+      .then((res) => {
+        const active = (res.slots || [])
+          .filter((s) => s.available !== false)
+          .map((s) => s.start.slice(0, 5));
+        const list = active.length > 0 ? active : DEFAULT_SLOTS;
+        setAvailableSlots(list);
+        if (!list.includes(selectedTime)) {
+          setSelectedTime(list[0] || "10:00");
+        }
+      })
+      .catch(() => {
+        setAvailableSlots(DEFAULT_SLOTS);
+        if (!DEFAULT_SLOTS.includes(selectedTime)) {
+          setSelectedTime(DEFAULT_SLOTS[0]);
+        }
+      })
+      .finally(() => setLoadingSlots(false));
+  }, [open, itemId, selectedDate, selectedServiceId]);
 
   const groupSize = isGroup ? 1 + guests.length : 1;
   const selectedService = services.find(s => s.id === selectedServiceId);
@@ -94,7 +132,6 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const nearest = byDistance.filter((c) => c.capacity >= groupSize).slice(0, 3);
   const tooSmall = byDistance.filter((c) => c.capacity < groupSize).slice(0, 2);
 
-
   const addGuest = () => {
     if (guests.length >= MAX_GROUP_SIZE - 1) return;
     setGuests([...guests, ""]);
@@ -105,8 +142,20 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   };
 
   const handlePay = async () => {
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "You need to be signed in to book a session.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!selectedServiceId) {
       toast({ title: "Select a service", description: "Please select a service before proceeding." });
+      return;
+    }
+    if (!selectedDate || !selectedTime) {
+      toast({ title: "Select date & time", description: "Please pick your preferred date and time slot." });
       return;
     }
     if (location === "centre" && !selectedCentre) {
@@ -125,15 +174,28 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
     setPaying(true);
     
     try {
+      const meeting_location = location === "centre" && selectedCentre ? {
+        address: selectedCentre,
+        pincode: pin || "400001",
+        place_id: "centre-" + selectedCentre.toLowerCase().replace(/\s+/g, '-'),
+        lat: 19.0760,
+        lng: 72.8777,
+      } : undefined;
+
       // 1. Create the appointment in our custom Node.js backend first
-      const booking = await createAppointment({
+      const res: any = await createAppointment({
+        service_id: selectedServiceId,
         practitioner_slug: itemId,
-        client_name: name.trim(),
+        date: selectedDate,
+        time: selectedTime,
         mode: location,
         pin: location === "centre" ? pin : null,
         group_size: groupSize,
         attendees,
+        meeting_location,
       });
+
+      const booking = res.booking || res;
 
       // 2. Start Razorpay checkout using the booking.id
       await startCheckout({
@@ -414,6 +476,78 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
             </p>
           </div>
         )}
+
+        {/* Date & Time Slot Picker */}
+        <div className="mt-4 p-5 rounded-3xl border border-border bg-card space-y-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <CalendarIcon className="size-4 text-accent" /> Date &amp; Time
+            </Label>
+            <span className="text-[11px] font-medium text-accent bg-accent/10 px-2.5 py-1 rounded-full">
+              {selectedService?.duration_min || 60} mins session
+            </span>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Session Date</Label>
+            <Input
+              type="date"
+              min={getTodayDate()}
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-2xl h-11 bg-background px-4 text-sm max-w-xs"
+            />
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">Available Time Slots</Label>
+              {loadingSlots && (
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="size-3 animate-spin" /> Checking slots…
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {availableSlots.map((slot) => {
+                const isSelected = selectedTime === slot;
+                const [h, m] = slot.split(":").map(Number);
+                const duration = selectedService?.duration_min || 60;
+                const endTotalMin = h * 60 + m + duration;
+                const endH = Math.floor(endTotalMin / 60) % 24;
+                const endM = endTotalMin % 60;
+
+                const startAmpm = h >= 12 ? "PM" : "AM";
+                const endAmpm = endH >= 12 ? "PM" : "AM";
+
+                const startFormatted = `${h % 12 || 12}:${String(m).padStart(2, "0")} ${startAmpm}`;
+                const endFormatted = `${endH % 12 || 12}:${String(endM).padStart(2, "0")} ${endAmpm}`;
+
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setSelectedTime(slot)}
+                    className={cn(
+                      "flex flex-col items-center justify-center py-2.5 px-3 rounded-2xl border transition-all text-center",
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
+                        : "bg-secondary/40 border-border hover:border-accent/40 text-foreground hover:bg-secondary/70"
+                    )}
+                  >
+                    <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
+                      {startFormatted}
+                    </span>
+                    <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                      to {endFormatted}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
         <div className="mt-5 grid sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">

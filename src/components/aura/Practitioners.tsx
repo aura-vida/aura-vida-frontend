@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Star, MapPin, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import BookingDialog from "@/components/aura/BookingDialog";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import p1 from "@/assets/practitioner-1.jpg";
 import p2 from "@/assets/practitioner-2.jpg";
@@ -183,14 +183,9 @@ const Practitioners = () => {
                       <div className="font-display text-2xl text-foreground">₹{p.price_inr.toLocaleString("en-IN")}<span className="text-sm text-muted-foreground"> /session</span></div>
                     </div>
                     {p.bookable ? (
-                      <BookingDialog
-                        practitionerName={p.name}
-                        itemId={p.slug}
-                        price={`₹${p.price_inr}`}
-                        trigger={
-                          <Button className="rounded-full h-11 px-6 text-sm">Book</Button>
-                        }
-                      />
+                      <Button asChild className="rounded-full h-11 px-6 text-sm">
+                        <Link to={`/book?practitioner=${p.slug}`}>Book</Link>
+                      </Button>
                     ) : (
                       <span className="rounded-full bg-primary text-primary-foreground h-11 px-6 inline-flex items-center justify-center text-sm font-medium opacity-80 cursor-not-allowed select-none">
                         Coming soon

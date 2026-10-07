@@ -1,170 +1,739 @@
-﻿import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
 import Practitioners from "@/components/aura/Practitioners";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Home, Building2, Video, MapPin, Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Home, 
+  Video, 
+  MapPin, 
+  Search, 
+  Star, 
+  User, 
+  Users, 
+  Minus, 
+  Plus, 
+  Calendar as CalendarIcon, 
+  Clock, 
+  ShieldCheck, 
+  ArrowLeft,
+  CheckCircle2,
+  Sparkles
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { useServices } from "@/hooks/useServices";
+import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
+import { createAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
+import { startCheckout } from "@/lib/razorpay";
+import { MAX_GROUP_SIZE, formatINR, groupTotal, parsePrice } from "@/lib/pricing";
 
 type Location = "host" | "centre" | "online";
 
-const CENTRES = [
-  { name: "Anahata Studio", area: "Bandra West, Mumbai", pin: 400050 },
-  { name: "Prana Healing House", area: "Indiranagar, Bengaluru", pin: 560038 },
-  { name: "Sattva Sanctuary", area: "Hauz Khas, New Delhi", pin: 110016 },
-  { name: "Tarang Centre", area: "Adyar, Chennai", pin: 600020 },
-  { name: "Bodhi Loft", area: "Koregaon Park, Pune", pin: 411001 },
-  { name: "Antara Healing Rooms", area: "Salt Lake, Kolkata", pin: 700091 },
-  { name: "Surya Studio", area: "Banjara Hills, Hyderabad", pin: 500034 },
-  { name: "Veda Sanctuary", area: "Vastrapur, Ahmedabad", pin: 380015 },
+type Centre = { name: string; area: string; pin: number; capacity: number };
+
+const FALLBACK_CENTRES: Centre[] = [
+  { name: "Anahata Studio", area: "Bandra West, Mumbai", pin: 400050, capacity: 6 },
+  { name: "Prana Healing House", area: "Indiranagar, Bengaluru", pin: 560038, capacity: 4 },
+  { name: "Sattva Sanctuary", area: "Hauz Khas, New Delhi", pin: 110016, capacity: 6 },
+  { name: "Tarang Centre", area: "Adyar, Chennai", pin: 600020, capacity: 2 },
+  { name: "Bodhi Loft", area: "Koregaon Park, Pune", pin: 411001, capacity: 6 },
+  { name: "Antara Healing Rooms", area: "Salt Lake, Kolkata", pin: 700091, capacity: 3 },
+  { name: "Surya Studio", area: "Banjara Hills, Hyderabad", pin: 500034, capacity: 5 },
+  { name: "Veda Sanctuary", area: "Vastrapur, Ahmedabad", pin: 380015, capacity: 4 },
+];
+
+const DEFAULT_SLOTS = ["09:00", "10:30", "12:00", "14:00", "15:30", "17:00", "18:30"];
+
+const getTomorrowDate = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+};
+
+const getTodayDate = () => new Date().toISOString().split("T")[0];
+
+const locationOptions: { id: Location; icon: any; title: string; body: string }[] = [
+  { id: "centre", icon: MapPin, title: "A partner space near me", body: "Book a session at a vetted partner space." },
+  { id: "host", icon: Home, title: "I'll host at home", body: "A vetted practitioner travels to your space." },
+  { id: "online", icon: Video, title: "Online session", body: "Join from anywhere via private video." },
 ];
 
 const Book = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const practitionerSlug = searchParams.get("practitioner") || "";
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, profile } = useAuth();
+
+  // Data fetching states
+  const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
+  const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);
+  const { services } = useServices();
+
+  // Form selections
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [isGroup, setIsGroup] = useState(false);
+  const [guests, setGuests] = useState<string[]>([""]);
   const [location, setLocation] = useState<Location>("centre");
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState("");
 
-  const nearest = useMemo(() => {
-    const n = parseInt(pin, 10);
-    if (!n || pin.length !== 6) return [];
-    return [...CENTRES]
-      .map((c) => ({ ...c, distance: Math.abs(c.pin - n) }))
-      .sort((a, b) => a.distance - b.distance);
-  }, [pin]);
+  // Date and Time
+  const [selectedDate, setSelectedDate] = useState<string>(getTomorrowDate());
+  const [selectedTime, setSelectedTime] = useState<string>("10:00");
+  const [availableSlots, setAvailableSlots] = useState<string[]>(DEFAULT_SLOTS);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
-  const options: { id: Location; icon: typeof Home; title: string; body: string }[] = [
-    { id: "host", icon: Home, title: "I'll host at home", body: "A vetted practitioner travels to your space." },
-    { id: "centre", icon: Building2, title: "A partner space near me", body: "Book a session at a vetted partner space." },
-    { id: "online", icon: Video, title: "Online session", body: "Join from anywhere via private video." },
-  ];
+  // User contact
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [paying, setPaying] = useState(false);
+
+  // Load practitioners
+  useEffect(() => {
+    listPractitioners({ limit: 100 })
+      .then((data) => {
+        setPractitioners(data.practitioners);
+        if (practitionerSlug) {
+          const match = data.practitioners.find((p) => p.slug === practitionerSlug);
+          if (match) setSelectedPractitioner(match);
+          else setSelectedPractitioner(null);
+        } else {
+          setSelectedPractitioner(null);
+        }
+      })
+      .catch((err) => console.error("Failed to load practitioners:", err));
+  }, [practitionerSlug]);
+
+  // Set default service
+  useEffect(() => {
+    if (services.length > 0 && !selectedServiceId) {
+      const firstActive = services.find((s) => s.is_active !== false) || services[0];
+      if (firstActive) setSelectedServiceId(firstActive.id);
+    }
+  }, [services, selectedServiceId]);
+
+  // Autofill user profile
+  useEffect(() => {
+    if (profile?.full_name && !name) setName(profile.full_name);
+    if (user?.email && !email) setEmail(user.email);
+    if (profile?.phone && !phone) setPhone(profile.phone);
+  }, [profile, user]);
+
+  // Fetch slots whenever practitioner, date, or service changes
+  useEffect(() => {
+    const slug = selectedPractitioner?.slug;
+    if (!slug || !selectedDate) return;
+    setLoadingSlots(true);
+    getAvailableSlots(slug, selectedDate, selectedServiceId)
+      .then((res) => {
+        const active = (res.slots || [])
+          .filter((s) => s.available !== false)
+          .map((s) => s.start.slice(0, 5));
+        const list = active.length > 0 ? active : DEFAULT_SLOTS;
+        setAvailableSlots(list);
+        if (!list.includes(selectedTime)) {
+          setSelectedTime(list[0] || "10:00");
+        }
+      })
+      .catch(() => {
+        setAvailableSlots(DEFAULT_SLOTS);
+        if (!DEFAULT_SLOTS.includes(selectedTime)) {
+          setSelectedTime(DEFAULT_SLOTS[0]);
+        }
+      })
+      .finally(() => setLoadingSlots(false));
+  }, [selectedPractitioner?.slug, selectedDate, selectedServiceId]);
+
+  // Guest actions
+  const groupSize = isGroup ? 1 + guests.length : 1;
+  const addGuest = () => {
+    if (guests.length >= MAX_GROUP_SIZE - 1) return;
+    setGuests([...guests, ""]);
+  };
+  const removeGuest = (i: number) => {
+    const next = guests.filter((_, idx) => idx !== i);
+    setGuests(next.length ? next : [""]);
+  };
+
+  // Pricing calculations
+  const selectedService = services.find((s) => s.id === selectedServiceId);
+  const basePrice = selectedService?.price_inr ?? selectedPractitioner?.price_inr ?? 2500;
+  const total = basePrice ? groupTotal(basePrice, groupSize) : 0;
+  const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
+  const creditApplied = credit > 0 && total ? Math.min(credit, Math.max(0, total - 100)) : 0;
+  const payable = total - creditApplied;
+  const extraEach = basePrice ? Math.round(basePrice * 0.6) : 0;
+
+  // Partner Centre sorting
+  const userPin = parseInt(pin);
+  const byDistance = useMemo(() => {
+    return FALLBACK_CENTRES.map((c) => ({
+      ...c,
+      distance: Math.abs(c.pin - (userPin || 0)),
+    })).sort((a, b) => a.distance - b.distance);
+  }, [userPin]);
+
+  const nearest = useMemo(() => byDistance.filter((c) => c.capacity >= groupSize).slice(0, 3), [byDistance, groupSize]);
+
+  // Format Time Slot End Time
+  const duration = selectedService?.duration_min || 60;
+  const formatSlot = (slot: string) => {
+    const [h, m] = slot.split(":").map(Number);
+    const endTotalMin = h * 60 + m + duration;
+    const endH = Math.floor(endTotalMin / 60) % 24;
+    const endM = endTotalMin % 60;
+    const startAmpm = h >= 12 ? "PM" : "AM";
+    const endAmpm = endH >= 12 ? "PM" : "AM";
+    return {
+      start: `${h % 12 || 12}:${String(m).padStart(2, "0")} ${startAmpm}`,
+      end: `${endH % 12 || 12}:${String(endM).padStart(2, "0")} ${endAmpm}`,
+    };
+  };
+
+  // Checkout Handler
+  const handlePay = async () => {
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "You need to be signed in to complete your booking.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+    if (!selectedServiceId) {
+      toast({ title: "Select a service", description: "Please pick a therapy or session." });
+      return;
+    }
+    if (!selectedDate || !selectedTime) {
+      toast({ title: "Select date & time", description: "Please pick your preferred session date and time slot." });
+      return;
+    }
+    if (location === "centre" && !selectedCentre) {
+      toast({ title: "Select a centre", description: "Please choose a partner space from the list." });
+      return;
+    }
+    if (!name.trim() || !email.trim()) {
+      toast({ title: "Almost there", description: "Please fill in your name and email." });
+      return;
+    }
+
+    const attendees = [name.trim(), ...(isGroup ? guests.map((g) => g.trim()) : [])].filter(Boolean);
+    if (isGroup && attendees.length < groupSize) {
+      toast({ title: "Missing guest names", description: "Please write the name of everyone joining you." });
+      return;
+    }
+
+    setPaying(true);
+
+    try {
+      const meeting_location = location === "centre" && selectedCentre ? {
+        address: selectedCentre,
+        pincode: pin || "400001",
+        place_id: "centre-" + selectedCentre.toLowerCase().replace(/\s+/g, "-"),
+        lat: 19.0760,
+        lng: 72.8777,
+      } : undefined;
+
+      const res: any = await createAppointment({
+        service_id: selectedServiceId,
+        practitioner_slug: selectedPractitioner?.slug || "session-priya-shah",
+        date: selectedDate,
+        time: selectedTime,
+        mode: location,
+        pin: location === "centre" ? pin : null,
+        group_size: groupSize,
+        attendees,
+        meeting_location,
+      });
+
+      const booking = res.booking || res;
+
+      await startCheckout({
+        bookingId: booking.id,
+        customerName: name,
+        customerEmail: email,
+        customerPhone: phone,
+        onSuccess: () => {
+          setPaying(false);
+          toast({ title: "Booking confirmed!", description: "We have emailed you the session details." });
+          navigate("/account");
+        },
+        onError: (msg) => {
+          setPaying(false);
+          toast({ title: "Payment failed", description: msg, variant: "destructive" });
+        },
+        onDismiss: () => setPaying(false),
+      });
+    } catch (error: any) {
+      setPaying(false);
+      toast({ title: "Booking failed", description: error.message || "Could not reserve slot", variant: "destructive" });
+    }
+  };
+
+  // Whether the user has chosen a guide and is in the final checkout flow
+  const isCheckingOut = Boolean(practitionerSlug && selectedPractitioner);
 
   return (
     <main className="min-h-screen bg-background">
       <Nav />
-      <section className="max-w-[1100px] mx-auto px-6 lg:px-12 py-16 lg:py-24">
-        <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Book a session</span>
-        <h1 className="font-display text-4xl md:text-6xl mt-4 text-balance max-w-3xl">
-          Where would you like your <em className="italic text-primary">session</em> to happen?
-        </h1>
-        <p className="text-muted-foreground mt-4 max-w-xl">
-          Choose between hosting at home, visiting a partner space near you, or joining online.
-        </p>
 
-        <div className="grid md:grid-cols-3 gap-4 mt-12">
-          {options.map((o) => {
-            const active = location === o.id;
-            return (
-              <button
-                key={o.id}
-                onClick={() => { setLocation(o.id); setSearched(false); }}
-                className={cn(
-                  "text-left rounded-[1.5rem] border p-6 transition-all hover-lift",
-                  active
-                    ? "border-primary bg-accent-soft shadow-elegant"
-                    : "border-border bg-card hover:border-foreground/30",
-                )}
-              >
-                <o.icon className={cn("size-6 mb-4", active ? "text-primary" : "text-muted-foreground")} />
-                <div className="font-display text-xl text-foreground">{o.title}</div>
-                <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{o.body}</p>
-              </button>
-            );
-          })}
-        </div>
+      {/* STATE A: Browse Guides First (When user clicked 'Book a session' without selecting a guide yet) */}
+      {!isCheckingOut && (
+        <Practitioners />
+      )}
 
-        {location === "centre" && (
-          <div className="mt-12 rounded-[1.5rem] border border-border bg-card p-6 lg:p-8">
-            <Label htmlFor="pin" className="text-sm font-medium">Enter your PIN code to find the nearest partner spaces</Label>
-            <div className="flex gap-2 mt-3 max-w-md">
-              <Input
-                id="pin"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="e.g. 560038"
-                value={pin}
-                onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setSearched(false); }}
-                className="rounded-full h-12"
-              />
-              <Button
-                onClick={() => setSearched(true)}
-                disabled={pin.length !== 6}
-                className="rounded-full h-12 px-6 bg-foreground text-background hover:bg-foreground/90"
-              >
-                <Search className="size-4 mr-1" /> Find
-              </Button>
+      {/* STATE B: Final Checkout Screen (When user clicked 'Book' on a specific guide) */}
+      {isCheckingOut && (
+        <div className="max-w-[1300px] mx-auto px-6 lg:px-12 py-12 lg:py-20">
+          
+          {/* Back button to browse all guides */}
+          <div className="mb-8">
+            <button
+              onClick={() => setSearchParams({})}
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="size-4" /> Back to choose another guide
+            </button>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Checkout &amp; Reserve</span>
+                <h1 className="font-display text-3xl md:text-5xl mt-2 text-foreground">
+                  Book your session with <em className="italic text-primary">{selectedPractitioner?.name}</em>
+                </h1>
+              </div>
             </div>
+          </div>
 
-                        {searched && nearest.length > 0 && (
-              <ul className="grid sm:grid-cols-2 gap-3 mt-6">
-                {nearest.map((c, i) => {
-                  const isSelected = selectedCentre === c.name;
-                  if (selectedCentre && !isSelected) return null;
-                  return (
-                    <li
-                      key={c.name}
-                      onClick={() => setSelectedCentre(isSelected ? "" : c.name)}
-                      className={cn(
-                        "relative flex items-start justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all hover:border-accent/50",
-                        isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-background border-border",
-                        (!selectedCentre && i === 0) && "bg-accent-soft border-primary/40"
-                      )}
-                    >
-                      <div className="flex items-start gap-3 pr-12">
-                        <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{c.name}</div>
-                          <div className="text-xs text-muted-foreground">{c.area} · {c.pin} · Seats up to {c.capacity} people</div>
-                        </div>
-                      </div>
-                      {(!selectedCentre && i === 0) && (
-                        <span className="text-[10px] uppercase tracking-widest text-accent font-medium shrink-0">Closest</span>
-                      )}
-                      {isSelected && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }} 
-                          className="absolute top-2 right-2 h-8 text-xs text-muted-foreground hover:text-foreground"
+          {/* 2-Column Responsive Layout */}
+          <div className="grid lg:grid-cols-12 gap-10 items-start">
+            
+            {/* LEFT COLUMN: The Step-by-Step Experience (7 Columns) */}
+            <div className="lg:col-span-7 space-y-8">
+              
+              {/* STEP 1: Practitioner Summary */}
+              <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Your Chosen Guide</span>
+                  <button onClick={() => setSearchParams({})} className="text-xs text-accent hover:underline">Change</button>
+                </div>
+                
+                <div className="flex items-center gap-4 pt-1">
+                  <div className="size-16 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border">
+                    {selectedPractitioner?.image_url ? (
+                      <img src={selectedPractitioner.image_url} alt={selectedPractitioner.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center text-xs text-muted-foreground font-medium">Guide</div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-display text-xl text-foreground">{selectedPractitioner?.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">{selectedPractitioner?.craft} · {selectedPractitioner?.city}</p>
+                    <div className="flex items-center gap-1 text-xs text-accent mt-1">
+                      <Star className="size-3.5 fill-accent" /> {selectedPractitioner?.rating} ({selectedPractitioner?.sessions} sessions)
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* STEP 2: Service & Circle Size */}
+              <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
+                <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 1 · Service &amp; Circle</span>
+                
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Select Therapy / Session</Label>
+                  <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
+                    <SelectTrigger className="w-full h-14 rounded-2xl border-border px-5 bg-background text-left flex items-center justify-between">
+                      <SelectValue placeholder="Choose a therapy..." />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl border-border max-h-72">
+                      {services.filter((s) => s.is_active !== false).map((s) => (
+                        <SelectItem key={s.id} value={s.id} className="py-3 px-4 cursor-pointer focus:bg-accent/5 focus:text-accent rounded-xl my-1">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm text-foreground">{s.name}</span>
+                            <span className="text-xs text-muted-foreground mt-0.5">₹{s.price_inr} · {s.duration_min} mins · {s.category || "Holistic"}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Solo or Group Circle */}
+                <div className="space-y-3 pt-2">
+                  <Label className="text-sm font-medium">Who is joining?</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { id: "solo", icon: User, title: "Just me", body: "A private one-on-one session" },
+                      { id: "group", icon: Users, title: "Group circle", body: `Up to ${MAX_GROUP_SIZE} people together` },
+                    ].map((o) => {
+                      const active = (o.id === "group") === isGroup;
+                      return (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => setIsGroup(o.id === "group")}
+                          className={cn(
+                            "text-left rounded-2xl border p-5 transition-all",
+                            active
+                              ? "border-primary bg-accent-soft shadow-soft ring-1 ring-primary"
+                              : "border-border bg-background hover:border-foreground/30 hover:bg-secondary/40"
+                          )}
                         >
-                          Change
-                        </Button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        )}
+                          <o.icon className={cn("size-5 mb-2.5", active ? "text-primary" : "text-muted-foreground")} />
+                          <div className="font-medium text-sm text-foreground">{o.title}</div>
+                          <div className="text-xs text-muted-foreground mt-1 leading-snug">{o.body}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-        {location === "host" && (
-          <div className="mt-12 rounded-[1.5rem] border border-border bg-card p-6 lg:p-8">
-            <p className="text-muted-foreground">
-              Your practitioner will travel to your home. We'll confirm address details after you choose a guide and time.
-            </p>
-          </div>
-        )}
+                  {isGroup && (
+                    <div className="mt-4 rounded-2xl border border-border p-5 bg-secondary/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium">Guest Names ({groupSize} of {MAX_GROUP_SIZE})</Label>
+                        <span className="text-xs text-muted-foreground">{formatINR(extraEach)} each extra person</span>
+                      </div>
+                      {guests.map((g, i) => (
+                        <div key={i} className="flex gap-2">
+                          <Input
+                            value={g}
+                            onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? e.target.value : v)))}
+                            placeholder={`Guest ${i + 1} full name`}
+                            className="rounded-xl h-11 bg-background"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => removeGuest(i)}
+                            className="rounded-xl h-11 w-11 p-0 shrink-0"
+                            aria-label="Remove guest"
+                          >
+                            <Minus className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={addGuest}
+                        disabled={guests.length >= MAX_GROUP_SIZE - 1}
+                        className="rounded-full text-xs"
+                      >
+                        <Plus className="size-3.5 mr-1" /> Add another person
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </section>
 
-        {location === "online" && (
-          <div className="mt-12 rounded-[1.5rem] border border-border bg-card p-6 lg:p-8">
-            <p className="text-muted-foreground">
-              You'll receive a private, secure video link 15 minutes before your session begins.
-            </p>
-          </div>
-        )}
+              {/* STEP 3: Location Mode & Partner Spaces */}
+              <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
+                <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 2 · Location &amp; Space</span>
 
-        <div className="mt-10">
-          <Button size="lg" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-14 px-10 text-base">
-            Continue to choose a guide
-          </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {locationOptions.map((o) => {
+                    const active = location === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => { setLocation(o.id); setSearched(false); }}
+                        className={cn(
+                          "text-left rounded-2xl border p-4 transition-all",
+                          active
+                            ? "border-primary bg-accent-soft shadow-soft ring-1 ring-primary"
+                            : "border-border bg-background hover:border-foreground/30 hover:bg-secondary/40"
+                        )}
+                      >
+                        <o.icon className={cn("size-5 mb-2.5", active ? "text-primary" : "text-muted-foreground")} />
+                        <div className="font-medium text-sm text-foreground">{o.title}</div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-snug">{o.body}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {location === "centre" && (
+                  <div className="space-y-4 pt-2">
+                    <Label htmlFor="pin-co" className="text-xs font-medium">Enter your 6-digit PIN code to discover partner spaces near you</Label>
+                    <div className="flex gap-2 max-w-sm">
+                      <Input
+                        id="pin-co"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="e.g. 400050"
+                        value={pin}
+                        onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setSearched(false); }}
+                        className="rounded-full h-11 bg-background"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => setSearched(true)}
+                        disabled={pin.length !== 6}
+                        className="rounded-full h-11 px-6 bg-foreground text-background hover:bg-foreground/90"
+                      >
+                        <Search className="size-4 mr-1.5" /> Find
+                      </Button>
+                    </div>
+
+                    {searched && nearest.length > 0 && (
+                      <ul className="space-y-2.5 pt-2">
+                        {nearest.map((c, i) => {
+                          const isSelected = selectedCentre === c.name;
+                          if (selectedCentre && !isSelected) return null;
+                          return (
+                            <li
+                              key={c.name}
+                              onClick={() => setSelectedCentre(isSelected ? "" : c.name)}
+                              className={cn(
+                                "relative flex items-center justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all hover:border-accent/50",
+                                isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-background border-border",
+                                (!selectedCentre && i === 0) && "bg-accent-soft border-primary/40"
+                              )}
+                            >
+                              <div className="flex items-start gap-3 w-full pr-16">
+                                <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
+                                <div>
+                                <div className="text-sm font-medium text-foreground">{c.name}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">{c.area} · {c.pin} · Seats up to {c.capacity} people</div>
+                              </div>
+                            </div>
+                            {(!selectedCentre && i === 0) && (
+                              <span className="text-[10px] uppercase tracking-widest text-accent font-medium">Closest</span>
+                            )}
+                            {isSelected && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
+                                className="absolute right-3 h-8 text-xs text-muted-foreground hover:text-foreground"
+                              >
+                                Change
+                              </Button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {location === "host" && (
+                <div className="rounded-2xl border border-border p-5 bg-secondary/30">
+                  <p className="text-xs text-muted-foreground">
+                    Your practitioner travels to you. You can provide specific gate or landmark details after booking.
+                  </p>
+                </div>
+              )}
+
+              {location === "online" && (
+                <div className="rounded-2xl border border-border p-5 bg-secondary/30">
+                  <p className="text-xs text-muted-foreground">
+                    You'll receive a secure, private video link 15 minutes before your scheduled session.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* STEP 4: Date & Available Time Slots */}
+            <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 3 · When</span>
+                <span className="text-xs font-medium text-accent bg-accent/10 px-3 py-1 rounded-full">
+                  {duration} mins session
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                <div className="max-w-xs space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Session Date</Label>
+                  <Input
+                    type="date"
+                    min={getTodayDate()}
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="rounded-2xl h-11 bg-background px-4 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Available Time Slots</Label>
+                    {loadingSlots && (
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="size-3 animate-spin" /> Checking schedule…
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {availableSlots.map((slot) => {
+                      const isSelected = selectedTime === slot;
+                      const { start, end } = formatSlot(slot);
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          onClick={() => setSelectedTime(slot)}
+                          className={cn(
+                            "flex flex-col items-center justify-center py-3 px-3 rounded-2xl border transition-all text-center",
+                            isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
+                              : "bg-background border-border hover:border-accent/40 text-foreground hover:bg-secondary/40"
+                          )}
+                        >
+                          <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
+                            {start}
+                          </span>
+                          <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                            to {end}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* STEP 5: Contact Details */}
+            <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-4">
+              <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 4 · Your Details</span>
+              
+              <div className="grid sm:grid-cols-3 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-name" className="text-xs">Your Name</Label>
+                  <Input id="b-name" value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="Full name" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-email" className="text-xs">Email</Label>
+                  <Input id="b-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="you@email.com" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-phone" className="text-xs">Phone</Label>
+                  <Input id="b-phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="+91" />
+                </div>
+              </div>
+            </section>
+
+          </div>
+
+          {/* RIGHT COLUMN: Sticky Order Summary & Pay CTA (5 Columns) */}
+          <aside className="lg:col-span-5 lg:sticky lg:top-24 space-y-6">
+            <div className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-border">
+                <span className="font-display text-xl text-foreground">Session Summary</span>
+                <span className="text-[11px] text-accent tracking-widest uppercase font-medium flex items-center gap-1">
+                  <Sparkles className="size-3" /> Aura Vida
+                </span>
+              </div>
+
+              {/* Selected Guide & Service Header */}
+              {selectedPractitioner && (
+                <div className="flex items-center gap-3.5 pb-4 border-b border-border">
+                  <div className="size-12 rounded-xl bg-secondary overflow-hidden shrink-0 border border-border">
+                    {selectedPractitioner.image_url ? (
+                      <img src={selectedPractitioner.image_url} alt={selectedPractitioner.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center text-xs text-muted-foreground font-medium">Guide</div>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-sm text-foreground">{selectedPractitioner.name}</h4>
+                    <p className="text-xs text-muted-foreground">{selectedService?.name || selectedPractitioner.craft}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick specs */}
+              <div className="space-y-3 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Therapy</span>
+                  <span className="font-medium text-foreground">{selectedService?.name || "Standard Session"} ({duration}m)</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Date &amp; Time</span>
+                  <span className="font-medium text-foreground">
+                    {selectedDate} · {formatSlot(selectedTime).start}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Location</span>
+                  <span className="font-medium text-foreground capitalize">
+                    {location === "centre" ? (selectedCentre || "Partner Centre") : location === "host" ? "At your Home" : "Virtual Video"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Circle</span>
+                  <span className="font-medium text-foreground">{groupSize === 1 ? "1 person (Solo)" : `${groupSize} people (Group)`}</span>
+                </div>
+              </div>
+
+              {/* Pricing Breakdown */}
+              <div className="pt-4 border-t border-border space-y-2 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Session fee</span>
+                  <span>{formatINR(basePrice)}</span>
+                </div>
+                {isGroup && guests.filter(Boolean).length > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Extra guests ({guests.filter(Boolean).length})</span>
+                    <span>{formatINR(total - basePrice)}</span>
+                  </div>
+                )}
+                {creditApplied > 0 && (
+                  <div className="flex items-center justify-between text-accent font-medium">
+                    <span>Referral credit applied</span>
+                    <span>−{formatINR(creditApplied)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-3 border-t border-border text-base font-display">
+                  <span>Total payable</span>
+                  <span className="text-primary text-xl font-bold">{formatINR(payable)}</span>
+                </div>
+              </div>
+
+              {/* Pay Button */}
+              <Button
+                onClick={handlePay}
+                disabled={paying}
+                className="w-full rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-14 text-base font-medium shadow-soft"
+              >
+                {paying ? "Opening secure checkout…" : `Pay ${formatINR(payable)} securely`}
+              </Button>
+
+              {/* Trust Badges */}
+              <div className="space-y-2 pt-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-accent shrink-0" />
+                  <span>256-bit encrypted Razorpay checkout</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-accent shrink-0" />
+                  <span>Free cancellation up to 24 hours prior</span>
+                </div>
+              </div>
+
+            </div>
+          </aside>
+
         </div>
-      </section>
-      <Practitioners />
-      <Footer />
-    </main>
+      </div>
+    )}
+
+    <Footer />
+  </main>
   );
 };
 

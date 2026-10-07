@@ -4,6 +4,7 @@ import { AuthProfile } from "@/lib/authApi";
 export interface Appointment {
   id: string;
   practitioner_name: string;
+  practitioner_slug?: string;
   mode: string;
   pin: string | null;
   scheduled_at: string | null;
@@ -14,6 +15,13 @@ export interface Appointment {
   group_size: number | null;
   attendees: string[] | null;
   item_id: string;
+  meeting_location?: {
+    address?: string;
+    pincode?: string;
+    place_id?: string;
+    lat?: number;
+    lng?: number;
+  } | null;
 }
 
 export interface Pagination {

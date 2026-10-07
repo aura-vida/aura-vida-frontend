@@ -25,6 +25,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import Nav from "@/components/aura/Nav";
 import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
 import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
+import AdminAppointments from "@/components/aura/AdminAppointments";
 
 
 
@@ -217,17 +218,22 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       <Nav />
       <main className="max-w-4xl mx-auto px-6 py-16 lg:py-24">
-        <Tabs defaultValue="practitioners" className="w-full">
+        <Tabs defaultValue="appointments" className="w-full">
             <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6 mb-10">
               <div>
                 <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Admin Dashboard</span>
                 <h1 className="font-display text-4xl mt-3">Platform Management</h1>
               </div>
-              <TabsList className="grid w-full sm:w-[400px] grid-cols-2 rounded-full p-1 bg-secondary border border-border">
+              <TabsList className="grid w-full sm:w-[500px] grid-cols-3 rounded-full p-1 bg-secondary border border-border">
+                <TabsTrigger value="appointments" className="rounded-full">Appointments</TabsTrigger>
                 <TabsTrigger value="practitioners" className="rounded-full">Practitioners</TabsTrigger>
                 <TabsTrigger value="services" className="rounded-full">Services</TabsTrigger>
               </TabsList>
             </div>
+
+            <TabsContent value="appointments" className="mt-0">
+              <AdminAppointments />
+            </TabsContent>
 
             <TabsContent value="practitioners" className="mt-0">
               <div className="flex items-center justify-between mb-8">
