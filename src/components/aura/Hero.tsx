@@ -46,13 +46,12 @@ const Hero = () => {
           </form>
           <Button
             size="lg"
-            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 hover:shadow-glow px-10 h-16 text-base gap-2 transition-smooth hover:-translate-y-0.5"
-            asChild
+            type="button"
+            onClick={submitSearch}
+            className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90 hover:shadow-glow px-10 h-16 text-base gap-2 transition-smooth hover:-translate-y-0.5 group"
           >
-            <a href="/book">
-              Find your practitioner
-              <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-            </a>
+            Find your practitioner
+            <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
           </Button>
           <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <ShieldCheck className="size-4 text-accent/80" />

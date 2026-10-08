@@ -68,7 +68,7 @@ const Book = () => {
   // Form selections
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [isGroup, setIsGroup] = useState(false);
-  const [guests, setGuests] = useState<string[]>([""]);
+  const [guests, setGuests] = useState<{ name: string, email: string }[]>([{ name: "", email: "" }]);
   const [location, setLocation] = useState<Location>("centre");
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
@@ -161,11 +161,11 @@ const Book = () => {
   const groupSize = isGroup ? 1 + guests.length : 1;
   const addGuest = () => {
     if (guests.length >= MAX_GROUP_SIZE - 1) return;
-    setGuests([...guests, ""]);
+    setGuests([...guests, { name: "", email: "" }]);
   };
   const removeGuest = (i: number) => {
     const next = guests.filter((_, idx) => idx !== i);
-    setGuests(next.length ? next : [""]);
+    setGuests(next.length ? next : [{ name: "", email: "" }]);
   };
 
   // Pricing calculations
@@ -211,7 +211,10 @@ const Book = () => {
   };
 
   // Checkout Handler
-  const currentAttendees = [name.trim(), ...(isGroup ? guests.map((g) => g.trim()) : [])].filter(Boolean);
+  const currentAttendees = [
+    { name: name.trim(), email: email.trim() },
+    ...(isGroup ? guests.map((g) => ({ name: g.name.trim(), email: g.email.trim() })).filter(g => g.name || g.email) : [])
+  ].filter(g => g.name && g.email);
   const isFormValid = Boolean(
     user &&
     selectedServiceId &&
@@ -258,9 +261,13 @@ const Book = () => {
       return;
     }
 
-    const attendees = [name.trim(), ...(isGroup ? guests.map((g) => g.trim()) : [])].filter(Boolean);
+    const attendees = [
+      { name: name.trim(), email: email.trim() },
+      ...(isGroup ? guests.map((g) => ({ name: g.name.trim(), email: g.email.trim() })).filter(g => g.name || g.email) : [])
+    ].filter(g => g.name && g.email);
+
     if (isGroup && attendees.length < groupSize) {
-      toast({ title: "Missing guest names", description: "Please write the name of everyone joining you." });
+      toast({ title: "Missing guest details", description: "Please ensure every guest has both a name and an email address so we can send the meeting link." });
       return;
     }
 
@@ -451,10 +458,17 @@ const Book = () => {
                       {guests.map((g, i) => (
                         <div key={i} className="flex gap-2">
                           <Input
-                            value={g}
-                            onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? e.target.value : v)))}
+                            value={g.name}
+                            onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? { ...v, name: e.target.value } : v)))}
                             placeholder={`Guest ${i + 1} full name`}
-                            className="rounded-xl h-11 bg-background"
+                            className="rounded-xl h-11 bg-background flex-1"
+                          />
+                          <Input
+                            type="email"
+                            value={g.email}
+                            onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? { ...v, email: e.target.value } : v)))}
+                            placeholder={`Email`}
+                            className="rounded-xl h-11 bg-background flex-1"
                           />
                           <Button
                             type="button"

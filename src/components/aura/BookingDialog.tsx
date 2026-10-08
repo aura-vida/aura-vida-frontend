@@ -62,7 +62,7 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [isGroup, setIsGroup] = useState(false);
-  const [guests, setGuests] = useState<string[]>(['']);
+  const [guests, setGuests] = useState<{ name: string, email: string }[]>([{ name: "", email: "" }]);
   const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [hostAddress, setHostAddress] = useState("");
@@ -76,7 +76,7 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
     setPin("");
     setSearched(false);
     setIsGroup(false);
-    setGuests([""]);
+    setGuests([{ name: "", email: "" }]);
     setSuggestedPlaces([]);
     setHostAddress("");
     setLocation("centre");
@@ -167,14 +167,17 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
 
   const addGuest = () => {
     if (guests.length >= MAX_GROUP_SIZE - 1) return;
-    setGuests([...guests, ""]);
+    setGuests([...guests, { name: "", email: "" }]);
   };
   const removeGuest = (i: number) => {
     const next = guests.filter((_, idx) => idx !== i);
-    setGuests(next.length ? next : [""]);
+    setGuests(next.length ? next : [{ name: "", email: "" }]);
   };
 
-  const currentAttendees = [name.trim(), ...(isGroup ? guests.map((g) => g.trim()) : [])].filter(Boolean);
+  const currentAttendees = [
+    { name: name.trim(), email: email.trim() },
+    ...(isGroup ? guests.map((g) => ({ name: g.name.trim(), email: g.email.trim() })).filter(g => g.name || g.email) : [])
+  ].filter(g => g.name && g.email);
   const isFormValid = Boolean(
     user &&
     selectedServiceId &&
@@ -219,7 +222,10 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
       toast({ title: "Almost there", description: "Please add your name and email so we can confirm your session." });
       return;
     }
-    const attendees = [name.trim(), ...(isGroup ? guests.map((g) => g.trim()) : [])].filter(Boolean);
+    const attendees = [
+      { name: name.trim(), email: email.trim() },
+      ...(isGroup ? guests.map((g) => ({ name: g.name.trim(), email: g.email.trim() })).filter(g => g.name || g.email) : [])
+    ].filter(g => g.name && g.email);
     if (isGroup && attendees.length < groupSize) {
       toast({ title: "Missing names", description: "Please add the name of everyone joining the session." });
       return;
@@ -352,10 +358,17 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
             {guests.map((g, i) => (
               <div key={i} className="flex gap-2">
                 <Input
-                  value={g}
-                  onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? e.target.value : v)))}
+                  value={g.name}
+                  onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? { ...v, name: e.target.value } : v)))}
                   placeholder={`Guest ${i + 1} full name`}
-                  className="rounded-full h-11"
+                  className="rounded-full h-11 flex-1"
+                />
+                <Input
+                  type="email"
+                  value={g.email}
+                  onChange={(e) => setGuests(guests.map((v, idx) => (idx === i ? { ...v, email: e.target.value } : v)))}
+                  placeholder={`Email`}
+                  className="rounded-full h-11 flex-1"
                 />
                 <Button
                   type="button"

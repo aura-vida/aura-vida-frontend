@@ -6,7 +6,7 @@ export type AppointmentPayload = {
   date: string;
   time: string;
   group_size?: number;
-  attendees?: string[];
+  attendees?: { name: string; email: string }[];
   meeting_location?: {
     address: string;
     lat?: number;
@@ -87,7 +87,7 @@ export type AdminBooking = {
   scheduled_at?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   group_size?: number;
-  attendees?: string[];
+  attendees?: { name: string; email: string }[];
   meeting_location?: {
     address?: string;
     pincode?: string;

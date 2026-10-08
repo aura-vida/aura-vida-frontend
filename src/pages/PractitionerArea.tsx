@@ -9,6 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -25,14 +32,19 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { 
-  listPractitionerAppointments, 
-  updatePractitionerAppointmentStatus 
+import {
+  listPractitionerAppointments,
+  updatePractitionerAppointmentStatus,
+  cancelAppointment,
 } from "@/lib/appointmentsApi";
-import { 
-  getPractitionerSchedule, 
-  updateMySchedule, 
-  type DayScheduleUpdate 
+import {
+  getPractitionerSchedule,
+  updateMySchedule,
+  createException,
+  deleteException,
+  getMyTimeOff,
+  type DayScheduleUpdate,
+  type AvailabilityException,
 } from "@/lib/availabilityApi";
 import {
   listMyBlogs,
@@ -41,17 +53,17 @@ import {
   deleteBlog,
   type Blog,
 } from "@/lib/blogsApi";
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Video, 
-  Home, 
-  Users, 
-  User, 
-  CheckCircle2, 
-  Loader2, 
-  Sparkles, 
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Video,
+  Home,
+  Users,
+  User,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
   NotebookPen,
   BookOpen,
   Plus,
@@ -60,9 +72,14 @@ import {
   Trash2,
   Globe,
   FileText,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MoreVertical,
+  CalendarOff,
+  XCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import AuraPagination from "@/components/aura/AuraPagination";
+import { useServices } from "@/hooks/useServices";
 
 interface Booking {
   id: string;
@@ -75,7 +92,16 @@ interface Booking {
   aftercare_notes: string | null;
   created_at: string;
   group_size: number | null;
-  attendees: string[] | null;
+  attendees: any[] | null;
+  currency?: string;
+  item_id?: string;
+  meeting_location?: {
+    address?: string;
+    pincode?: string;
+    place_id?: string;
+    lat?: number;
+    lng?: number;
+  } | null;
 }
 
 const DAYS_OF_WEEK = [
@@ -94,6 +120,7 @@ const modeLabel = (mode: string) =>
 
 const PractitionerArea = () => {
   const { user, profile, loading } = useAuth();
+  const { services } = useServices();
   const navigate = useNavigate();
 
   // Bookings state
@@ -102,6 +129,12 @@ const PractitionerArea = () => {
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [loadingBookings, setLoadingBookings] = useState(true);
+  const [cancelModalBooking, setCancelModalBooking] = useState<Booking | null>(null);
+
+  // Pagination for appointments
+  const [appointmentsPage, setAppointmentsPage] = useState(1);
+  const [appointmentsTotalPages, setAppointmentsTotalPages] = useState(1);
+  const [appointmentsTotal, setAppointmentsTotal] = useState(0);
 
   // Weekly availability state
   const [scheduleState, setScheduleState] = useState<
@@ -117,6 +150,20 @@ const PractitionerArea = () => {
   });
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+
+  // Exceptions state
+  const [exceptionDay, setExceptionDay] = useState<{ day: number; label: string } | null>(null);
+  const [exceptionDate, setExceptionDate] = useState("");
+  const [exceptionStart, setExceptionStart] = useState("09:00");
+  const [exceptionEnd, setExceptionEnd] = useState("17:00");
+  const [exceptionType, setExceptionType] = useState<"leave" | "special">("leave");
+  const [exceptionReason, setExceptionReason] = useState("");
+  const [pendingExceptions, setPendingExceptions] = useState<AvailabilityException[]>([]);
+  const [savingException, setSavingException] = useState(false);
+  const [deletingExceptionId, setDeletingExceptionId] = useState<string | null>(null);
+
+  const [allExceptions, setAllExceptions] = useState<AvailabilityException[]>([]);
+  const [loadingExceptions, setLoadingExceptions] = useState(false);
 
   // Articles & Wisdom state
   const [blogs, setBlogs] = useState<Blog[]>([]);
@@ -142,11 +189,15 @@ const PractitionerArea = () => {
   const fetchBookings = () => {
     if (!profile?.practitioner_slug) return;
     setLoadingBookings(true);
-    listPractitionerAppointments()
+    listPractitionerAppointments(undefined, appointmentsPage)
       .then((res: any) => {
         const rows = (res.appointments ?? []) as Booking[];
         setBookings(rows);
         setDrafts(Object.fromEntries(rows.map((r) => [r.id, r.aftercare_notes ?? ""])));
+        if (res.pagination) {
+          setAppointmentsTotalPages(res.pagination.totalPages);
+          setAppointmentsTotal(res.pagination.total);
+        }
       })
       .catch((err) => {
         console.error("Failed to fetch appointments:", err);
@@ -156,7 +207,7 @@ const PractitionerArea = () => {
 
   useEffect(() => {
     fetchBookings();
-  }, [profile?.practitioner_slug]);
+  }, [profile?.practitioner_slug, appointmentsPage]);
 
   // Load Availability Schedule
   useEffect(() => {
@@ -185,6 +236,15 @@ const PractitionerArea = () => {
       })
       .catch((err) => console.error("Failed to load practitioner schedule:", err))
       .finally(() => setLoadingSchedule(false));
+
+    // Also fetch all time-off / exceptions
+    setLoadingExceptions(true);
+    getMyTimeOff()
+      .then((res) => {
+        setAllExceptions(res.timeOff || []);
+      })
+      .catch((err) => console.error("Failed to load exceptions:", err))
+      .finally(() => setLoadingExceptions(false));
   }, [profile?.practitioner_slug]);
 
   // Update Status Action (Confirm or Complete)
@@ -225,6 +285,29 @@ const PractitionerArea = () => {
     }
   };
 
+  // Cancel Booking
+  const handleCancelBooking = async (id: string) => {
+    setStatusBusyId(id);
+
+    try {
+      await cancelAppointment(id);
+
+      toast.success("Appointment has been cancelled");
+
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === id ? { ...b, status: "cancelled" } : b
+        )
+      );
+
+      setCancelModalBooking(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel appointment");
+    } finally {
+      setStatusBusyId(null);
+    }
+  };
+
   // Save Weekly Schedule
   const handleSaveSchedule = async () => {
     setSavingSchedule(true);
@@ -235,12 +318,12 @@ const PractitionerArea = () => {
           day_of_week: d.day,
           slots: item.active
             ? [
-                {
-                  start_time: item.start,
-                  end_time: item.end,
-                  duration_min: item.duration || 60,
-                },
-              ]
+              {
+                start_time: item.start,
+                end_time: item.end,
+                duration_min: item.duration || 60,
+              },
+            ]
             : [],
         };
       });
@@ -389,10 +472,81 @@ const PractitionerArea = () => {
           </div>
         ) : (
           <Tabs defaultValue="appointments" className="w-full">
-            <TabsList className="grid w-full sm:w-[650px] grid-cols-3 rounded-full p-1 bg-secondary border border-border mb-8">
-              <TabsTrigger value="appointments" className="rounded-full">Client Sessions</TabsTrigger>
-              <TabsTrigger value="availability" className="rounded-full">Weekly Schedule</TabsTrigger>
-              <TabsTrigger value="articles" className="rounded-full">Articles & Wisdom</TabsTrigger>
+            <TabsList
+              className="
+                grid w-full max-w-[760px] grid-cols-3
+                h-12 sm:h-14
+                rounded-full
+                p-1
+                bg-secondary/70
+                border border-border/70
+                shadow-sm
+                mb-10
+                backdrop-blur-sm
+              "
+            >
+              <TabsTrigger
+                value="appointments"
+                className="
+                  h-full rounded-full
+                  px-3 sm:px-5
+                  text-xs sm:text-sm
+                  font-medium
+                  text-muted-foreground
+                  transition-all duration-200
+                  gap-1.5 sm:gap-2
+                  data-[state=active]:bg-background
+                  data-[state=active]:text-foreground
+                  data-[state=active]:shadow-sm
+                  data-[state=active]:border
+                  data-[state=active]:border-border/60
+                "
+              >
+                <Users className="size-3.5 sm:size-4 shrink-0" />
+                <span>Client Sessions</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="availability"
+                className="
+                  h-full rounded-full
+                  px-3 sm:px-5
+                  text-xs sm:text-sm
+                  font-medium
+                  text-muted-foreground
+                  transition-all duration-200
+                  gap-1.5 sm:gap-2
+                  data-[state=active]:bg-background
+                  data-[state=active]:text-foreground
+                  data-[state=active]:shadow-sm
+                  data-[state=active]:border
+                  data-[state=active]:border-border/60
+                "
+              >
+                <Clock className="size-3.5 sm:size-4 shrink-0" />
+                <span>Weekly Schedule</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="articles"
+                className="
+                  h-full rounded-full
+                  px-3 sm:px-5
+                  text-xs sm:text-sm
+                  font-medium
+                  text-muted-foreground
+                  transition-all duration-200
+                  gap-1.5 sm:gap-2
+                  data-[state=active]:bg-background
+                  data-[state=active]:text-foreground
+                  data-[state=active]:shadow-sm
+                  data-[state=active]:border
+                  data-[state=active]:border-border/60
+                "
+              >
+                <BookOpen className="size-3.5 sm:size-4 shrink-0" />
+                <span>Articles & Wisdom</span>
+              </TabsTrigger>
             </TabsList>
 
             {/* TAB 1: CLIENT SESSIONS & AFTERCARE */}
@@ -430,82 +584,170 @@ const PractitionerArea = () => {
               ) : (
                 <div className="space-y-5">
                   {bookings.map((b) => {
-                    const Icon = modeIcon(b.mode);
                     const isPending = b.status === "pending";
                     const isConfirmed = b.status === "confirmed";
                     const isCompleted = b.status === "completed";
+                    const isCancelled = b.status === "cancelled";
+
+                    // Service detail lookup
+                    const matchedService = services.find((s) => s.id === b.item_id);
+                    const serviceName = matchedService?.name || "Therapy Session";
 
                     const scheduledDate = b.scheduled_at
                       ? new Date(b.scheduled_at).toLocaleDateString("en-IN", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : null;
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                      : "Date pending";
 
                     const scheduledTime = b.scheduled_at
                       ? new Date(b.scheduled_at).toLocaleTimeString("en-IN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : null;
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                      : "";
+
+                    // Parse attendees safely handle JSON string representation
+                    const parsedAttendees = (b.attendees || []).map(a => {
+                      if (typeof a === 'string') {
+                        try {
+                          const parsed = JSON.parse(a);
+                          return parsed.name || parsed.email || a;
+                        } catch {
+                          return a;
+                        }
+                      } else if (a && typeof a === 'object') {
+                        return (a as any).name || (a as any).email || 'Guest';
+                      }
+                      return a;
+                    });
+
+                    const formatPrice = (val: number | null | undefined) => {
+                      if (val == null) return "₹0";
+                      const inr = val > 10000 ? Math.round(val / 100) : val;
+                      return `₹${inr.toLocaleString("en-IN")}`;
+                    };
 
                     return (
                       <article
                         key={b.id}
-                        className="rounded-[2rem] border border-border bg-card p-7 shadow-soft space-y-5"
+                        className="rounded-3xl border border-border bg-card p-6 md:p-7 shadow-soft transition-smooth hover:border-foreground/20 space-y-5"
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                          {/* Client & Booking ID */}
                           <div>
-                            <div className="flex items-center gap-3">
-                              <h2 className="font-display text-2xl text-foreground">
-                                {b.client_name ?? "Client"}
-                              </h2>
+                            <div className="flex items-center gap-2.5">
+                              <h3 className="font-display text-xl text-foreground">
+                                {b.client_name ?? "Guest Client"}
+                              </h3>
                               <Badge
                                 variant="outline"
-                                className={`text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full ${
-                                  isPending
-                                    ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                                    : isConfirmed
+                                className={`text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full ${isPending
+                                  ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                                  : isConfirmed
                                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
                                     : isCompleted
-                                    ? "border-blue-500/30 bg-blue-500/10 text-blue-700"
-                                    : "border-border bg-muted text-muted-foreground"
-                                }`}
+                                      ? "border-blue-500/30 bg-blue-500/10 text-blue-700"
+                                      : "border-border bg-muted text-muted-foreground"
+                                  }`}
                               >
                                 {b.status}
                               </Badge>
                             </div>
+                            <p className="text-[11px] text-muted-foreground mt-1 font-mono">
+                              ID: {b.id.slice(0, 8)}... · Booked on {new Date(b.created_at).toLocaleDateString("en-IN")}
+                            </p>
+                          </div>
 
-                            {scheduledDate && (
-                              <div className="flex items-center gap-2 text-sm font-medium text-foreground mt-2">
-                                <Calendar className="size-4 text-accent" />
-                                <span>{scheduledDate} {scheduledTime ? `· ${scheduledTime}` : ""}</span>
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1.5">
-                              <Icon className="size-4" /> {modeLabel(b.mode)}
-                              {b.pin && <span>· PIN {b.pin}</span>}
+                          {/* Price */}
+                          <div className="sm:text-right">
+                            <div className="font-display text-2xl text-foreground">
+                              {formatPrice(b.amount)}
                             </div>
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                              {b.currency || "INR"}
+                            </span>
+                          </div>
+                        </div>
 
-                            {(b.group_size ?? 1) > 1 && (
-                              <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                                <Users className="size-4" /> Group circle of {b.group_size}
-                                {b.attendees?.length ? ` · ${b.attendees.join(", ")}` : ""}
-                              </div>
+                        {/* Session Details Grid */}
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+                          {/* Therapy & Circle */}
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                              Therapy &amp; Circle
+                            </span>
+                            <p className="font-medium text-foreground">{serviceName}</p>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              {(b.group_size || 1) > 1 ? (
+                                <>
+                                  <Users className="size-3.5 text-accent" />
+                                  <span>Group circle ({b.group_size} guests)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <User className="size-3.5 text-muted-foreground" />
+                                  <span>Solo 1-on-1 session</span>
+                                </>
+                              )}
+                            </div>
+                            {parsedAttendees.length > 1 && (
+                              <p className="text-[11px] text-muted-foreground truncate" title={parsedAttendees.join(", ")}>
+                                Guests: {parsedAttendees.slice(1).join(", ")}
+                              </p>
                             )}
                           </div>
 
-                          {/* Quick Action Buttons for Practitioners */}
+                          {/* Scheduled Date & Location */}
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                              Date &amp; Space
+                            </span>
+                            <p className="font-medium text-foreground flex items-center gap-1.5">
+                              <Calendar className="size-3.5 text-accent" />
+                              {scheduledDate} {scheduledTime ? `· ${scheduledTime}` : ""}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              {b.mode === "online" ? (
+                                <>
+                                  <Video className="size-3.5 text-blue-500" />
+                                  <span>Online video session</span>
+                                </>
+                              ) : b.mode === "host" ? (
+                                <>
+                                  <Home className="size-3.5 text-accent" />
+                                  <span>Client's home</span>
+                                </>
+                              ) : (
+                                <>
+                                  <MapPin className="size-3.5 text-accent" />
+                                  <span className="truncate">
+                                    {b.meeting_location?.address || `Partner space ${b.pin || ""}`}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/60">
+                          <div className="text-[11px] text-muted-foreground">
+                            {b.aftercare_notes ? (
+                              <span className="text-accent font-medium">✓ Aftercare notes appended</span>
+                            ) : (
+                              <span>No aftercare notes yet</span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             {isPending && (
                               <Button
                                 size="sm"
                                 onClick={() => handleUpdateStatus(b.id, "confirmed")}
                                 disabled={statusBusyId === b.id}
-                                className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4 text-xs"
+                                className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 h-9 px-4 text-xs font-medium"
                               >
                                 <CheckCircle2 className="size-3.5 mr-1.5" />
                                 Confirm Session
@@ -517,17 +759,30 @@ const PractitionerArea = () => {
                                 size="sm"
                                 onClick={() => handleUpdateStatus(b.id, "completed")}
                                 disabled={statusBusyId === b.id}
-                                className="rounded-full bg-blue-600 text-white hover:bg-blue-700 h-9 px-4 text-xs"
+                                className="rounded-full bg-blue-600 text-white hover:bg-blue-700 h-9 px-4 text-xs font-medium"
                               >
                                 <CheckCircle2 className="size-3.5 mr-1.5" />
                                 Mark Completed
+                              </Button>
+                            )}
+
+                            {!isCancelled && !isCompleted && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setCancelModalBooking(b)}
+                                disabled={statusBusyId === b.id}
+                                className="rounded-full h-9 px-3 text-xs text-muted-foreground hover:text-destructive"
+                              >
+                                <XCircle className="size-3.5 mr-1.5" />
+                                Cancel
                               </Button>
                             )}
                           </div>
                         </div>
 
                         {/* Aftercare Notes Editor */}
-                        <div className="space-y-3">
+                        <div className="space-y-3 bg-secondary/20 p-4 rounded-2xl border border-border/50">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5">
                               <NotebookPen className="size-3.5" /> Client Aftercare Notes
@@ -555,6 +810,18 @@ const PractitionerArea = () => {
                       </article>
                     );
                   })}
+
+                  {appointmentsTotalPages > 1 && (
+                    <div className="pt-6 pb-2 border-t border-border mt-8">
+                      <AuraPagination
+                        currentPage={appointmentsPage}
+                        totalPages={appointmentsTotalPages}
+                        totalItems={appointmentsTotal}
+                        onPageChange={setAppointmentsPage}
+                        itemsName="appointments"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -595,11 +862,10 @@ const PractitionerArea = () => {
                     return (
                       <div
                         key={d.day}
-                        className={`rounded-2xl border p-5 transition-smooth ${
-                          current.active
-                            ? "border-border bg-card shadow-soft"
-                            : "border-border/50 bg-secondary/20 opacity-70"
-                        }`}
+                        className={`rounded-2xl border p-5 transition-smooth ${current.active
+                          ? "border-border bg-card shadow-soft"
+                          : "border-border/50 bg-secondary/20 opacity-70"
+                          }`}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex items-center gap-4">
@@ -650,6 +916,37 @@ const PractitionerArea = () => {
                                   className="h-10 w-28 rounded-xl bg-background text-xs"
                                 />
                               </div>
+
+                              {/* Three-dot exceptions menu */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="size-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary/60 transition-colors"
+                                    title="Manage this day"
+                                  >
+                                    <MoreVertical className="size-4" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-52">
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setExceptionDay(d);
+                                      setExceptionDate("");
+                                      setExceptionStart(current.start);
+                                      setExceptionEnd(current.end);
+                                      setExceptionType("leave");
+                                      setExceptionReason("");
+                                      // pre-filter existing exceptions for this specific day using Day-Of-Week to show in modal?
+                                      setPendingExceptions([]);
+                                    }}
+                                    className="gap-2"
+                                  >
+                                    <CalendarOff className="size-4" />
+                                    Manage exceptions
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           )}
                         </div>
@@ -658,7 +955,190 @@ const PractitionerArea = () => {
                   })}
                 </div>
               )}
+
+              {/* ALL APPLIED EXCEPTIONS LIST */}
+              <div className="mt-8 pt-6 border-t border-border">
+                <h3 className="font-display text-lg text-foreground mb-4">Applied Exceptions</h3>
+                {loadingExceptions ? (
+                  <p className="text-sm text-muted-foreground">Loading exceptions...</p>
+                ) : allExceptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">No availability exceptions applied.</p>
+                ) : (
+                  <div className="border border-border rounded-2xl divide-y divide-border bg-card">
+                    {allExceptions.map((ex) => (
+                      <div key={ex.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant={ex.type === "leave" ? "destructive" : "secondary"}>
+                              {ex.type === "leave" ? "Blocked / Leave" : "Special Hours"}
+                            </Badge>
+                            <span className="font-medium text-sm">{ex.exception_date}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {ex.start_time} – {ex.end_time} {ex.reason && `· ${ex.reason}`}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingExceptionId === ex.id}
+                          onClick={async () => {
+                            if (!profile?.practitioner_slug) return;
+                            setDeletingExceptionId(ex.id);
+                            try {
+                              await deleteException(profile.practitioner_slug, ex.id);
+                              setAllExceptions((prev) => prev.filter((e) => e.id !== ex.id));
+                              toast.success("Exception removed");
+                            } catch (err: any) {
+                              toast.error(err.message || "Failed to remove exception");
+                            } finally {
+                              setDeletingExceptionId(null);
+                            }
+                          }}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                        >
+                          <XCircle className="size-4 mr-2" /> Release
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </TabsContent>
+
+            {/* EXCEPTIONS DIALOG */}
+            <Dialog open={!!exceptionDay} onOpenChange={(open) => !open && setExceptionDay(null)}>
+              <DialogContent className="max-w-lg rounded-3xl p-6 sm:p-8">
+                <DialogHeader>
+                  <DialogTitle className="font-display text-2xl flex items-center gap-2">
+                    <CalendarOff className="size-5" /> {exceptionDay?.label} Exceptions
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground pt-1">
+                    Block a specific date within this day's schedule — e.g. a holiday, a personal appointment, or reduced hours.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 space-y-1.5">
+                      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Specific Date to Block</Label>
+                      <Input
+                        type="date"
+                        value={exceptionDate}
+                        onChange={(e) => setExceptionDate(e.target.value)}
+                        className="h-11 rounded-xl bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Block From</Label>
+                      <Input
+                        type="time"
+                        value={exceptionStart}
+                        onChange={(e) => setExceptionStart(e.target.value)}
+                        className="h-11 rounded-xl bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Block Until</Label>
+                      <Input
+                        type="time"
+                        value={exceptionEnd}
+                        onChange={(e) => setExceptionEnd(e.target.value)}
+                        className="h-11 rounded-xl bg-background"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Type</Label>
+                      <select
+                        value={exceptionType}
+                        onChange={(e) => setExceptionType(e.target.value as "leave" | "special")}
+                        className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                      >
+                        <option value="leave">Leave / Day off</option>
+                        <option value="special">Special reduced hours</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Reason (optional)</Label>
+                      <Input
+                        value={exceptionReason}
+                        onChange={(e) => setExceptionReason(e.target.value)}
+                        placeholder="e.g. Doctor's appointment"
+                        className="h-11 rounded-xl bg-background"
+                      />
+                    </div>
+                  </div>
+
+                  {pendingExceptions.length > 0 && (
+                    <div className="border border-border rounded-xl divide-y divide-border">
+                      {pendingExceptions.map((ex) => (
+                        <div key={ex.id} className="flex items-center justify-between px-4 py-2.5">
+                          <div>
+                            <span className="text-sm font-medium">{ex.exception_date}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{ex.start_time} – {ex.end_time}</span>
+                            {ex.reason && <span className="text-xs text-muted-foreground ml-2">· {ex.reason}</span>}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={deletingExceptionId === ex.id}
+                            onClick={async () => {
+                              if (!profile?.practitioner_slug) return;
+                              setDeletingExceptionId(ex.id);
+                              try {
+                                await deleteException(profile.practitioner_slug, ex.id);
+                                setPendingExceptions((prev) => prev.filter((e) => e.id !== ex.id));
+                                toast.success("Exception removed");
+                              } catch (err: any) {
+                                toast.error(err.message || "Failed to remove");
+                              } finally {
+                                setDeletingExceptionId(null);
+                              }
+                            }}
+                            className="text-destructive hover:text-destructive/80 ml-3 disabled:opacity-50"
+                          >
+                            <XCircle className="size-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                  <Button variant="outline" onClick={() => setExceptionDay(null)} className="rounded-full h-11">
+                    Close
+                  </Button>
+                  <Button
+                    disabled={savingException || !exceptionDate || !exceptionStart || !exceptionEnd}
+                    onClick={async () => {
+                      if (!profile?.practitioner_slug || !exceptionDate) return;
+                      setSavingException(true);
+                      try {
+                        const res = await createException(profile.practitioner_slug, {
+                          exception_date: exceptionDate,
+                          start_time: exceptionStart,
+                          end_time: exceptionEnd,
+                          type: exceptionType,
+                          reason: exceptionReason || undefined,
+                        });
+                        setPendingExceptions((prev) => [...prev, res.exception]);
+                        setAllExceptions((prev) => [...prev, res.exception]); // Update main list too
+                        setExceptionDate("");
+                        setExceptionReason("");
+                        toast.success(`Exception added for ${exceptionDate}`);
+                      } catch (err: any) {
+                        toast.error(err.message || "Failed to add exception");
+                      } finally {
+                        setSavingException(false);
+                      }
+                    }}
+                    className="rounded-full h-11 px-7 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {savingException ? "Blocking…" : "Block this date"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* TAB 3: ARTICLES & WISDOM */}
             <TabsContent value="articles" className="space-y-6 mt-0">
@@ -761,11 +1241,10 @@ const PractitionerArea = () => {
                               )}
                               <Badge
                                 variant="outline"
-                                className={`text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full ${
-                                  isPublished
-                                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                                    : "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                                }`}
+                                className={`text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full ${isPublished
+                                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                                  : "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                                  }`}
                               >
                                 {isPublished ? "Live & Public" : "Draft (Private)"}
                               </Badge>
@@ -979,6 +1458,130 @@ const PractitionerArea = () => {
                 ) : (
                   <>
                     <Globe className="size-3.5 mr-1.5" /> Publish Publicly
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* DIALOG: Cancel Appointment */}
+        <Dialog
+          open={!!cancelModalBooking}
+          onOpenChange={(open) => {
+            if (!open && statusBusyId !== cancelModalBooking?.id) {
+              setCancelModalBooking(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md rounded-3xl p-6 sm:p-7">
+            <DialogHeader>
+              <div className="flex items-start gap-4">
+                <div className="size-11 rounded-2xl bg-destructive/10 flex items-center justify-center shrink-0">
+                  <XCircle className="size-5 text-destructive" />
+                </div>
+
+                <div className="space-y-1">
+                  <DialogTitle className="font-display text-2xl">
+                    Cancel Session?
+                  </DialogTitle>
+
+                  <DialogDescription className="text-xs leading-relaxed text-muted-foreground">
+                    Are you sure you want to cancel this session? This action cannot
+                    be undone.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            {cancelModalBooking && (
+              <div className="rounded-2xl border border-border bg-secondary/30 p-4 my-2">
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                      Client
+                    </span>
+                    <p className="text-sm font-medium text-foreground mt-0.5">
+                      {cancelModalBooking.client_name || "Guest Client"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                        Date
+                      </span>
+                      <p className="text-xs text-foreground mt-0.5">
+                        {cancelModalBooking.scheduled_at
+                          ? new Date(
+                              cancelModalBooking.scheduled_at
+                            ).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "Date pending"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                        Time
+                      </span>
+                      <p className="text-xs text-foreground mt-0.5">
+                        {cancelModalBooking.scheduled_at
+                          ? new Date(
+                              cancelModalBooking.scheduled_at
+                            ).toLocaleTimeString("en-IN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Time pending"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3">
+              <p className="text-xs text-destructive/90 leading-relaxed">
+                The client will be notified that this appointment has been cancelled.
+              </p>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setCancelModalBooking(null)}
+                disabled={statusBusyId === cancelModalBooking?.id}
+                className="rounded-full h-11"
+              >
+                Keep Session
+              </Button>
+
+              <Button
+                onClick={() =>
+                  cancelModalBooking &&
+                  handleCancelBooking(cancelModalBooking.id)
+                }
+                disabled={
+                  !cancelModalBooking ||
+                  statusBusyId === cancelModalBooking.id
+                }
+                variant="destructive"
+                className="rounded-full h-11 px-6"
+              >
+                {statusBusyId === cancelModalBooking?.id ? (
+                  <>
+                    <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                    Cancelling…
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="size-3.5 mr-1.5" />
+                    Cancel Session
                   </>
                 )}
               </Button>
