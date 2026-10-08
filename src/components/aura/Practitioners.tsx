@@ -60,6 +60,7 @@ const Practitioners = () => {
   const [query, setQuery] = useState(
     () => new URLSearchParams(window.location.search).get("q") ?? ""
   );
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     listPractitioners({ limit: 100 })
@@ -90,6 +91,13 @@ const Practitioners = () => {
       .sort((a, b) => b.score - a.score)
       .map((s) => s.p);
   }, [people, query]);
+
+  const displayedPeople = useMemo(() => {
+    if (showAll || query.trim() !== "") {
+      return visible;
+    }
+    return visible.slice(0, 3);
+  }, [visible, showAll, query]);
 
   return (
   <section id="practitioners" className="bg-background py-24 lg:py-32">
@@ -150,7 +158,7 @@ const Practitioners = () => {
             </p>
           )}
           <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
-            {visible.map((p) => (
+            {displayedPeople.map((p) => (
               <Dialog key={p.slug}>
                 <article className="group bg-card rounded-[2rem] overflow-hidden border border-border shadow-soft hover:shadow-elegant transition-smooth">
                   <DialogTrigger asChild>
@@ -344,11 +352,19 @@ const Practitioners = () => {
         </>
       )}
 
-      <div className="mt-12 text-center">
-        <Button variant="outline" size="lg" className="rounded-full h-14 px-10 border-foreground text-foreground hover:bg-foreground hover:text-background text-base">
-          See all practitioners
-        </Button>
-      </div>
+      {visible.length > 3 && query.trim() === "" && (
+        <div className="mt-12 text-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => setShowAll((prev) => !prev)}
+            className="rounded-full h-14 px-10 border-foreground/30 text-foreground bg-card/60 hover:bg-secondary hover:text-foreground text-base transition-all duration-200 shadow-soft cursor-pointer"
+          >
+            {showAll ? "Show fewer guides" : `See all practitioners (${visible.length})`}
+          </Button>
+        </div>
+      )}
     </div>
   </section>
   );

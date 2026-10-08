@@ -8,7 +8,6 @@ import DigitalProducts from "@/components/aura/DigitalProducts";
 import WhyAuraVida from "@/components/aura/WhyAuraVida";
 import Waitlist from "@/components/aura/Waitlist";
 import HowItWorks from "@/components/aura/HowItWorks";
-import ForHealers from "@/components/aura/ForHealers";
 import Footer from "@/components/aura/Footer";
 
 const Index = () => {
@@ -34,7 +33,6 @@ const Index = () => {
       <WhyAuraVida />
       <DigitalProducts />
       <Waitlist />
-      <ForHealers />
       <Footer />
     </main>
   );

@@ -21,11 +21,21 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import Nav from "@/components/aura/Nav";
 import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
 import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, adminApprovePractitioner, adminListPractitioners, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import AdminAppointments from "@/components/aura/AdminAppointments";
+import AdminOverview from "@/components/aura/AdminOverview";
+import AdminUsers from "@/components/aura/AdminUsers";
+import AuraPagination from "@/components/aura/AuraPagination";
 
 
 
@@ -50,6 +60,15 @@ const blank = (order: number): Omit<Practitioner, "id"> => ({
   offers_online: false,
 });
 
+const ADMIN_TABS = [
+  { value: "overview", label: "Overview" },
+  { value: "users", label: "Users & Clients" },
+  { value: "appointments", label: "Appointments" },
+  { value: "practitioners", label: "Practitioners" },
+  { value: "services", label: "Services" },
+  { value: "spaces", label: "Spaces" },
+];
+
 const Admin = () => {
   const { user, profile, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -57,14 +76,22 @@ const Admin = () => {
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPublished, setFilterPublished] = useState<string>(""); // "" | "true" | "false"
   const [filterBookable, setFilterBookable] = useState<string>("");   // "" | "true" | "false"
   const [viewApplicant, setViewApplicant] = useState<Practitioner | null>(null);
   const [approving, setApproving] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [expandedPractitioners, setExpandedPractitioners] = useState<Record<string, boolean>>({});
 
-
-
+  const togglePractitionerExpanded = (id?: string) => {
+    if (!id) return;
+    setExpandedPractitioners((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +109,7 @@ const Admin = () => {
       });
       setRows(data.practitioners);
       setTotalPages(data.pagination.totalPages || 1);
+      setTotalCount(data.pagination.total || 0);
     } catch (err: any) {
       toast.error(err.message || "Failed to load practitioners");
     } finally {
@@ -235,19 +263,80 @@ const Admin = () => {
   return (
     <div className="min-h-screen bg-background">
       <Nav />
-      <main className="max-w-4xl mx-auto px-6 py-16 lg:py-24">
-        <Tabs defaultValue="appointments" className="w-full">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6 mb-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-16">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex flex-col gap-6 mb-8 sm:mb-10">
             <div>
-              <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Admin Dashboard</span>
-              <h1 className="font-display text-4xl mt-3">Platform Management</h1>
+              <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Kuśala Console</span>
+              <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-2 text-foreground">Platform Management</h1>
             </div>
-            <TabsList className="grid w-full sm:w-[500px] grid-cols-3 rounded-full p-1 bg-secondary border border-border">
-              <TabsTrigger value="appointments" className="rounded-full">Appointments</TabsTrigger>
-              <TabsTrigger value="practitioners" className="rounded-full">Practitioners</TabsTrigger>
-              <TabsTrigger value="services" className="rounded-full">Services</TabsTrigger>
-            </TabsList>
+
+            {/* Mobile Navigation: Sleek Active Tab + 3 Dots Menu Button */}
+            <div className="flex md:hidden items-center justify-between gap-3 p-1.5 rounded-full bg-secondary/80 border border-border w-full shadow-soft">
+              <div className="flex items-center gap-2.5 pl-3.5">
+                <span className="size-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-xs font-semibold text-foreground tracking-tight">
+                  {ADMIN_TABS.find((t) => t.value === activeTab)?.label || "Overview"}
+                </span>
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full h-9 px-3 gap-1.5 bg-card border-border hover:bg-secondary text-foreground text-xs shadow-soft"
+                    aria-label="Open navigation menu"
+                  >
+                    <span className="text-[11px] font-medium text-muted-foreground">Switch Tab</span>
+                    <MoreHorizontal className="size-4 text-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 bg-card border-border shadow-elegant">
+                  {ADMIN_TABS.map((tab) => {
+                    const isActive = activeTab === tab.value;
+                    return (
+                      <DropdownMenuItem
+                        key={tab.value}
+                        onClick={() => setActiveTab(tab.value)}
+                        className={`rounded-xl px-3 py-2.5 text-xs font-medium cursor-pointer flex items-center justify-between transition-colors ${
+                          isActive
+                            ? "bg-primary text-primary-foreground font-semibold"
+                            : "text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <span>{tab.label}</span>
+                        {isActive && <Check className="size-3.5 ml-2 shrink-0" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Desktop Navigation: Full Sleek Single-Row Pill Capsule */}
+            <div className="hidden md:flex w-full overflow-x-auto no-scrollbar pb-1">
+              <TabsList className="inline-flex h-12 items-center rounded-full p-1.5 bg-secondary/80 border border-border w-auto min-w-max gap-1">
+                {ADMIN_TABS.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="rounded-full text-xs font-medium px-5 h-9 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-soft transition-smooth"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
           </div>
+
+          <TabsContent value="overview" className="mt-0">
+            <AdminOverview onNavigateTab={setActiveTab} />
+          </TabsContent>
+
+          <TabsContent value="users" className="mt-0">
+            <AdminUsers />
+          </TabsContent>
 
           <TabsContent value="appointments" className="mt-0">
             <AdminAppointments />
@@ -346,28 +435,58 @@ const Admin = () => {
                     </div>
                   )}
                 </div>
-                <DialogFooter className="gap-2">
+                <DialogFooter className="gap-2 sm:justify-between items-center">
                   <Button variant="outline" className="rounded-full" onClick={() => setViewApplicant(null)}>Close</Button>
-                  <Button
-                    className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 px-6"
-                    disabled={approving}
-                    onClick={async () => {
-                      if (!viewApplicant?.id) return;
-                      setApproving(true);
-                      try {
-                        const res = await adminApprovePractitioner(viewApplicant.id);
-                        toast.success(`✅ ${viewApplicant.name} approved! Invite sent to ${res.email}`);
-                        setViewApplicant(null);
-                        load();
-                      } catch (err: any) {
-                        toast.error(err.message || "Failed to approve");
-                      } finally {
-                        setApproving(false);
-                      }
-                    }}
-                  >
-                    {approving ? "Approving…" : "Approve & Send Invite"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="destructive"
+                      className="rounded-full px-5 gap-1.5"
+                      disabled={approving}
+                      onClick={async () => {
+                        if (!viewApplicant?.id) return;
+                        if (!confirm(`Are you sure you want to reject the application for ${viewApplicant.name}?`)) return;
+                        setApproving(true);
+                        try {
+                          await adminUpdatePractitioner(viewApplicant.id, {
+                            application_status: "rejected",
+                            is_published: false,
+                            bookable: false,
+                          });
+                          toast.success(`Application for ${viewApplicant.name} has been rejected`);
+                          setViewApplicant(null);
+                          load();
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to reject application");
+                        } finally {
+                          setApproving(false);
+                        }
+                      }}
+                    >
+                      <XCircle className="size-4 mr-1" />
+                      Reject
+                    </Button>
+                    <Button
+                      className="rounded-full bg-emerald-600 text-white hover:bg-emerald-700 px-6 gap-1.5"
+                      disabled={approving}
+                      onClick={async () => {
+                        if (!viewApplicant?.id) return;
+                        setApproving(true);
+                        try {
+                          const res = await adminApprovePractitioner(viewApplicant.id);
+                          toast.success(`✅ ${viewApplicant.name} approved! Invite sent to ${res.email}`);
+                          setViewApplicant(null);
+                          load();
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to approve");
+                        } finally {
+                          setApproving(false);
+                        }
+                      }}
+                    >
+                      <Check className="size-4 mr-1" />
+                      {approving ? "Approving…" : "Approve & Send Invite"}
+                    </Button>
+                  </div>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -447,181 +566,235 @@ const Admin = () => {
               </DialogContent>
             </Dialog>
 
-            <div className="space-y-8">
-              {approvedRows.map((row) => (
-                <section key={row.id} className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-                  <div className="flex flex-col sm:flex-row gap-6">
-                    <div className="sm:w-40 shrink-0">
-                      <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
-                        {row.image_url ? (
-                          <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
-                        )}
-                      </div>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="text-xs"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) uploadPhoto(row, f);
-                        }}
-                      />
-                    </div>
+            <div className={cn("space-y-4 transition-opacity duration-200", busy && "opacity-60 pointer-events-none")}>
+              {approvedRows.map((row) => {
+                const isExpanded = !!expandedPractitioners[row.id];
+                return (
+                  <section key={row.id} className="rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-soft transition-all duration-200">
+                    {/* Collapsed Summary Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div 
+                        className="flex items-center gap-4 min-w-0 cursor-pointer flex-1"
+                        onClick={() => togglePractitionerExpanded(row.id)}
+                      >
+                        {/* Photo Thumbnail */}
+                        <div className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border/60 shadow-sm relative group">
+                          {row.image_url ? (
+                            <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full grid place-items-center text-[11px] text-muted-foreground font-medium p-1 text-center">
+                              No photo
+                            </div>
+                          )}
+                        </div>
 
-                    <div className="flex-1 grid sm:grid-cols-2 gap-4">
-                      <div className="sm:col-span-2">
-                        <Label>Name</Label>
-                        <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
-                      </div>
-                      <div>
-                        <Label>Modality / title</Label>
-                        <Input value={row.craft} onChange={(e) => update(row.id, { craft: e.target.value })} />
-                      </div>
-                      <div>
-                        <Label>Location</Label>
-                        <Input value={row.city} onChange={(e) => update(row.id, { city: e.target.value })} />
-                      </div>
-                      <div>
-                        <Label>Rating</Label>
-                        <Input type="number" step="0.01" min="0" max="5" value={row.rating}
-                          onChange={(e) => update(row.id, { rating: Number(e.target.value) })} />
-                      </div>
-                      <div>
-                        <Label>Sessions completed</Label>
-                        <Input type="number" min="0" value={row.sessions}
-                          onChange={(e) => update(row.id, { sessions: Number(e.target.value) })} />
-                      </div>
-                      <div>
-                        <Label>Price per session (Γé╣)</Label>
-                        <Input type="number" min="0" value={row.price_inr}
-                          onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })} />
-                      </div>
-                      <div>
-                        <Label>Order on page</Label>
-                        <Input type="number" value={row.sort_order}
-                          onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })} />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>About this practitioner</Label>
-                        <Textarea rows={3} value={row.bio ?? ""} onChange={(e) => update(row.id, { bio: e.target.value })} />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Focus areas (what clients search for - comma separated)</Label>
-                        <Input
-                          value={(row.keywords ?? []).join(", ")}
-                          placeholder="addiction, alcohol, anxiety, sleep, trauma"
-                          onChange={(e) =>
-                            update(row.id, {
-                              keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean),
-                            })
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground mt-1.5">
-                          These power the site search - include everyday words clients might type, like "alcohol" or "insomnia".
-                        </p>
-                      </div>
-                      <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch checked={row.is_published} onCheckedChange={(v) => update(row.id, { is_published: v })} />
-                          Show on site
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch checked={row.bookable} onCheckedChange={(v) => update(row.id, { bookable: v })} />
-                          Allow booking
-                        </label>
-                      </div>
-                      <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1 border-t border-border mt-2">
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch checked={row.offers_centre !== false} onCheckedChange={(v) => update(row.id, { offers_centre: v })} />
-                          Partner Space (Centre)
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch checked={row.offers_host === true} onCheckedChange={(v) => update(row.id, { offers_host: v })} />
-                          At Home (Host)
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch checked={row.offers_online === true} onCheckedChange={(v) => update(row.id, { offers_online: v })} />
-                          Online Session
-                        </label>
-                        <div className="ml-auto flex items-center gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => remove(row)} aria-label={`Remove ${row.name}`}>
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
-                          <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+                        {/* Summary Details */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-display text-lg sm:text-xl text-foreground font-medium truncate">
+                              {row.name || "Untitled Practitioner"}
+                            </h3>
+                            {row.is_published ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                Live on site
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+                                Draft
+                              </span>
+                            )}
+                            {row.bookable && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent border border-accent/20">
+                                Bookable
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                            {[row.craft, row.city].filter(Boolean).join(" · ") || "No craft specified"}
+                          </p>
+
+                          <div className="flex items-center gap-3.5 mt-2 text-xs text-muted-foreground flex-wrap">
+                            <span className="font-semibold text-foreground">
+                              ₹{Number(row.price_inr || 0).toLocaleString("en-IN")}
+                              <span className="font-normal text-muted-foreground text-[11px]"> / session</span>
+                            </span>
+                            <span className="flex items-center gap-1 font-medium text-foreground">
+                              ⭐ {row.rating ?? 5.0}
+                            </span>
+                            <span>{row.sessions ?? 0} sessions</span>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Action Buttons: Edit, Delete, Chevron */}
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground hover:bg-secondary border-border/80"
+                          onClick={() => togglePractitionerExpanded(row.id)}
+                        >
+                          <Pencil className="size-3.5 text-accent" />
+                          <span>{isExpanded ? "Close" : "Edit"}</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full size-9 text-destructive hover:bg-destructive/10"
+                          onClick={() => remove(row)}
+                          aria-label={`Remove ${row.name}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                          onClick={() => togglePractitionerExpanded(row.id)}
+                          aria-label={isExpanded ? "Collapse card" : "Expand card"}
+                        >
+                          <ChevronDown className={cn("size-4.5 transition-transform duration-200", isExpanded && "rotate-180")} />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </section>
-              ))}
+
+                    {/* Expandable Editing Area */}
+                    {isExpanded && (
+                      <div className="mt-6 pt-6 border-t border-border animate-in fade-in-50 duration-200">
+                        <div className="flex flex-col sm:flex-row gap-6">
+                          <div className="sm:w-40 shrink-0">
+                            <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
+                              {row.image_url ? (
+                                <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
+                              )}
+                            </div>
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              className="text-xs"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) uploadPhoto(row, f);
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex-1 grid sm:grid-cols-2 gap-4">
+                            <div className="sm:col-span-2">
+                              <Label>Name</Label>
+                              <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label>Modality / title</Label>
+                              <Input value={row.craft} onChange={(e) => update(row.id, { craft: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label>Location</Label>
+                              <Input value={row.city} onChange={(e) => update(row.id, { city: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label>Rating</Label>
+                              <Input type="number" step="0.01" min="0" max="5" value={row.rating}
+                                onChange={(e) => update(row.id, { rating: Number(e.target.value) })} />
+                            </div>
+                            <div>
+                              <Label>Sessions completed</Label>
+                              <Input type="number" min="0" value={row.sessions}
+                                onChange={(e) => update(row.id, { sessions: Number(e.target.value) })} />
+                            </div>
+                            <div>
+                              <Label>Price per session (₹)</Label>
+                              <Input type="number" min="0" value={row.price_inr}
+                                onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })} />
+                            </div>
+                            <div>
+                              <Label>Order on page</Label>
+                              <Input type="number" value={row.sort_order}
+                                onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })} />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <Label>About this practitioner</Label>
+                              <Textarea rows={3} value={row.bio ?? ""} onChange={(e) => update(row.id, { bio: e.target.value })} />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <Label>Focus areas (what clients search for - comma separated)</Label>
+                              <Input
+                                value={(row.keywords ?? []).join(", ")}
+                                placeholder="addiction, alcohol, anxiety, sleep, trauma"
+                                onChange={(e) =>
+                                  update(row.id, {
+                                    keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean),
+                                  })
+                                }
+                              />
+                              <p className="text-xs text-muted-foreground mt-1.5">
+                                These power the site search - include everyday words clients might type, like "alcohol" or "insomnia".
+                              </p>
+                            </div>
+                            <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
+                              <label className="flex items-center gap-2 text-sm">
+                                <Switch checked={row.is_published} onCheckedChange={(v) => update(row.id, { is_published: v })} />
+                                Show on site
+                              </label>
+                              <label className="flex items-center gap-2 text-sm">
+                                <Switch checked={row.bookable} onCheckedChange={(v) => update(row.id, { bookable: v })} />
+                                Allow booking
+                              </label>
+                            </div>
+                            <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1 border-t border-border mt-2">
+                              <label className="flex items-center gap-2 text-sm">
+                                <Switch checked={row.offers_centre !== false} onCheckedChange={(v) => update(row.id, { offers_centre: v })} />
+                                Partner Space (Centre)
+                              </label>
+                              <label className="flex items-center gap-2 text-sm">
+                                <Switch checked={row.offers_host === true} onCheckedChange={(v) => update(row.id, { offers_host: v })} />
+                                At Home (Host)
+                              </label>
+                              <label className="flex items-center gap-2 text-sm">
+                                <Switch checked={row.offers_online === true} onCheckedChange={(v) => update(row.id, { offers_online: v })} />
+                                Online Session
+                              </label>
+                              <div className="ml-auto flex items-center gap-2">
+                                <Button variant="outline" className="rounded-full" onClick={() => togglePractitionerExpanded(row.id)}>
+                                  Close
+                                </Button>
+                                <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
             </div>
 
-            {/* Pagination bar */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-                <span className="text-xs text-muted-foreground">
-                  Page {page} of {totalPages}
-                </span>
-
-                <div className="flex items-center gap-2">
-                  {/* Previous */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full h-9 w-9 p-0"
-                    disabled={page <= 1 || busy}
-                    onClick={() => {
-                      const prev = page - 1;
-                      setPage(prev);
-                      load(prev, searchTerm);
-                    }}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-
-                  {/* Page numbers */}
-                  {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-                    (pageNumber) => (
-                      <Button
-                        key={pageNumber}
-                        variant={page === pageNumber ? "default" : "outline"}
-                        size="sm"
-                        className="rounded-full h-9 min-w-9 px-3"
-                        disabled={busy}
-                        onClick={() => {
-                          setPage(pageNumber);
-                          load(pageNumber, searchTerm);
-                        }}
-                      >
-                        {pageNumber}
-                      </Button>
-                    )
-                  )}
-
-                  {/* Next */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full h-9 w-9 p-0"
-                    disabled={page >= totalPages || busy}
-                    onClick={() => {
-                      const next = page + 1;
-                      setPage(next);
-                      load(next, searchTerm);
-                    }}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            {/* Unified Luxury Pagination */}
+            <AuraPagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              pageSize={10}
+              itemName="practitioners"
+              disabled={busy}
+              onPageChange={(p) => {
+                setPage(p);
+                load(p, searchTerm, filterPublished, filterBookable);
+              }}
+            />
 
           </TabsContent>
 
           <TabsContent value="services" className="mt-0">
             <ServicesManager />
+          </TabsContent>
+
+          <TabsContent value="spaces" className="mt-0">
+            <SpaceListingsAdmin />
           </TabsContent>
         </Tabs>
       </main>
@@ -636,6 +809,14 @@ const ServicesManager = () => {
   const { services, loading } = useServices();
   const [localServices, setLocalServices] = React.useState(services);
   const [busy, setBusy] = React.useState(false);
+  const [expandedServices, setExpandedServices] = React.useState<Record<string, boolean>>({});
+
+  const toggleServiceExpanded = (id: string) => {
+    setExpandedServices((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   React.useEffect(() => {
     setLocalServices(services);
@@ -801,91 +982,181 @@ const ServicesManager = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-8">
-        {localServices.map((row) => (
-          <section key={row.id} className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-            <div className="flex flex-col sm:flex-row gap-6">
-              <div className="sm:w-40 shrink-0">
-                <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
-                  {row.image_url ? (
-                    <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
-                  )}
-                </div>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  className="text-xs"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) uploadPhoto(row, f);
-                  }}
-                />
-              </div>
+      <div className="space-y-4">
+        {localServices.map((row) => {
+          const isExpanded = !!expandedServices[row.id];
+          return (
+            <section key={row.id} className="rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-soft transition-all duration-200">
+              {/* Summary Collapsed Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div
+                  className="flex items-center gap-4 min-w-0 cursor-pointer flex-1"
+                  onClick={() => toggleServiceExpanded(row.id)}
+                >
+                  <div className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border/60 shadow-sm relative group">
+                    {row.image_url ? (
+                      <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
+                        No photo
+                      </div>
+                    )}
+                  </div>
 
-              <div className="flex-1 grid sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <Label>Name</Label>
-                  <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Category</Label>
-                  <Input value={row.category ?? ""} onChange={(e) => update(row.id, { category: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Duration (Min)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={row.duration_min ?? 0}
-                    onChange={(e) => update(row.id, { duration_min: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <Label>Price per session (₹)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={row.price_inr ?? 0}
-                    onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <Label>Order on page</Label>
-                  <Input
-                    type="number"
-                    value={row.sort_order ?? 0}
-                    onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    rows={3}
-                    value={row.description ?? ""}
-                    onChange={(e) => update(row.id, { description: e.target.value })}
-                  />
-                </div>
-                <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={row.is_active !== false}
-                      onCheckedChange={(v) => update(row.id, { is_active: v })}
-                    />
-                    Show on site
-                  </label>
-                  <div className="ml-auto flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => remove(row)} aria-label={`Remove ${row.name}`}>
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
-                    <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-display text-lg sm:text-xl text-foreground font-medium truncate">
+                        {row.name || "Untitled Service"}
+                      </h3>
+                      {row.is_active !== false ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+                          Hidden
+                        </span>
+                      )}
+                      {row.category && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent border border-accent/20">
+                          {row.category}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                      {row.description || "No description provided"}
+                    </p>
+
+                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
+                      <span className="font-semibold text-foreground">
+                        ₹{Number(row.price_inr ?? 0).toLocaleString("en-IN")}
+                      </span>
+                      <span>⏱️ {row.duration_min ?? 60} mins</span>
+                      <span>Sort order: {row.sort_order ?? 0}</span>
+                    </div>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground hover:bg-secondary border-border/80"
+                    onClick={() => toggleServiceExpanded(row.id)}
+                  >
+                    <Pencil className="size-3.5 text-accent" />
+                    <span>{isExpanded ? "Close" : "Edit"}</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full size-9 text-destructive hover:bg-destructive/10"
+                    onClick={() => remove(row)}
+                    aria-label={`Remove ${row.name}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    onClick={() => toggleServiceExpanded(row.id)}
+                    aria-label={isExpanded ? "Collapse card" : "Expand card"}
+                  >
+                    <ChevronDown className={cn("size-4.5 transition-transform duration-200", isExpanded && "rotate-180")} />
+                  </Button>
+                </div>
               </div>
-            </div>
-          </section>
-        ))}
+
+              {/* Expandable Editing Area */}
+              {isExpanded && (
+                <div className="mt-6 pt-6 border-t border-border animate-in fade-in-50 duration-200">
+                  <div className="flex flex-col sm:flex-row gap-6">
+                    <div className="sm:w-40 shrink-0">
+                      <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
+                        {row.image_url ? (
+                          <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
+                        )}
+                      </div>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="text-xs"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadPhoto(row, f);
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex-1 grid sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <Label>Name</Label>
+                        <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
+                      </div>
+                      <div>
+                        <Label>Category</Label>
+                        <Input value={row.category ?? ""} onChange={(e) => update(row.id, { category: e.target.value })} />
+                      </div>
+                      <div>
+                        <Label>Duration (Min)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={row.duration_min ?? 0}
+                          onChange={(e) => update(row.id, { duration_min: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Price per session (₹)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={row.price_inr ?? 0}
+                          onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Order on page</Label>
+                        <Input
+                          type="number"
+                          value={row.sort_order ?? 0}
+                          onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Description</Label>
+                        <Textarea
+                          rows={3}
+                          value={row.description ?? ""}
+                          onChange={(e) => update(row.id, { description: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1 border-t border-border mt-2">
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={row.is_active !== false}
+                            onCheckedChange={(v) => update(row.id, { is_active: v })}
+                          />
+                          Show on site
+                        </label>
+                        <div className="ml-auto flex items-center gap-2">
+                          <Button variant="outline" className="rounded-full" onClick={() => toggleServiceExpanded(row.id)}>
+                            Close
+                          </Button>
+                          <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          );
+        })}
       </div>
     </div>
   );

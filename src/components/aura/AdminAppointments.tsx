@@ -47,6 +47,8 @@ import {
 } from "@/lib/appointmentsApi";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { useServices } from "@/hooks/useServices";
+import AuraPagination from "@/components/aura/AuraPagination";
+import { cn } from "@/lib/utils";
 
 const STATUS_FILTERS = [
   { id: "all", label: "All Bookings" },
@@ -262,7 +264,7 @@ export default function AdminAppointments() {
       </div>
 
       {/* Bookings List */}
-      {loading ? (
+      {loading && appointments.length === 0 ? (
         <div className="rounded-3xl border border-border bg-card p-16 text-center">
           <RefreshCw className="size-6 animate-spin mx-auto text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">Loading appointments...</p>
@@ -278,7 +280,7 @@ export default function AdminAppointments() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className={cn("space-y-4 transition-opacity duration-200", loading && "opacity-60 pointer-events-none")}>
           {filteredAppointments.map((b) => {
             const isPending = b.status === "pending";
             const isConfirmed = b.status === "confirmed";
@@ -487,34 +489,16 @@ export default function AdminAppointments() {
         </div>
       )}
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <p className="text-xs text-muted-foreground">
-            Page {page} of {totalPages} ({totalCount} total)
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1 || loading}
-              className="rounded-full h-9 px-3 text-xs"
-            >
-              <ChevronLeft className="size-3.5 mr-1" /> Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages || loading}
-              className="rounded-full h-9 px-3 text-xs"
-            >
-              Next <ChevronRight className="size-3.5 ml-1" />
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Unified Luxury Pagination Controls */}
+      <AuraPagination
+        page={page}
+        totalPages={totalPages}
+        totalItems={totalCount}
+        pageSize={15}
+        itemName="appointments"
+        disabled={loading}
+        onPageChange={(p) => setPage(p)}
+      />
 
       {/* DIALOG 1: Assign Practitioner */}
       <Dialog open={Boolean(assignModalBooking)} onOpenChange={(open) => !open && setAssignModalBooking(null)}>

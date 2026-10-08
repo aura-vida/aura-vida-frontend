@@ -130,4 +130,64 @@
   .hover-lift:hover { transform: translateY(-6px); box-shadow: var(--shadow-elegant); }
   .underline-grow { background-image: linear-gradient(hsl(var(--accent)), hsl(var(--accent))); background-size: 0% 2px; background-position: 0 100%; background-repeat: no-repeat; transition: background-size 400ms var(--transition-smooth); }
   .underline-grow:hover { background-size: 100% 2px; }
+
+  /* Universal hidden scrollbar utility */
+  .no-scrollbar {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 }
+
+/* ==========================================================================
+   Popup Scrollbar Suppression & Sleek Global Scrollbar
+   ========================================================================== */
+
+/* Automatically hide harsh browser scrollbars in all popups, dialogs, dropdowns, and sheets */
+[data-radix-popper-content-wrapper] *,
+[data-radix-dropdown-menu-content],
+[data-radix-dropdown-menu-content] *,
+[role="dialog"],
+[role="dialog"] *,
+[role="menu"],
+[role="menu"] *,
+.popover-content,
+.popover-content * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-radix-popper-content-wrapper] *::-webkit-scrollbar,
+[data-radix-dropdown-menu-content]::-webkit-scrollbar,
+[data-radix-dropdown-menu-content] *::-webkit-scrollbar,
+[role="dialog"]::-webkit-scrollbar,
+[role="dialog"] *::-webkit-scrollbar,
+[role="menu"]::-webkit-scrollbar,
+[role="menu"] *::-webkit-scrollbar,
+.popover-content::-webkit-scrollbar,
+.popover-content *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Luxury slim scrollbar for main document / general page containers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+

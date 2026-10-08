@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import NotificationBell from "@/components/aura/NotificationBell";
 
 const Nav = () => {
   const [open, setOpen] = useState(false);
@@ -20,10 +21,11 @@ const Nav = () => {
         <a href="/#modalities" className="hover:text-foreground transition-colors">Services</a>
         <a href="/#digital" className="hover:text-foreground transition-colors">Library</a>
         <Link to="/guides" className="hover:text-foreground transition-colors">Guides</Link>
-        <a href="/#healers" className="hover:text-foreground transition-colors">For Healers</a>
+        <a href="/guides#healers" className="hover:text-foreground transition-colors">For Healers</a>
         <Link to="/list-your-space" className="hover:text-foreground transition-colors">List your space</Link>
       </div>
       <div className="flex items-center gap-2">
+        {user && <NotificationBell />}
         <Link to="/guides" className="md:hidden">
           <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-xs tracking-widest uppercase">
             Book
@@ -41,7 +43,7 @@ const Nav = () => {
           <Button
             variant="outline"
             size="lg"
-            className="rounded-full border-foreground/20 hover:bg-card px-6 h-12"
+            className="rounded-full border-foreground/25 text-foreground bg-card/60 hover:bg-secondary hover:text-foreground hover:border-foreground/40 px-6 h-12 transition-all duration-200"
           >
             {user ? "My sessions" : "Sign in"}
           </Button>
@@ -62,7 +64,7 @@ const Nav = () => {
           <a onClick={close} href="/#modalities" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Services</a>
           <a onClick={close} href="/#digital" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Library</a>
           <Link onClick={close} to="/guides" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Guides · Book</Link>
-          <a onClick={close} href="/#healers" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">For Healers</a>
+          <a onClick={close} href="/guides#healers" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">For Healers</a>
           <Link onClick={close} to="/list-your-space" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">List your space</Link>
           <Link onClick={close} to={user ? "/account" : "/auth"}>
             <Button className="w-full mt-2 rounded-full bg-foreground text-background hover:bg-foreground/90 h-11">
