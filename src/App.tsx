@@ -13,6 +13,7 @@ import Account from "./pages/Account.tsx";
 import PractitionerArea from "./pages/PractitionerArea.tsx";
 import Admin from "./pages/Admin.tsx";
 import ListSpace from "./pages/ListSpace.tsx";
+import ArticleDetail from "./pages/ArticleDetail.tsx";
 
 import NotFound from "./pages/NotFound.tsx";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/practitioner" element={<PractitionerArea />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/list-your-space" element={<ListSpace />} />
+            <Route path="/journal/:slug" element={<ArticleDetail />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
