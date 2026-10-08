@@ -8,12 +8,15 @@ export type AppointmentPayload = {
   group_size?: number;
   attendees?: string[];
   meeting_location?: {
-    lat: number;
-    lng: number;
     address: string;
-    place_id: string;
+    lat?: number;
+    lng?: number;
+    place_id?: string;
+    pincode?: string;
+    type?: string;
   };
   mode?: "host" | "centre" | "online";
+  pin?: string | null;
 };
 
 export async function createAppointment(payload: AppointmentPayload) {

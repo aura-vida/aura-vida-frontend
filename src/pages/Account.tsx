@@ -118,7 +118,7 @@ const Account = () => {
   }, [user]);
 
   useEffect(() => {
-    listPractitioners({ limit: 100 })
+    listPractitioners({ limit: 10 })
       .then((data) => {
         const map: Record<string, string> = {};
         data.practitioners.forEach((p) => {

@@ -80,7 +80,7 @@ export default function AdminAppointments() {
 
   // Load practitioners for assignment mapping
   useEffect(() => {
-    listPractitioners({ limit: 100 })
+    listPractitioners({ limit: 10 })
       .then((res) => setPractitioners(res.practitioners))
       .catch((err) => console.error("Failed to load practitioners for admin assign:", err));
   }, []);

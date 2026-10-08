@@ -15,6 +15,7 @@ import {
   requestPasswordReset as requestPasswordResetRequest,
   resetPassword as resetPasswordRequest,
 } from "@/lib/authApi";
+import { api, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/lib/api";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -41,7 +42,7 @@ const AuthContext = createContext<AuthContextValue>({
   verifyOtp: async () => ({ user: null, profile: null, session: null }),
   requestPasswordReset: async () => ({ message: "" }),
   resetPassword: async () => ({ message: "" }),
-  signOut: async () => {},
+  signOut: async () => { },
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -62,6 +63,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    // 1. Handle magic link token in URL hash
+    if (window.location.hash.includes("access_token=")) {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+
+      if (accessToken) {
+        // Temporarily store it so api() calls work
+        localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+        if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+
+        // Remove hash from URL for cleaner UI
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+        // Fetch user profile using the new token
+        api<{ profile: AuthProfile }>("/api/users/me")
+          .then((res) => {
+            // Minimal JWT payload decoding to extract ID and email (Supabase formats them this way)
+            const jwtPayload = JSON.parse(atob(accessToken.split('.')[1]));
+            const userObj = { id: jwtPayload.sub, email: jwtPayload.email };
+
+            applyAuth({
+              user: userObj,
+              profile: res.profile,
+              session: { access_token: accessToken, refresh_token: refreshToken }
+            });
+            setLoading(false);
+          })
+          .catch((err) => {
+            console.error("Failed to login from magic link", err);
+            clearAuth();
+            setLoading(false);
+          });
+        return; // Don't load stored auth below, wait for API
+      }
+    }
+
+    // 2. Normal load for returning users
     const stored = loadStoredAuth();
     if (stored.session?.access_token && stored.user) {
       setUser(stored.user);
@@ -69,7 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(stored.session);
     }
     setLoading(false);
-  }, []);
+  }, [applyAuth]);
 
   const signIn = async (email: string, password: string) => {
     const result = await loginUser({ email, password });

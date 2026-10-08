@@ -14,6 +14,12 @@ export interface Practitioner {
   bookable: boolean;
   is_published?: boolean;
   sort_order?: number;
+  keywords?: string[];
+  offers_centre?: boolean;
+  offers_host?: boolean;
+  offers_online?: boolean;
+  application_email?: string | null;
+  application_status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface PractitionersListResponse {
@@ -56,6 +62,16 @@ export const adminCreatePractitioner = (fields: Partial<Practitioner>) =>
     body: fields,
   });
 
+export const adminListPractitioners = (params?: { search?: string; is_published?: boolean; page?: number; limit?: number }) => {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.append("search", params.search);
+  if (params?.is_published !== undefined) qs.append("is_published", String(params.is_published));
+  if (params?.page) qs.append("page", String(params.page));
+  if (params?.limit) qs.append("limit", String(params.limit));
+  const queryString = qs.toString();
+  return api<PractitionersListResponse>(`/api/admin/practitioners${queryString ? `?${queryString}` : ""}`);
+};
+
 export const adminUpdatePractitioner = (id: string, fields: Partial<Practitioner>) => 
   api<{ message: string; practitioner: Practitioner }>(`/api/admin/practitioners/${id}`, {
     method: "PATCH",
@@ -66,3 +82,9 @@ export const adminDeletePractitioner = (id: string) =>
   api<{ message: string }>(`/api/admin/practitioners/${id}`, {
     method: "DELETE",
   });
+
+export const adminApprovePractitioner = (id: string) =>
+  api<{ message: string; practitioner: Practitioner; email: string }>(
+    `/api/admin/practitioners/${id}/approve`,
+    { method: "POST" }
+  );

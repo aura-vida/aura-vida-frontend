@@ -37,3 +37,19 @@ export async function getNearbySuggestions(
   }
   return api<NearbySuggestionsResponse>(`/api/locations/nearby-suggestions?${params.toString()}`);
 }
+
+export type PartnerSpace = {
+  id: string;
+  space_name: string;
+  address: string;
+  city: string;
+  pin: string;
+  capacity: number;
+  space_type: string;
+  amenities: string[];
+  notes: string;
+};
+
+export async function getPublicSpacesByPin(pin: string): Promise<{ spaces: PartnerSpace[] }> {
+  return api<{ spaces: PartnerSpace[] }>(`/api/spaces?pin=${pin}`);
+}

@@ -1,6 +1,5 @@
-import { api, ACCESS_TOKEN_KEY } from "@/lib/api";
+import { api, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/lib/api";
 
-export const REFRESH_TOKEN_KEY = "aura_refresh_token";
 export const AUTH_USER_KEY = "aura_auth_user";
 export const AUTH_PROFILE_KEY = "aura_auth_profile";
 export const AUTH_SESSION_KEY = "aura_auth_session";

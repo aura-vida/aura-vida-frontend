@@ -1,6 +1,6 @@
 // Group pricing: the base price covers one person, each extra person adds 60%.
 export const EXTRA_PERSON_RATE = 0.6;
-export const MAX_GROUP_SIZE = 6;
+export const MAX_GROUP_SIZE = 10;
 
 export const parsePrice = (price?: string) =>
   price ? Number(price.replace(/[^\d]/g, "")) : 0;

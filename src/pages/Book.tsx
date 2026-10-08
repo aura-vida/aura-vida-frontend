@@ -7,19 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Home, 
-  Video, 
-  MapPin, 
-  Search, 
-  Star, 
-  User, 
-  Users, 
-  Minus, 
-  Plus, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  ShieldCheck, 
+import {
+  Home,
+  Video,
+  MapPin,
+  Search,
+  Star,
+  User,
+  Users,
+  Minus,
+  Plus,
+  Calendar as CalendarIcon,
+  Clock,
+  ShieldCheck,
   ArrowLeft,
   CheckCircle2,
   Sparkles
@@ -31,24 +31,13 @@ import { useServices } from "@/hooks/useServices";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { createAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
-import { MAX_GROUP_SIZE, formatINR, groupTotal, parsePrice } from "@/lib/pricing";
+import { MAX_GROUP_SIZE, formatINR, groupTotal } from "@/lib/pricing";
+import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 
 type Location = "host" | "centre" | "online";
 
-type Centre = { name: string; area: string; pin: number; capacity: number };
 
-const FALLBACK_CENTRES: Centre[] = [
-  { name: "Anahata Studio", area: "Bandra West, Mumbai", pin: 400050, capacity: 6 },
-  { name: "Prana Healing House", area: "Indiranagar, Bengaluru", pin: 560038, capacity: 4 },
-  { name: "Sattva Sanctuary", area: "Hauz Khas, New Delhi", pin: 110016, capacity: 6 },
-  { name: "Tarang Centre", area: "Adyar, Chennai", pin: 600020, capacity: 2 },
-  { name: "Bodhi Loft", area: "Koregaon Park, Pune", pin: 411001, capacity: 6 },
-  { name: "Antara Healing Rooms", area: "Salt Lake, Kolkata", pin: 700091, capacity: 3 },
-  { name: "Surya Studio", area: "Banjara Hills, Hyderabad", pin: 500034, capacity: 5 },
-  { name: "Veda Sanctuary", area: "Vastrapur, Ahmedabad", pin: 380015, capacity: 4 },
-];
 
-const DEFAULT_SLOTS = ["09:00", "10:30", "12:00", "14:00", "15:30", "17:00", "18:30"];
 
 const getTomorrowDate = () => {
   const d = new Date();
@@ -84,11 +73,12 @@ const Book = () => {
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState("");
+  const [hostAddress, setHostAddress] = useState("");
 
   // Date and Time
   const [selectedDate, setSelectedDate] = useState<string>(getTomorrowDate());
   const [selectedTime, setSelectedTime] = useState<string>("10:00");
-  const [availableSlots, setAvailableSlots] = useState<string[]>(DEFAULT_SLOTS);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   // User contact
@@ -99,7 +89,7 @@ const Book = () => {
 
   // Load practitioners
   useEffect(() => {
-    listPractitioners({ limit: 100 })
+    listPractitioners({ limit: 10 })
       .then((data) => {
         setPractitioners(data.practitioners);
         if (practitionerSlug) {
@@ -138,20 +128,34 @@ const Book = () => {
         const active = (res.slots || [])
           .filter((s) => s.available !== false)
           .map((s) => s.start.slice(0, 5));
-        const list = active.length > 0 ? active : DEFAULT_SLOTS;
-        setAvailableSlots(list);
-        if (!list.includes(selectedTime)) {
-          setSelectedTime(list[0] || "10:00");
+        setAvailableSlots(active);
+        if (active.length > 0 && !active.includes(selectedTime)) {
+          setSelectedTime(active[0]);
+        } else if (active.length === 0) {
+          setSelectedTime("");
         }
       })
       .catch(() => {
-        setAvailableSlots(DEFAULT_SLOTS);
-        if (!DEFAULT_SLOTS.includes(selectedTime)) {
-          setSelectedTime(DEFAULT_SLOTS[0]);
-        }
+        setAvailableSlots([]);
+        setSelectedTime("");
       })
       .finally(() => setLoadingSlots(false));
   }, [selectedPractitioner?.slug, selectedDate, selectedServiceId]);
+
+  useEffect(() => {
+    if (!selectedPractitioner) return;
+    const canCentre = selectedPractitioner.offers_centre !== false;
+    const canHost = selectedPractitioner.offers_host === true;
+    const canOnline = selectedPractitioner.offers_online === true;
+
+    if (location === 'centre' && !canCentre) {
+      setLocation(canHost ? 'host' : canOnline ? 'online' : 'centre');
+    } else if (location === 'host' && !canHost) {
+      setLocation(canCentre ? 'centre' : canOnline ? 'online' : 'centre');
+    } else if (location === 'online' && !canOnline) {
+      setLocation(canCentre ? 'centre' : canHost ? 'host' : 'centre');
+    }
+  }, [selectedPractitioner?.slug, selectedPractitioner?.offers_centre, selectedPractitioner?.offers_host, selectedPractitioner?.offers_online]);
 
   // Guest actions
   const groupSize = isGroup ? 1 + guests.length : 1;
@@ -173,16 +177,23 @@ const Book = () => {
   const payable = total - creditApplied;
   const extraEach = basePrice ? Math.round(basePrice * 0.6) : 0;
 
-  // Partner Centre sorting
-  const userPin = parseInt(pin);
-  const byDistance = useMemo(() => {
-    return FALLBACK_CENTRES.map((c) => ({
-      ...c,
-      distance: Math.abs(c.pin - (userPin || 0)),
-    })).sort((a, b) => a.distance - b.distance);
-  }, [userPin]);
+  const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
+  const [loadingPlaces, setLoadingPlaces] = useState(false);
 
-  const nearest = useMemo(() => byDistance.filter((c) => c.capacity >= groupSize).slice(0, 3), [byDistance, groupSize]);
+  const handleSearch = async () => {
+    if (pin.length !== 6) return;
+    setSearched(true);
+    setLoadingPlaces(true);
+    try {
+      const res = await getPublicSpacesByPin(pin);
+      setSuggestedPlaces(res.spaces || []);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "Search failed", description: "Could not fetch nearby spaces.", variant: "destructive" });
+    } finally {
+      setLoadingPlaces(false);
+    }
+  };
 
   // Format Time Slot End Time
   const duration = selectedService?.duration_min || 60;
@@ -200,6 +211,22 @@ const Book = () => {
   };
 
   // Checkout Handler
+  const currentAttendees = [name.trim(), ...(isGroup ? guests.map((g) => g.trim()) : [])].filter(Boolean);
+  const isFormValid = Boolean(
+    user &&
+    selectedServiceId &&
+    selectedDate &&
+    selectedTime &&
+    name.trim() &&
+    email.trim() &&
+    (!isGroup || currentAttendees.length >= groupSize) &&
+    (
+      (location === "centre" && selectedCentre) ||
+      (location === "host" && hostAddress.trim()) ||
+      location === "online"
+    )
+  );
+
   const handlePay = async () => {
     if (!user) {
       toast({
@@ -222,6 +249,10 @@ const Book = () => {
       toast({ title: "Select a centre", description: "Please choose a partner space from the list." });
       return;
     }
+    if (location === "host" && !hostAddress.trim()) {
+      toast({ title: "Address required", description: "Please provide your full address for the home session." });
+      return;
+    }
     if (!name.trim() || !email.trim()) {
       toast({ title: "Almost there", description: "Please fill in your name and email." });
       return;
@@ -242,6 +273,9 @@ const Book = () => {
         place_id: "centre-" + selectedCentre.toLowerCase().replace(/\s+/g, "-"),
         lat: 19.0760,
         lng: 72.8777,
+      } : location === "host" ? {
+        address: hostAddress.trim(),
+        type: "host"
       } : undefined;
 
       const res: any = await createAppointment({
@@ -295,7 +329,7 @@ const Book = () => {
       {/* STATE B: Final Checkout Screen (When user clicked 'Book' on a specific guide) */}
       {isCheckingOut && (
         <div className="max-w-[1300px] mx-auto px-6 lg:px-12 py-12 lg:py-20">
-          
+
           {/* Back button to browse all guides */}
           <div className="mb-8">
             <button
@@ -316,17 +350,17 @@ const Book = () => {
 
           {/* 2-Column Responsive Layout */}
           <div className="grid lg:grid-cols-12 gap-10 items-start">
-            
+
             {/* LEFT COLUMN: The Step-by-Step Experience (7 Columns) */}
             <div className="lg:col-span-7 space-y-8">
-              
+
               {/* STEP 1: Practitioner Summary */}
               <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Your Chosen Guide</span>
                   <button onClick={() => setSearchParams({})} className="text-xs text-accent hover:underline">Change</button>
                 </div>
-                
+
                 <div className="flex items-center gap-4 pt-1">
                   <div className="size-16 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border">
                     {selectedPractitioner?.image_url ? (
@@ -348,19 +382,30 @@ const Book = () => {
               {/* STEP 2: Service & Circle Size */}
               <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
                 <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 1 · Service &amp; Circle</span>
-                
+
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Select Therapy / Session</Label>
                   <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
-                    <SelectTrigger className="w-full h-14 rounded-2xl border-border px-5 bg-background text-left flex items-center justify-between">
+                    <SelectTrigger className="w-full h-14 rounded-2xl border-border px-5 bg-background text-left">
                       <SelectValue placeholder="Choose a therapy..." />
                     </SelectTrigger>
-                    <SelectContent className="rounded-2xl border-border max-h-72">
+
+                    <SelectContent className="rounded-2xl border-border max-h-72 p-2">
                       {services.filter((s) => s.is_active !== false).map((s) => (
-                        <SelectItem key={s.id} value={s.id} className="py-3 px-4 cursor-pointer focus:bg-accent/5 focus:text-accent rounded-xl my-1">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-sm text-foreground">{s.name}</span>
-                            <span className="text-xs text-muted-foreground mt-0.5">₹{s.price_inr} · {s.duration_min} mins · {s.category || "Holistic"}</span>
+                        <SelectItem
+                          key={s.id}
+                          value={s.id}
+                          className="relative py-3.5 pl-10 pr-4 cursor-pointer focus:bg-accent/5 focus:text-accent rounded-xl my-1"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-sm leading-tight text-foreground">
+                              {s.name}
+                            </span>
+
+                            <span className="text-xs leading-tight text-muted-foreground">
+                              ₹{s.price_inr} · {s.duration_min} mins ·{" "}
+                              {s.category || "Holistic"}
+                            </span>
                           </div>
                         </SelectItem>
                       ))}
@@ -441,7 +486,13 @@ const Book = () => {
                 <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 2 · Location &amp; Space</span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {locationOptions.map((o) => {
+                  {locationOptions.filter(o => {
+                    if (!selectedPractitioner) return true;
+                    if (o.id === 'centre') return selectedPractitioner.offers_centre !== false;
+                    if (o.id === 'host') return selectedPractitioner.offers_host === true;
+                    if (o.id === 'online') return selectedPractitioner.offers_online === true;
+                    return true;
+                  }).map((o) => {
                     const active = location === o.id;
                     return (
                       <button
@@ -478,23 +529,40 @@ const Book = () => {
                       />
                       <Button
                         type="button"
-                        onClick={() => setSearched(true)}
-                        disabled={pin.length !== 6}
+                        onClick={handleSearch}
+                        disabled={pin.length !== 6 || loadingPlaces}
                         className="rounded-full h-11 px-6 bg-foreground text-background hover:bg-foreground/90"
                       >
-                        <Search className="size-4 mr-1.5" /> Find
+                        {loadingPlaces ? <Clock className="size-4 mr-1.5 animate-spin" /> : <Search className="size-4 mr-1.5" />} Find
                       </Button>
                     </div>
 
-                    {searched && nearest.length > 0 && (
-                      <ul className="space-y-2.5 pt-2">
-                        {nearest.map((c, i) => {
-                          const isSelected = selectedCentre === c.name;
+                    {searched && loadingPlaces && (
+                      <p className="text-sm py-4 text-muted-foreground flex items-center gap-2">
+                        <Clock className="size-4 animate-spin" /> Finding safe meeting spaces midway...
+                      </p>
+                    )}
+
+                    {searched && !loadingPlaces && suggestedPlaces.length === 0 && (
+                      <div className="rounded-2xl border border-border p-4 bg-secondary/40 space-y-2 mt-4">
+                        <p className="text-sm text-foreground">
+                          Could not find a place halfway matching this pincode.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Try a different location or choose Virtual from the options above.
+                        </p>
+                      </div>
+                    )}
+
+                    {searched && !loadingPlaces && suggestedPlaces.length > 0 && (
+                      <ul className="space-y-2.5 pt-2 max-h-[340px] overflow-y-auto pr-2">
+                        {suggestedPlaces.map((c, i) => {
+                          const isSelected = selectedCentre === c.space_name;
                           if (selectedCentre && !isSelected) return null;
                           return (
                             <li
-                              key={c.name}
-                              onClick={() => setSelectedCentre(isSelected ? "" : c.name)}
+                              key={c.id}
+                              onClick={() => setSelectedCentre(isSelected ? "" : c.space_name)}
                               className={cn(
                                 "relative flex items-center justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all hover:border-accent/50",
                                 isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-background border-border",
@@ -504,236 +572,256 @@ const Book = () => {
                               <div className="flex items-start gap-3 w-full pr-16">
                                 <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
                                 <div>
-                                <div className="text-sm font-medium text-foreground">{c.name}</div>
-                                <div className="text-xs text-muted-foreground mt-0.5">{c.area} · {c.pin} · Seats up to {c.capacity} people</div>
+                                  <div className="text-sm font-medium text-foreground">{c.space_name}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5 max-w-[200px] sm:max-w-xs">{c.address}, {c.city}</div>
+                                  <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                                    <Users className="size-3 text-primary" /> Up to {c.capacity} people
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            {(!selectedCentre && i === 0) && (
-                              <span className="text-[10px] uppercase tracking-widest text-accent font-medium">Closest</span>
-                            )}
-                            {isSelected && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
-                                className="absolute right-3 h-8 text-xs text-muted-foreground hover:text-foreground"
-                              >
-                                Change
-                              </Button>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {location === "host" && (
-                <div className="rounded-2xl border border-border p-5 bg-secondary/30">
-                  <p className="text-xs text-muted-foreground">
-                    Your practitioner travels to you. You can provide specific gate or landmark details after booking.
-                  </p>
-                </div>
-              )}
-
-              {location === "online" && (
-                <div className="rounded-2xl border border-border p-5 bg-secondary/30">
-                  <p className="text-xs text-muted-foreground">
-                    You'll receive a secure, private video link 15 minutes before your scheduled session.
-                  </p>
-                </div>
-              )}
-            </section>
-
-            {/* STEP 4: Date & Available Time Slots */}
-            <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 3 · When</span>
-                <span className="text-xs font-medium text-accent bg-accent/10 px-3 py-1 rounded-full">
-                  {duration} mins session
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                <div className="max-w-xs space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Session Date</Label>
-                  <Input
-                    type="date"
-                    min={getTodayDate()}
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="rounded-2xl h-11 bg-background px-4 text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Available Time Slots</Label>
-                    {loadingSlots && (
-                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="size-3 animate-spin" /> Checking schedule…
-                      </span>
+                              {(!selectedCentre && i === 0) && (
+                                <span className="text-[10px] uppercase tracking-widest text-accent font-medium absolute bottom-3 right-4">Best Option</span>
+                              )}
+                              {isSelected && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
+                                  className="absolute right-3 top-3 h-8 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  Change
+                                </Button>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
                     )}
                   </div>
+                )}
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                    {availableSlots.map((slot) => {
-                      const isSelected = selectedTime === slot;
-                      const { start, end } = formatSlot(slot);
-                      return (
-                        <button
-                          key={slot}
-                          type="button"
-                          onClick={() => setSelectedTime(slot)}
-                          className={cn(
-                            "flex flex-col items-center justify-center py-3 px-3 rounded-2xl border transition-all text-center",
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
-                              : "bg-background border-border hover:border-accent/40 text-foreground hover:bg-secondary/40"
-                          )}
-                        >
-                          <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
-                            {start}
-                          </span>
-                          <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                            to {end}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* STEP 5: Contact Details */}
-            <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-4">
-              <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 4 · Your Details</span>
-              
-              <div className="grid sm:grid-cols-3 gap-3 pt-1">
-                <div className="space-y-1.5">
-                  <Label htmlFor="b-name" className="text-xs">Your Name</Label>
-                  <Input id="b-name" value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="Full name" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="b-email" className="text-xs">Email</Label>
-                  <Input id="b-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="you@email.com" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="b-phone" className="text-xs">Phone</Label>
-                  <Input id="b-phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="+91" />
-                </div>
-              </div>
-            </section>
-
-          </div>
-
-          {/* RIGHT COLUMN: Sticky Order Summary & Pay CTA (5 Columns) */}
-          <aside className="lg:col-span-5 lg:sticky lg:top-24 space-y-6">
-            <div className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
-              <div className="flex items-center justify-between pb-4 border-b border-border">
-                <span className="font-display text-xl text-foreground">Session Summary</span>
-                <span className="text-[11px] text-accent tracking-widest uppercase font-medium flex items-center gap-1">
-                  <Sparkles className="size-3" /> Aura Vida
-                </span>
-              </div>
-
-              {/* Selected Guide & Service Header */}
-              {selectedPractitioner && (
-                <div className="flex items-center gap-3.5 pb-4 border-b border-border">
-                  <div className="size-12 rounded-xl bg-secondary overflow-hidden shrink-0 border border-border">
-                    {selectedPractitioner.image_url ? (
-                      <img src={selectedPractitioner.image_url} alt={selectedPractitioner.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center text-xs text-muted-foreground font-medium">Guide</div>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm text-foreground">{selectedPractitioner.name}</h4>
-                    <p className="text-xs text-muted-foreground">{selectedService?.name || selectedPractitioner.craft}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Quick specs */}
-              <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Therapy</span>
-                  <span className="font-medium text-foreground">{selectedService?.name || "Standard Session"} ({duration}m)</span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Date &amp; Time</span>
-                  <span className="font-medium text-foreground">
-                    {selectedDate} · {formatSlot(selectedTime).start}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Location</span>
-                  <span className="font-medium text-foreground capitalize">
-                    {location === "centre" ? (selectedCentre || "Partner Centre") : location === "host" ? "At your Home" : "Virtual Video"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Circle</span>
-                  <span className="font-medium text-foreground">{groupSize === 1 ? "1 person (Solo)" : `${groupSize} people (Group)`}</span>
-                </div>
-              </div>
-
-              {/* Pricing Breakdown */}
-              <div className="pt-4 border-t border-border space-y-2 text-xs">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Session fee</span>
-                  <span>{formatINR(basePrice)}</span>
-                </div>
-                {isGroup && guests.filter(Boolean).length > 0 && (
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Extra guests ({guests.filter(Boolean).length})</span>
-                    <span>{formatINR(total - basePrice)}</span>
+                {location === "host" && (
+                  <div className="rounded-2xl border border-border p-5 bg-secondary/30 space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      Your practitioner travels to you. Please provide your full address with landmark.
+                    </p>
+                    <Input
+                      value={hostAddress}
+                      onChange={(e) => setHostAddress(e.target.value)}
+                      placeholder="e.g. Flat 402, Building Name, Street..."
+                      className="rounded-xl h-11 bg-background text-sm"
+                    />
                   </div>
                 )}
-                {creditApplied > 0 && (
-                  <div className="flex items-center justify-between text-accent font-medium">
-                    <span>Referral credit applied</span>
-                    <span>−{formatINR(creditApplied)}</span>
+
+                {location === "online" && (
+                  <div className="rounded-2xl border border-border p-5 bg-secondary/30">
+                    <p className="text-xs text-muted-foreground">
+                      You'll receive a secure, private video link 15 minutes before your scheduled session.
+                    </p>
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-3 border-t border-border text-base font-display">
-                  <span>Total payable</span>
-                  <span className="text-primary text-xl font-bold">{formatINR(payable)}</span>
-                </div>
-              </div>
+              </section>
 
-              {/* Pay Button */}
-              <Button
-                onClick={handlePay}
-                disabled={paying}
-                className="w-full rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-14 text-base font-medium shadow-soft"
-              >
-                {paying ? "Opening secure checkout…" : `Pay ${formatINR(payable)} securely`}
-              </Button>
+              {/* STEP 4: Date & Available Time Slots */}
+              <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 3 · When</span>
+                  <span className="text-xs font-medium text-accent bg-accent/10 px-3 py-1 rounded-full">
+                    {duration} mins session
+                  </span>
+                </div>
 
-              {/* Trust Badges */}
-              <div className="space-y-2 pt-2 text-[11px] text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-accent shrink-0" />
-                  <span>256-bit encrypted Razorpay checkout</span>
+                <div className="space-y-4">
+                  <div className="max-w-xs space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Session Date</Label>
+                    <Input
+                      type="date"
+                      min={getTodayDate()}
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="rounded-2xl h-11 bg-background px-4 text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Available Time Slots</Label>
+                      {loadingSlots && (
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Clock className="size-3 animate-spin" /> Checking schedule…
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                      {loadingSlots ? null : availableSlots.length === 0 ? (
+                        <p className="col-span-4 text-sm text-muted-foreground py-4 text-center">
+                          No available slots for this date. Please try another day.
+                        </p>
+                      ) : (
+                        availableSlots.map((slot) => {
+                          const isSelected = selectedTime === slot;
+                          const { start, end } = formatSlot(slot);
+                          return (
+                            <button
+                              key={slot}
+                              type="button"
+                              onClick={() => setSelectedTime(slot)}
+                              className={cn(
+                                "flex flex-col items-center justify-center py-3 px-3 rounded-2xl border transition-all text-center",
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
+                                  : "bg-background border-border hover:border-accent/40 text-foreground hover:bg-secondary/40"
+                              )}
+                            >
+                              <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
+                                {start}
+                              </span>
+                              <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                                to {end}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-accent shrink-0" />
-                  <span>Free cancellation up to 24 hours prior</span>
+              </section>
+
+              {/* STEP 5: Contact Details */}
+              <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-4">
+                <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 4 · Your Details</span>
+
+                <div className="grid sm:grid-cols-3 gap-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="b-name" className="text-xs">Your Name</Label>
+                    <Input id="b-name" value={name} onChange={(e) => setName(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="Full name" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="b-email" className="text-xs">Email</Label>
+                    <Input id="b-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="you@email.com" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="b-phone" className="text-xs">Phone</Label>
+                    <Input id="b-phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-xl h-11 bg-background" placeholder="+91" />
+                  </div>
                 </div>
-              </div>
+              </section>
 
             </div>
-          </aside>
 
+            {/* RIGHT COLUMN: Sticky Order Summary & Pay CTA (5 Columns) */}
+            <aside className="lg:col-span-5 lg:sticky lg:top-24 space-y-6">
+              <div className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="font-display text-xl text-foreground">Session Summary</span>
+                  <span className="text-[11px] text-accent tracking-widest uppercase font-medium flex items-center gap-1">
+                    <Sparkles className="size-3" /> Aura Vida
+                  </span>
+                </div>
+
+                {/* Selected Guide & Service Header */}
+                {selectedPractitioner && (
+                  <div className="flex items-center gap-3.5 pb-4 border-b border-border">
+                    <div className="size-12 rounded-xl bg-secondary overflow-hidden shrink-0 border border-border">
+                      {selectedPractitioner.image_url ? (
+                        <img src={selectedPractitioner.image_url} alt={selectedPractitioner.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full grid place-items-center text-xs text-muted-foreground font-medium">Guide</div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm text-foreground">{selectedPractitioner.name}</h4>
+                      <p className="text-xs text-muted-foreground">{selectedService?.name || selectedPractitioner.craft}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick specs */}
+                <div className="space-y-3 text-xs">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Therapy</span>
+                    <span className="font-medium text-foreground">{selectedService?.name || "Standard Session"} ({duration}m)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Date &amp; Time</span>
+                    <span className="font-medium text-foreground">
+                      {selectedDate} · {formatSlot(selectedTime).start}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Location</span>
+                    <span className="font-medium text-foreground capitalize">
+                      {location === "centre" ? (selectedCentre || "Partner Centre") : location === "host" ? "At your Home" : "Virtual Video"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Circle</span>
+                    <span className="font-medium text-foreground">{groupSize === 1 ? "1 person (Solo)" : `${groupSize} people (Group)`}</span>
+                  </div>
+                </div>
+
+                {/* Pricing Breakdown */}
+                <div className="pt-4 border-t border-border space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Session fee</span>
+                    <span>{formatINR(basePrice)}</span>
+                  </div>
+                  {isGroup && guests.filter(Boolean).length > 0 && (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Extra guests ({guests.filter(Boolean).length})</span>
+                      <span>{formatINR(total - basePrice)}</span>
+                    </div>
+                  )}
+                  {creditApplied > 0 && (
+                    <div className="flex items-center justify-between text-accent font-medium">
+                      <span>Referral credit applied</span>
+                      <span>−{formatINR(creditApplied)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-3 border-t border-border text-base font-display">
+                    <span>Total payable</span>
+                    <span className="text-primary text-xl font-bold">{formatINR(payable)}</span>
+                  </div>
+                </div>
+
+                {/* Pay Button */}
+                <Button
+                  onClick={handlePay}
+                  disabled={paying || !isFormValid}
+                  className={cn(
+                    "w-full rounded-full h-14 text-base font-medium shadow-soft transition-all",
+                    isFormValid
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                  )}
+                >
+                  {paying ? "Opening secure checkout…" : `Pay ${formatINR(payable)} securely`}
+                </Button>
+
+                {/* Trust Badges */}
+                <div className="space-y-2 pt-2 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="size-4 text-accent shrink-0" />
+                    <span>256-bit encrypted Razorpay checkout</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="size-4 text-accent shrink-0" />
+                    <span>Free cancellation up to 24 hours prior</span>
+                  </div>
+                </div>
+
+              </div>
+            </aside>
+
+          </div>
         </div>
-      </div>
-    )}
+      )}
 
-    <Footer />
-  </main>
+      <Footer />
+    </main>
   );
 };
 
