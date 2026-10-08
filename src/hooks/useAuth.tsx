@@ -115,6 +115,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!result.session?.access_token || !result.user) {
       throw new Error(result.message ?? "Could not sign in.");
     }
+
+    // Explicitly call /me API to satisfy user request for fresh profile data on login
+    // First, persist the token so the API request succeeds
+    localStorage.setItem(ACCESS_TOKEN_KEY, result.session.access_token);
+    try {
+      const meData = await api<{ profile: AuthProfile }>("/api/users/me");
+      result.profile = meData.profile;
+    } catch (e) {
+      console.error("Failed to fetch fresh /me data during login", e);
+    }
+
     return applyAuth(result);
   };
 

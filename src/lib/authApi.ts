@@ -17,6 +17,10 @@ export type AuthProfile = {
   referral_code: string | null;
   credit_inr: number | null;
   role?: string | null;
+  status?: string | null;           // e.g. 'active', 'suspended'
+  referred_by?: string | null;      // UUID of referrer
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type AuthSession = {

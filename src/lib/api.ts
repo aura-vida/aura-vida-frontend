@@ -1,4 +1,4 @@
-const API_URL = "https://transport-advances-traditions-difficulties.trycloudflare.com";
+﻿const API_URL = "https://witch-edges-sir-functions.trycloudflare.com";
 
 export const ACCESS_TOKEN_KEY = "aura_access_token";
 export const REFRESH_TOKEN_KEY = "aura_refresh_token";

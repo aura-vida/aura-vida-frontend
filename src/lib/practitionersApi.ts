@@ -49,7 +49,7 @@ export const getPractitioner = (slug: string) =>
 export const getMyPractitionerProfile = () => 
   api<{ practitioner: Practitioner }>("/api/practitioners/me");
 
-export const updateMyPractitionerProfile = (fields: Partial<Practitioner>) => 
+export const updateMyPractitionerProfile = (fields: Partial<Practitioner> | FormData) => 
   api<{ message: string; practitioner: Practitioner }>("/api/practitioners/me", {
     method: "PATCH",
     body: fields,

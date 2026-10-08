@@ -16,21 +16,22 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { 
-  CalendarDays, 
-  MapPin, 
-  Video, 
-  Home, 
-  NotebookPen, 
-  Users, 
-  Clock, 
-  RotateCcw, 
-  XCircle, 
+import {
+  CalendarDays,
+  MapPin,
+  Video,
+  Home,
+  NotebookPen,
+  Users,
+  Clock,
+  RotateCcw,
+  XCircle,
   Calendar,
   AlertCircle,
   Loader2,
   CheckCircle2,
-  CreditCard
+  CreditCard,
+  Settings
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
@@ -38,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
 
 import { listPractitioners } from "@/lib/practitionersApi";
-import { getMyAppointments, type Appointment as Booking } from "@/lib/usersApi";
+import { getMyAppointments, updateMe, getMe, type Appointment as Booking } from "@/lib/usersApi";
 import { cancelAppointment, rescheduleAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 
@@ -227,6 +228,8 @@ const Account = () => {
     });
   };
 
+
+
   if (loading || !user) return null;
 
   return (
@@ -251,6 +254,14 @@ const Account = () => {
                 <Button variant="outline" className="rounded-full h-11 px-6 border-foreground/20 mr-1">Admin Dashboard</Button>
               </Link>
             )}
+            <Link to="/settings">
+              <Button
+                variant="outline"
+                className="rounded-full h-11 px-6 border-foreground/20"
+              >
+                <Settings className="size-4 mr-2" /> Settings
+              </Button>
+            </Link>
             <Button onClick={() => signOut()} variant="outline" className="rounded-full h-11 px-6 border-foreground/20">
               Sign out
             </Button>
@@ -303,18 +314,18 @@ const Account = () => {
 
             const scheduledDate = b.scheduled_at
               ? new Date(b.scheduled_at).toLocaleDateString("en-IN", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
               : null;
 
             const scheduledTime = b.scheduled_at
               ? new Date(b.scheduled_at).toLocaleTimeString("en-IN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
+                hour: "2-digit",
+                minute: "2-digit",
+              })
               : null;
 
             return (
@@ -325,15 +336,14 @@ const Account = () => {
                       <h2 className="font-display text-2xl text-foreground">{b.practitioner_name}</h2>
                       <Badge
                         variant="outline"
-                        className={`text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full ${
-                          isPending
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                            : isConfirmed
+                        className={`text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full ${isPending
+                          ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                          : isConfirmed
                             ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
                             : isCompleted
-                            ? "border-blue-500/30 bg-blue-500/10 text-blue-700"
-                            : "border-border bg-muted text-muted-foreground"
-                        }`}
+                              ? "border-blue-500/30 bg-blue-500/10 text-blue-700"
+                              : "border-border bg-muted text-muted-foreground"
+                          }`}
                       >
                         {isPending ? "Payment Pending" : b.status}
                       </Badge>
