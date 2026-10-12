@@ -4,6 +4,7 @@ import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -237,125 +238,192 @@ const AuthPage = () => {
         )}
 
         {view === "signin" && (
-          <div className="space-y-5 mt-8">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="rounded-full h-12"
-              />
-            </div>
+          <div className="mt-8">
+            {signMethod === "password" ? (
+              <form onSubmit={handlePasswordSignIn} className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    name="email"
+                    type="email"
+                    autoComplete="username email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="rounded-full h-12"
+                  />
+                </div>
 
-            <Tabs value={signMethod} onValueChange={(value) => setSignMethod(value as SignMethod)}>
-              <TabsList className="grid w-full grid-cols-2 h-12 rounded-full bg-muted p-1">
-                <TabsTrigger value="password" className={pillTriggerClass}>
-                  Password
-                </TabsTrigger>
-                <TabsTrigger value="code" className={pillTriggerClass}>
-                  Email code
-                </TabsTrigger>
-              </TabsList>
+                <Tabs value={signMethod} onValueChange={(value) => setSignMethod(value as SignMethod)}>
+                  <TabsList className="grid w-full grid-cols-2 h-12 rounded-full bg-muted p-1">
+                    <TabsTrigger value="password" className={pillTriggerClass}>
+                      Password
+                    </TabsTrigger>
+                    <TabsTrigger value="code" className={pillTriggerClass}>
+                      Email code
+                    </TabsTrigger>
+                  </TabsList>
 
-              <TabsContent value="password" className="mt-5 focus-visible:ring-0">
-                <form onSubmit={handlePasswordSignIn} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      className="rounded-full h-12"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <button type="button" onClick={() => setView("forgot")} className="text-sm text-primary underline underline-offset-4">
-                      Forgot password?
-                    </button>
-                  </div>
-                  <Button type="submit" disabled={busy} className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90">
-                    {busy ? "Please wait…" : "Sign in"}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="code" className="mt-5 focus-visible:ring-0">
-                {!codeSent ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                      We’ll email a 6-digit sign-in code.
-                    </p>
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={handleSendCode}
-                      className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      {busy ? "Sending code…" : "Send sign-in code"}
-                    </Button>
-                  </div>
-                ) : (
-                  <form onSubmit={handleVerifyOtp} className="space-y-4">
-                    <p className="text-sm text-muted-foreground text-center">
-                      Enter the 6-digit code from your email.
-                    </p>
-                    <div className="flex justify-center">
-                      <InputOTP maxLength={SIGN_IN_CODE_LENGTH} value={otp} onChange={setOtp}>
-                        <InputOTPGroup>
-                          <InputOTPSlot index={0} />
-                          <InputOTPSlot index={1} />
-                          <InputOTPSlot index={2} />
-                          <InputOTPSlot index={3} />
-                          <InputOTPSlot index={4} />
-                          <InputOTPSlot index={5} />
-                        </InputOTPGroup>
-                      </InputOTP>
+                  <TabsContent value="password" className="mt-5 space-y-4 focus-visible:ring-0">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="signin-password">Password</Label>
+                      <PasswordInput
+                        id="signin-password"
+                        name="password"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        className="rounded-full h-12"
+                      />
                     </div>
-                    <Button
-                      type="submit"
-                      disabled={busy || otp.length !== SIGN_IN_CODE_LENGTH}
-                      className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      {busy ? "Please wait…" : "Sign in with code"}
+                    <div className="flex justify-end">
+                      <button type="button" onClick={() => setView("forgot")} className="text-sm text-primary underline underline-offset-4">
+                        Forgot password?
+                      </button>
+                    </div>
+                    <Button type="submit" disabled={busy} className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90">
+                      {busy ? "Please wait…" : "Sign in"}
                     </Button>
-                    <button
-                      type="button"
-                      disabled={busy || resendIn > 0}
-                      onClick={handleResendOtp}
-                      className="w-full text-sm text-muted-foreground underline underline-offset-4 disabled:no-underline disabled:opacity-60"
-                    >
-                      {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
-                    </button>
-                  </form>
-                )}
-              </TabsContent>
-            </Tabs>
+                  </TabsContent>
+                </Tabs>
+              </form>
+            ) : (
+              <div className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="code-email">Email</Label>
+                  <Input
+                    id="code-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="rounded-full h-12"
+                  />
+                </div>
+
+                <Tabs value={signMethod} onValueChange={(value) => setSignMethod(value as SignMethod)}>
+                  <TabsList className="grid w-full grid-cols-2 h-12 rounded-full bg-muted p-1">
+                    <TabsTrigger value="password" className={pillTriggerClass}>
+                      Password
+                    </TabsTrigger>
+                    <TabsTrigger value="code" className={pillTriggerClass}>
+                      Email code
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="code" className="mt-5 focus-visible:ring-0">
+                    {!codeSent ? (
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                          We’ll email a 6-digit sign-in code.
+                        </p>
+                        <Button
+                          type="button"
+                          disabled={busy}
+                          onClick={handleSendCode}
+                          className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+                        >
+                          {busy ? "Sending code…" : "Send sign-in code"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleVerifyOtp} className="space-y-4">
+                        <p className="text-sm text-muted-foreground text-center">
+                          Enter the 6-digit code from your email.
+                        </p>
+                        <div className="flex justify-center">
+                          <InputOTP maxLength={SIGN_IN_CODE_LENGTH} value={otp} onChange={setOtp}>
+                            <InputOTPGroup>
+                              <InputOTPSlot index={0} />
+                              <InputOTPSlot index={1} />
+                              <InputOTPSlot index={2} />
+                              <InputOTPSlot index={3} />
+                              <InputOTPSlot index={4} />
+                              <InputOTPSlot index={5} />
+                            </InputOTPGroup>
+                          </InputOTP>
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={busy || otp.length !== SIGN_IN_CODE_LENGTH}
+                          className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+                        >
+                          {busy ? "Please wait…" : "Sign in with code"}
+                        </Button>
+                        <button
+                          type="button"
+                          disabled={busy || resendIn > 0}
+                          onClick={handleResendOtp}
+                          className="w-full text-sm text-muted-foreground underline underline-offset-4 disabled:no-underline disabled:opacity-60"
+                        >
+                          {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                        </button>
+                      </form>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
           </div>
         )}
 
         {view === "signup" && (
           <form onSubmit={handleSignup} className="space-y-4 mt-8">
             <div className="space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
-              <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required className="rounded-full h-12" />
+              <Label htmlFor="signup-name">Full name</Label>
+              <Input
+                id="signup-name"
+                name="name"
+                autoComplete="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="rounded-full h-12"
+              />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="rounded-full h-12" placeholder="+91" />
+              <Label htmlFor="signup-phone">Phone</Label>
+              <Input
+                id="signup-phone"
+                name="tel"
+                type="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="rounded-full h-12"
+                placeholder="+91"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="signup-email">Email</Label>
-              <Input id="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-full h-12" />
+              <Input
+                id="signup-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="rounded-full h-12"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="signup-password">Password</Label>
-              <Input id="signup-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="rounded-full h-12" />
+              <PasswordInput
+                id="signup-password"
+                name="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="rounded-full h-12"
+              />
             </div>
             <Button type="submit" disabled={busy} className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90">
               {busy ? "Please wait…" : "Create account"}
@@ -370,7 +438,16 @@ const AuthPage = () => {
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="reset-email">Email</Label>
-              <Input id="reset-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-full h-12" />
+              <Input
+                id="reset-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="rounded-full h-12"
+              />
             </div>
             <Button type="submit" disabled={busy} className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90">
               {busy ? "Please wait…" : "Send reset link"}

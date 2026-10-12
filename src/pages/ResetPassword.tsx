@@ -4,6 +4,7 @@ import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -86,15 +87,42 @@ const ResetPassword = () => {
         <form onSubmit={handleSubmit} className="space-y-4 mt-8">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="rounded-full h-12" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="rounded-full h-12"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">New password</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="rounded-full h-12" />
+            <PasswordInput
+              id="password"
+              name="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="rounded-full h-12"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="confirm">Confirm password</Label>
-            <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={6} className="rounded-full h-12" />
+            <PasswordInput
+              id="confirm"
+              name="confirm-password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              minLength={6}
+              className="rounded-full h-12"
+            />
           </div>
           <Button type="submit" disabled={busy || !token} className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90">
             {busy ? "Please wait…" : "Update password"}

@@ -15,7 +15,15 @@ import {
   requestPasswordReset as requestPasswordResetRequest,
   resetPassword as resetPasswordRequest,
 } from "@/lib/authApi";
-import { api, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "@/lib/api";
+import {
+  api,
+  ACCESS_TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
+  AUTH_SESSION_KEY,
+  isTokenExpiringSoon,
+  getTokenExpiresIn,
+  refreshAccessToken,
+} from "@/lib/api";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -100,15 +108,142 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    // 2. Normal load for returning users
+    // 2. Normal load for returning users: re-verify session with /api/users/me
     const stored = loadStoredAuth();
     if (stored.session?.access_token && stored.user) {
       setUser(stored.user);
       setProfile(stored.profile);
       setSession(stored.session);
+
+      // Verify the token with the server
+      api<{ profile: AuthProfile }>("/api/users/me")
+        .then((res) => {
+          if (res?.profile) {
+            setProfile(res.profile);
+            persistAuth({
+              user: stored.user,
+              profile: res.profile,
+              session: stored.session,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("Session expired or invalid on startup:", err);
+          clearAuth();
+          setUser(null);
+          setProfile(null);
+          setSession(null);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else {
+      clearAuth();
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      setLoading(false);
     }
-    setLoading(false);
   }, [applyAuth]);
+
+  // 3. Global listener for unrecoverable 401 unauthorized events from api.ts
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearAuth();
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      setLoading(false);
+    };
+
+    window.addEventListener("aura:unauthorized", handleUnauthorized);
+    return () => {
+      window.removeEventListener("aura:unauthorized", handleUnauthorized);
+    };
+  }, []);
+
+  // 4. Proactive background auto-refresh timer: automatically refreshes token before expiry
+  useEffect(() => {
+    if (!session?.access_token) return;
+
+    const expiresInSeconds = getTokenExpiresIn(session.access_token);
+    if (expiresInSeconds <= 0) return;
+
+    // Refresh 3 minutes (180s) before expiry, or after 10s if already expiring soon
+    const refreshDelayMs = Math.max(10000, (expiresInSeconds - 180) * 1000);
+
+    const timer = setTimeout(async () => {
+      try {
+        await refreshAccessToken();
+      } catch (err) {
+        console.warn("Background auto-refresh attempt:", err);
+      }
+    }, refreshDelayMs);
+
+    return () => clearTimeout(timer);
+  }, [session?.access_token]);
+
+  // 5. Auto-refresh when tab becomes visible or focused after laptop sleep/tab switch
+  useEffect(() => {
+    const checkAndRefresh = async () => {
+      if (document.visibilityState === "visible") {
+        const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+        const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+        if (token && refresh && isTokenExpiringSoon(token, 120)) {
+          await refreshAccessToken();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", checkAndRefresh);
+    window.addEventListener("focus", checkAndRefresh);
+    return () => {
+      document.removeEventListener("visibilitychange", checkAndRefresh);
+      window.removeEventListener("focus", checkAndRefresh);
+    };
+  }, []);
+
+  // 6. Listen for token refresh events emitted by api.ts to keep in-memory session fresh
+  useEffect(() => {
+    const onTokenRefreshed = (e: Event) => {
+      const custom = e as CustomEvent<{ access_token: string; refresh_token: string }>;
+      if (custom.detail?.access_token) {
+        setSession((prev) =>
+          prev
+            ? { ...prev, access_token: custom.detail.access_token, refresh_token: custom.detail.refresh_token }
+            : { access_token: custom.detail.access_token, refresh_token: custom.detail.refresh_token }
+        );
+      }
+    };
+
+    window.addEventListener("aura:token_refreshed", onTokenRefreshed);
+    return () => {
+      window.removeEventListener("aura:token_refreshed", onTokenRefreshed);
+    };
+  }, []);
+
+  // 7. Cross-tab storage synchronization
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ACCESS_TOKEN_KEY || e.key === AUTH_SESSION_KEY) {
+        const stored = loadStoredAuth();
+        if (stored.session?.access_token && stored.user) {
+          setUser(stored.user);
+          setProfile(stored.profile);
+          setSession(stored.session);
+        } else if (!stored.session?.access_token) {
+          setUser(null);
+          setProfile(null);
+          setSession(null);
+        }
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     const result = await loginUser({ email, password });
