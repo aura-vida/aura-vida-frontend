@@ -151,11 +151,11 @@ const PractitionerArea = () => {
   const [scheduleState, setScheduleState] = useState<
     Record<number, { active: boolean; start: string; end: string; duration: number }>
   >({
-    1: { active: true, start: "09:00", end: "17:00", duration: 60 },
-    2: { active: true, start: "09:00", end: "17:00", duration: 60 },
-    3: { active: true, start: "09:00", end: "17:00", duration: 60 },
-    4: { active: true, start: "09:00", end: "17:00", duration: 60 },
-    5: { active: true, start: "09:00", end: "17:00", duration: 60 },
+    1: { active: false, start: "09:00", end: "17:00", duration: 60 },
+    2: { active: false, start: "09:00", end: "17:00", duration: 60 },
+    3: { active: false, start: "09:00", end: "17:00", duration: 60 },
+    4: { active: false, start: "09:00", end: "17:00", duration: 60 },
+    5: { active: false, start: "09:00", end: "17:00", duration: 60 },
     6: { active: false, start: "10:00", end: "16:00", duration: 60 },
     0: { active: false, start: "10:00", end: "16:00", duration: 60 },
   });
@@ -226,24 +226,22 @@ const PractitionerArea = () => {
     setLoadingSchedule(true);
     getPractitionerSchedule(profile.practitioner_slug)
       .then((res) => {
-        if (res.schedule && res.schedule.length > 0) {
-          const nextState = { ...scheduleState };
-          // reset all days to inactive first
-          DAYS_OF_WEEK.forEach((d) => {
-            nextState[d.day] = { active: false, start: "09:00", end: "17:00", duration: 60 };
-          });
-          res.schedule.forEach((row) => {
-            if (row.day_of_week in nextState) {
-              nextState[row.day_of_week] = {
-                active: row.is_active !== false,
-                start: row.start_time.slice(0, 5),
-                end: row.end_time.slice(0, 5),
-                duration: row.duration_min || 60,
-              };
-            }
-          });
-          setScheduleState(nextState);
-        }
+        const nextState: typeof scheduleState = {};
+        // reset all days to inactive first
+        DAYS_OF_WEEK.forEach((d) => {
+          nextState[d.day] = { active: false, start: "09:00", end: "17:00", duration: 60 };
+        });
+        (res.schedule || []).forEach((row) => {
+          if (row.day_of_week in nextState) {
+            nextState[row.day_of_week] = {
+              active: row.is_active !== false,
+              start: row.start_time.slice(0, 5),
+              end: row.end_time.slice(0, 5),
+              duration: row.duration_min || 60,
+            };
+          }
+        });
+        setScheduleState(nextState);
       })
       .catch((err) => console.error("Failed to load practitioner schedule:", err))
       .finally(() => setLoadingSchedule(false));
