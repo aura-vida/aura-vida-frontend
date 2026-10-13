@@ -14,6 +14,7 @@ import PractitionerArea from "./pages/PractitionerArea.tsx";
 import Admin from "./pages/Admin.tsx";
 import ListSpace from "./pages/ListSpace.tsx";
 import ArticleDetail from "./pages/ArticleDetail.tsx";
+import Journal from "./pages/Journal.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import ProtectedRoute from "./components/aura/ProtectedRoute.tsx";
 
@@ -62,7 +63,11 @@ const App = () => (
               }
             />
             <Route path="/list-your-space" element={<ListSpace />} />
+            <Route path="/journal" element={<Journal />} />
+            <Route path="/blogs" element={<Journal />} />
             <Route path="/journal/:slug" element={<ArticleDetail />} />
+            <Route path="/blog/:slug" element={<ArticleDetail />} />
+            <Route path="/blogs/:slug" element={<ArticleDetail />} />
             <Route
               path="/settings"
               element={

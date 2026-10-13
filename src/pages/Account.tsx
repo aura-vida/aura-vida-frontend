@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
+import ClickableDatePicker from "@/components/aura/ClickableDatePicker";
 import { cn } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
 
@@ -429,7 +430,7 @@ const Account = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => setCancelModalBooking(b)}
-                      className="rounded-full h-9 px-4 text-xs text-muted-foreground hover:text-destructive"
+                      className="rounded-full h-9 px-4 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                     >
                       <XCircle className="size-3.5 mr-1.5" />
                       Cancel Session
@@ -467,11 +468,10 @@ const Account = () => {
             {/* Date Input */}
             <div className="space-y-2">
               <Label className="text-xs font-medium">Select New Date</Label>
-              <Input
-                type="date"
+              <ClickableDatePicker
                 min={getTomorrowDate()}
                 value={rescheduleDate}
-                onChange={(e) => setRescheduleDate(e.target.value)}
+                onChange={setRescheduleDate}
                 className="h-12 rounded-2xl bg-background px-4 text-sm"
               />
             </div>

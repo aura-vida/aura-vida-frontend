@@ -475,7 +475,7 @@ export default function AdminAppointments() {
                         size="sm"
                         onClick={() => setCancelModalBooking(b)}
                         disabled={actionBusyId === b.id}
-                        className="rounded-full h-9 px-3 text-xs text-muted-foreground hover:text-destructive"
+                        className="rounded-full h-9 px-3 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                       >
                         <XCircle className="size-3.5 mr-1.5" />
                         Cancel

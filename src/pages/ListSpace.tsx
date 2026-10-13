@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { submitSpace } from "@/lib/spacesApi";
 import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
 import { Button } from "@/components/ui/button";
@@ -39,16 +39,27 @@ const ListSpace = () => {
     if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
     setError(""); setBusy(true);
     const d = parsed.data;
-    const { error } = await supabase.from("space_listings").insert({
-      contact_name: d.contact_name, space_name: d.space_name, address: d.address,
-      city: d.city, pin: d.pin, capacity: d.capacity,
-      email: d.email.toLowerCase(),
-      phone: d.phone || null, space_type: d.space_type || null, amenities: d.amenities || null,
-      availability: d.availability || null, notes: d.notes || null,
-    });
-    setBusy(false);
-    if (error) { setError("Something went wrong. Please try again."); return; }
-    setDone(true);
+    try {
+      await submitSpace({
+        contact_name: d.contact_name,
+        space_name: d.space_name,
+        address: d.address,
+        city: d.city,
+        pin: d.pin,
+        capacity: d.capacity,
+        email: d.email.toLowerCase(),
+        phone: d.phone || null,
+        space_type: d.space_type || null,
+        amenities: d.amenities ? d.amenities.split(",").map((s) => s.trim()).filter(Boolean) : null,
+        availability: d.availability || null,
+        notes: d.notes || null,
+      });
+      setDone(true);
+    } catch (err: any) {
+      setError(err?.message || "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

@@ -6,8 +6,13 @@ import ForHealers from "@/components/aura/ForHealers";
 import Testimonials from "@/components/aura/Testimonials";
 import Footer from "@/components/aura/Footer";
 
+import { useAuth } from "@/hooks/useAuth";
+
 const Guides = () => {
   const { hash } = useLocation();
+  const { profile } = useAuth();
+  const isPractitioner = (profile?.role || "").toLowerCase() === "practitioner";
+  const isAdmin = (profile?.role || "").toLowerCase() === "admin";
 
   useEffect(() => {
     const go = () => {
@@ -25,7 +30,7 @@ const Guides = () => {
       <Nav />
       <h1 className="sr-only">Kuśala Guides — Vetted alternative healing practitioners</h1>
       <Practitioners />
-      <ForHealers />
+      {!isPractitioner && !isAdmin && <ForHealers />}
       <Testimonials />
       <Footer />
     </main>

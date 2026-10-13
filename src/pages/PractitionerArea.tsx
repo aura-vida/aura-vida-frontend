@@ -53,6 +53,8 @@ import {
   deleteBlog,
   type Blog,
 } from "@/lib/blogsApi";
+import { CircularTimePicker } from "@/components/aura/CircularTimePicker";
+import { ClickableDatePicker } from "@/components/aura/ClickableDatePicker";
 import {
   Calendar,
   Clock,
@@ -500,7 +502,7 @@ const PractitionerArea = () => {
           <Button
             onClick={() => setSupportOpen(true)}
             variant="outline"
-            className="rounded-full border-border bg-card hover:bg-secondary text-foreground text-xs font-medium px-5 h-11 gap-2 shadow-soft transition-smooth self-start sm:self-auto"
+            className="rounded-full border-border bg-card hover:bg-secondary hover:text-foreground hover:border-accent/40 text-foreground text-xs font-medium px-5 h-11 gap-2 shadow-soft transition-all self-start sm:self-auto"
           >
             <HelpCircle className="size-4 text-accent" />
             <span>Contact Admin</span>
@@ -816,7 +818,7 @@ const PractitionerArea = () => {
                                 size="sm"
                                 onClick={() => setCancelModalBooking(b)}
                                 disabled={statusBusyId === b.id}
-                                className="rounded-full h-9 px-3 text-xs text-muted-foreground hover:text-destructive"
+                                className="rounded-full h-9 px-3 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                               >
                                 <XCircle className="size-3.5 mr-1.5" />
                                 Cancel
@@ -934,30 +936,28 @@ const PractitionerArea = () => {
                             <div className="flex flex-wrap items-center gap-3">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">From</span>
-                                <Input
-                                  type="time"
+                                <CircularTimePicker
                                   value={current.start}
-                                  onChange={(e) =>
+                                  onChange={(time) =>
                                     setScheduleState((prev) => ({
                                       ...prev,
-                                      [d.day]: { ...current, start: e.target.value },
+                                      [d.day]: { ...current, start: time },
                                     }))
                                   }
-                                  className="h-10 w-28 rounded-xl bg-background text-xs"
+                                  className="h-10 w-44 rounded-xl bg-background text-xs"
                                 />
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">to</span>
-                                <Input
-                                  type="time"
+                                <CircularTimePicker
                                   value={current.end}
-                                  onChange={(e) =>
+                                  onChange={(time) =>
                                     setScheduleState((prev) => ({
                                       ...prev,
-                                      [d.day]: { ...current, end: e.target.value },
+                                      [d.day]: { ...current, end: time },
                                     }))
                                   }
-                                  className="h-10 w-28 rounded-xl bg-background text-xs"
+                                  className="h-10 w-44 rounded-xl bg-background text-xs"
                                 />
                               </div>
 
@@ -1066,41 +1066,42 @@ const PractitionerArea = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2 space-y-1.5">
                       <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Specific Date to Block</Label>
-                      <Input
-                        type="date"
+                      <ClickableDatePicker
                         value={exceptionDate}
-                        onChange={(e) => setExceptionDate(e.target.value)}
+                        onChange={setExceptionDate}
                         className="h-11 rounded-xl bg-background"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Block From</Label>
-                      <Input
-                        type="time"
+                      <CircularTimePicker
                         value={exceptionStart}
-                        onChange={(e) => setExceptionStart(e.target.value)}
+                        onChange={setExceptionStart}
                         className="h-11 rounded-xl bg-background"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Block Until</Label>
-                      <Input
-                        type="time"
+                      <CircularTimePicker
                         value={exceptionEnd}
-                        onChange={(e) => setExceptionEnd(e.target.value)}
+                        onChange={setExceptionEnd}
                         className="h-11 rounded-xl bg-background"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Type</Label>
-                      <select
+                      <Select
                         value={exceptionType}
-                        onChange={(e) => setExceptionType(e.target.value as "leave" | "special")}
-                        className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                        onValueChange={(val) => setExceptionType(val as "leave" | "special")}
                       >
-                        <option value="leave">Leave / Day off</option>
-                        <option value="special">Special reduced hours</option>
-                      </select>
+                        <SelectTrigger className="h-11 w-full rounded-xl border-border bg-background px-3.5 text-sm">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[100] rounded-xl border-border bg-card shadow-xl">
+                          <SelectItem value="leave">Leave / Day off</SelectItem>
+                          <SelectItem value="special">Special reduced hours</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Reason (optional)</Label>
@@ -1356,7 +1357,7 @@ const PractitionerArea = () => {
                             size="sm"
                             disabled={deletingArticleId === b.id}
                             onClick={() => handleDeleteArticle(b.id)}
-                            className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:text-destructive"
+                            className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                           >
                             <Trash2 className="size-3" />
                           </Button>

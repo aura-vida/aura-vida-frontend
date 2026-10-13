@@ -19,7 +19,7 @@ const Footer = () => (
           { h: "Company", l: [
             { label: "About", href: "/#about" },
             { label: "Trust & safety", href: "/values" },
-            { label: "Journal", href: "/guides" },
+            { label: "Journal", href: "/journal" },
             { label: "Contact", href: "mailto:sahil.dhanani@kusala.in" },
           ]},
         ].map((c) => (

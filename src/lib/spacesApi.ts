@@ -84,3 +84,17 @@ export async function adminDeleteSpace(
     method: "DELETE",
   });
 }
+
+export async function submitSpace(
+  data: Partial<Space>
+): Promise<{ message: string; space: Space }> {
+  return api<{ message: string; space: Space }>("/api/spaces", {
+    method: "POST",
+    body: data,
+  });
+}
+
+export async function getPublicSpaces(pin: string): Promise<{ spaces: Space[] }> {
+  return api<{ spaces: Space[] }>(`/api/spaces?pin=${encodeURIComponent(pin)}`);
+}
+

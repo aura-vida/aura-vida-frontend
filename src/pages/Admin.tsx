@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -29,6 +29,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Nav from "@/components/aura/Nav";
 import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
 import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, adminApprovePractitioner, adminListPractitioners, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
@@ -364,15 +371,24 @@ const Admin = () => {
                     className="rounded-full h-10 pl-9 pr-4 text-sm w-52"
                   />
                 </div>
-                <select
-                  value={filterPublished}
-                  onChange={(e) => { setFilterPublished(e.target.value); setPage(1); load(1, searchTerm, e.target.value, filterBookable); }}
-                  className="rounded-full h-10 px-4 text-sm border border-input bg-background text-foreground appearance-none pr-8 cursor-pointer"
+                <Select
+                  value={filterPublished || "all"}
+                  onValueChange={(val) => {
+                    const nextVal = val === "all" ? "" : val;
+                    setFilterPublished(nextVal);
+                    setPage(1);
+                    load(1, searchTerm, nextVal, filterBookable);
+                  }}
                 >
-                  <option value="">All published</option>
-                  <option value="true">Published only</option>
-                  <option value="false">Draft only</option>
-                </select>
+                  <SelectTrigger className="rounded-full h-10 px-4 text-sm border-input bg-background text-foreground w-40">
+                    <SelectValue placeholder="All published" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-border bg-card">
+                    <SelectItem value="all">All published</SelectItem>
+                    <SelectItem value="true">Published only</SelectItem>
+                    <SelectItem value="false">Draft only</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   variant="outline"
                   className="rounded-full h-10 px-5 text-sm shrink-0"
@@ -734,35 +750,107 @@ const Admin = () => {
                                 These power the site search - include everyday words clients might type, like "alcohol" or "insomnia".
                               </p>
                             </div>
-                            <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1">
-                              <label className="flex items-center gap-2 text-sm">
+                            <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-2 pb-1 border-t border-border">
+                              <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
                                 <Switch checked={row.is_published} onCheckedChange={(v) => update(row.id, { is_published: v })} />
-                                Show on site
+                                <span className="font-medium text-foreground">Show on site</span>
                               </label>
-                              <label className="flex items-center gap-2 text-sm">
+                              <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
                                 <Switch checked={row.bookable} onCheckedChange={(v) => update(row.id, { bookable: v })} />
-                                Allow booking
+                                <span className="font-medium text-foreground">Allow booking</span>
                               </label>
                             </div>
-                            <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1 border-t border-border mt-2">
-                              <label className="flex items-center gap-2 text-sm">
-                                <Switch checked={row.offers_centre !== false} onCheckedChange={(v) => update(row.id, { offers_centre: v })} />
-                                Partner Space (Centre)
-                              </label>
-                              <label className="flex items-center gap-2 text-sm">
-                                <Switch checked={row.offers_host === true} onCheckedChange={(v) => update(row.id, { offers_host: v })} />
-                                At Home (Host)
-                              </label>
-                              <label className="flex items-center gap-2 text-sm">
-                                <Switch checked={row.offers_online === true} onCheckedChange={(v) => update(row.id, { offers_online: v })} />
-                                Online Session
-                              </label>
-                              <div className="ml-auto flex items-center gap-2">
-                                <Button variant="outline" className="rounded-full" onClick={() => togglePractitionerExpanded(row.id)}>
-                                  Close
-                                </Button>
-                                <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+
+                            {/* Session Delivery Formats / Locations */}
+                            <div className="sm:col-span-2 rounded-2xl border border-border bg-secondary/20 p-4 space-y-3 mt-1">
+                              <div>
+                                <span className="text-[11px] font-semibold tracking-wider uppercase text-accent">
+                                  Session Delivery Formats &amp; Locations
+                                </span>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Select which session locations and delivery options this practitioner offers to clients during booking.
+                                </p>
                               </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                                <label className={cn(
+                                  "flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer select-none",
+                                  row.offers_centre !== false ? "bg-card border-border shadow-xs" : "bg-muted/40 border-border/50 opacity-75"
+                                )}>
+                                  <Switch
+                                    className="mt-0.5 shrink-0"
+                                    checked={row.offers_centre !== false}
+                                    onCheckedChange={(v) => update(row.id, { offers_centre: v })}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                      <MapPin className="size-3.5 text-accent shrink-0" />
+                                      <span>Partner Space</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                                      Vetted sanctuary / centre
+                                    </p>
+                                  </div>
+                                </label>
+
+                                <label className={cn(
+                                  "flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer select-none",
+                                  row.offers_host === true ? "bg-card border-border shadow-xs" : "bg-muted/40 border-border/50 opacity-75"
+                                )}>
+                                  <Switch
+                                    className="mt-0.5 shrink-0"
+                                    checked={row.offers_host === true}
+                                    onCheckedChange={(v) => update(row.id, { offers_host: v })}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                      <Home className="size-3.5 text-accent shrink-0" />
+                                      <span>At Home (Host)</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                                      Practitioner travels to client
+                                    </p>
+                                  </div>
+                                </label>
+
+                                <label className={cn(
+                                  "flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer select-none",
+                                  row.offers_online === true ? "bg-card border-border shadow-xs" : "bg-muted/40 border-border/50 opacity-75"
+                                )}>
+                                  <Switch
+                                    className="mt-0.5 shrink-0"
+                                    checked={row.offers_online === true}
+                                    onCheckedChange={(v) => update(row.id, { offers_online: v })}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                      <Video className="size-3.5 text-accent shrink-0" />
+                                      <span>Online Session</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                                      Virtual via private video
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons Footer */}
+                            <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-3 border-t border-border mt-2">
+                              <Button
+                                variant="outline"
+                                className="rounded-full px-5 text-xs h-9"
+                                onClick={() => togglePractitionerExpanded(row.id)}
+                              >
+                                Close
+                              </Button>
+                              <Button
+                                className="rounded-full px-6 text-xs h-9 bg-primary text-primary-foreground hover:bg-primary/90"
+                                disabled={busy}
+                                onClick={() => save(row)}
+                              >
+                                Save Changes
+                              </Button>
                             </div>
                           </div>
                         </div>

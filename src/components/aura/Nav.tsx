@@ -7,7 +7,9 @@ import NotificationBell from "@/components/aura/NotificationBell";
 
 const Nav = () => {
   const [open, setOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isPractitioner = (profile?.role || "").toLowerCase() === "practitioner";
+  const isAdmin = (profile?.role || "").toLowerCase() === "admin";
   const close = () => setOpen(false);
 
   return (
@@ -21,24 +23,63 @@ const Nav = () => {
         <a href="/#modalities" className="hover:text-foreground transition-colors">Services</a>
         <a href="/#digital" className="hover:text-foreground transition-colors">Library</a>
         <Link to="/guides" className="hover:text-foreground transition-colors">Guides</Link>
-        <a href="/guides#healers" className="hover:text-foreground transition-colors">For Healers</a>
+        <Link to="/journal" className="hover:text-foreground transition-colors">Journal</Link>
+        {!isPractitioner && !isAdmin && (
+          <a href="/guides#healers" className="hover:text-foreground transition-colors">For Healers</a>
+        )}
         <Link to="/list-your-space" className="hover:text-foreground transition-colors">List your space</Link>
       </div>
       <div className="flex items-center gap-2">
         {user && <NotificationBell />}
-        <Link to="/guides" className="md:hidden">
-          <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-xs tracking-widest uppercase">
-            Book
-          </Button>
-        </Link>
-        <Link to="/book" className="hidden md:inline-flex">
-          <Button
-            size="lg"
-            className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 px-7 h-12 tracking-widest uppercase text-xs"
-          >
-            Book a session
-          </Button>
-        </Link>
+        {isPractitioner ? (
+          <>
+            <Link to="/practitioner" className="md:hidden">
+              <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-xs tracking-widest uppercase">
+                Portal
+              </Button>
+            </Link>
+            <Link to="/practitioner" className="hidden md:inline-flex">
+              <Button
+                size="lg"
+                className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 px-7 h-12 tracking-widest uppercase text-xs"
+              >
+                Practitioner Portal
+              </Button>
+            </Link>
+          </>
+        ) : isAdmin ? (
+          <>
+            <Link to="/admin" className="md:hidden">
+              <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-xs tracking-widest uppercase">
+                Admin
+              </Button>
+            </Link>
+            <Link to="/admin" className="hidden md:inline-flex">
+              <Button
+                size="lg"
+                className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 px-7 h-12 tracking-widest uppercase text-xs"
+              >
+                Admin Panel
+              </Button>
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link to="/guides" className="md:hidden">
+              <Button size="sm" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-xs tracking-widest uppercase">
+                Book
+              </Button>
+            </Link>
+            <Link to="/book" className="hidden md:inline-flex">
+              <Button
+                size="lg"
+                className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 px-7 h-12 tracking-widest uppercase text-xs"
+              >
+                Book a session
+              </Button>
+            </Link>
+          </>
+        )}
         <Link to={user ? "/account" : "/auth"} className="hidden md:inline-flex">
           <Button
             variant="outline"
@@ -63,11 +104,23 @@ const Nav = () => {
           <Link onClick={close} to="/values" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Values</Link>
           <a onClick={close} href="/#modalities" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Services</a>
           <a onClick={close} href="/#digital" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Library</a>
-          <Link onClick={close} to="/guides" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Guides · Book</Link>
-          <a onClick={close} href="/guides#healers" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">For Healers</a>
+          <Link onClick={close} to="/guides" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">
+            {isPractitioner ? "Guides · My Profile" : "Guides · Book"}
+          </Link>
+          <Link onClick={close} to="/journal" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Journal</Link>
+          {!isPractitioner && !isAdmin && (
+            <a onClick={close} href="/guides#healers" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">For Healers</a>
+          )}
           <Link onClick={close} to="/list-your-space" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">List your space</Link>
+          {user && (
+            <Link onClick={close} to={isPractitioner ? "/practitioner" : isAdmin ? "/admin" : "/account"}>
+              <Button className="w-full mt-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 tracking-widest uppercase text-xs">
+                {isPractitioner ? "Practitioner Portal" : isAdmin ? "Admin Panel" : "Book a session"}
+              </Button>
+            </Link>
+          )}
           <Link onClick={close} to={user ? "/account" : "/auth"}>
-            <Button className="w-full mt-2 rounded-full bg-foreground text-background hover:bg-foreground/90 h-11">
+            <Button variant={user ? "outline" : "default"} className="w-full mt-2 rounded-full h-11">
               {user ? "My sessions" : "Sign in"}
             </Button>
           </Link>

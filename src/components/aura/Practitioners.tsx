@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Star, MapPin, Search, ArrowUpRight, FileText } from "lucide-react";
+import { Star, MapPin, Search, ArrowUpRight, FileText, Loader2, Settings, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { listPublishedBlogs, type Blog } from "@/lib/blogsApi";
+import { useAuth } from "@/hooks/useAuth";
 import p1 from "@/assets/practitioner-1.jpg";
 import p2 from "@/assets/practitioner-2.jpg";
 import p3 from "@/assets/practitioner-3.jpg";
@@ -55,24 +56,79 @@ const expandWord = (word: string): string[] => {
 const SUGGESTIONS = ["Anxiety & stress", "Alcohol addiction", "Better sleep", "Grief & loss", "Chronic pain"];
 
 const Practitioners = () => {
+  const { profile } = useAuth();
+  const isPractitioner = (profile?.role || "").toLowerCase() === "practitioner";
+  const myPractitionerSlug = profile?.practitioner_slug || "";
+
   const [people, setPeople] = useState<Practitioner[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [isLoadingInitial, setIsLoadingInitial] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [publishedBlogs, setPublishedBlogs] = useState<Blog[]>([]);
   const [query, setQuery] = useState(
     () => new URLSearchParams(window.location.search).get("q") ?? ""
   );
   const [showAll, setShowAll] = useState(false);
 
+  // Initial load: fetch practitioners from the server
   useEffect(() => {
-    listPractitioners({ limit: 100 })
-      .then((data) => setPeople(data.practitioners))
-      .catch((err) => console.error("Failed to load practitioners:", err));
+    setIsLoadingInitial(true);
+    const fetchLimit = isPractitioner ? 100 : 3;
+    listPractitioners({ limit: fetchLimit, page: 1 })
+      .then((data) => {
+        setPeople(data.practitioners);
+        setTotalCount(data.pagination?.total ?? data.practitioners.length);
+      })
+      .catch((err) => console.error("Failed to load initial practitioners:", err))
+      .finally(() => setIsLoadingInitial(false));
 
     listPublishedBlogs({ limit: 100 })
       .then((res) => setPublishedBlogs(res.data ?? []))
       .catch((err) => console.error("Failed to load published blogs:", err));
-  }, []);
+  }, [isPractitioner]);
+
+  // When searching, fetch full catalog from the server if not already loaded so search covers all practitioners
+  useEffect(() => {
+    if (!isPractitioner && query.trim() !== "" && people.length < totalCount) {
+      listPractitioners({ limit: 100, page: 1 })
+        .then((data) => {
+          setPeople(data.practitioners);
+          setTotalCount(data.pagination?.total ?? data.practitioners.length);
+        })
+        .catch((err) => console.error("Failed to load full practitioners for search:", err));
+    }
+  }, [query, people.length, totalCount, isPractitioner]);
+
+  const handleToggleShowAll = async () => {
+    if (!showAll) {
+      // If we haven't loaded all practitioners yet from server, fetch them now
+      if (people.length < totalCount) {
+        setIsLoadingMore(true);
+        try {
+          const data = await listPractitioners({ limit: 100, page: 1 });
+          setPeople(data.practitioners);
+          setTotalCount(data.pagination?.total ?? data.practitioners.length);
+          setShowAll(true);
+        } catch (err) {
+          console.error("Failed to load all practitioners from server:", err);
+        } finally {
+          setIsLoadingMore(false);
+        }
+      } else {
+        setShowAll(true);
+      }
+    } else {
+      setShowAll(false);
+    }
+  };
 
   const visible = useMemo(() => {
+    // If logged in as a practitioner, only show their own profile
+    if (isPractitioner) {
+      if (!myPractitionerSlug) return [];
+      return people.filter((p) => p.slug === myPractitionerSlug);
+    }
+
     const q = query.trim().toLowerCase();
     if (!q) return people;
     const words = q.split(/\s+/).filter(Boolean);
@@ -90,60 +146,84 @@ const Practitioners = () => {
       .filter((s) => s.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((s) => s.p);
-  }, [people, query]);
+  }, [people, query, isPractitioner, myPractitionerSlug]);
 
   const displayedPeople = useMemo(() => {
+    if (isPractitioner) {
+      return visible;
+    }
     if (showAll || query.trim() !== "") {
       return visible;
     }
     return visible.slice(0, 3);
-  }, [visible, showAll, query]);
+  }, [visible, showAll, query, isPractitioner]);
 
   return (
   <section id="practitioners" className="bg-background py-24 lg:py-32">
     <div className="max-w-[1500px] mx-auto px-6 lg:px-12">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
         <div>
-          <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">The Guides</span>
+          <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">
+            {isPractitioner ? "Your Practitioner Listing" : "The Guides"}
+          </span>
           <h2 className="font-display text-4xl md:text-6xl mt-4 text-balance max-w-3xl">
-            Practitioners we'd <em className="italic text-primary">trust</em> with our own healing.
+            {isPractitioner ? (
+              <>Your public profile on <em className="italic text-primary">Kuśala</em>.</>
+            ) : (
+              <>Practitioners we'd <em className="italic text-primary">trust</em> with our own healing.</>
+            )}
           </h2>
         </div>
         <p className="text-muted-foreground max-w-md">
-          Every guide is interviewed, certified, and reviewed. Admission to Kuśala is selective and based on a careful vetting process.
+          {isPractitioner
+            ? "This is how seekers discover your wisdom, bio, craft, and published articles."
+            : "Every guide is interviewed, certified, and reviewed. Admission to Kuśala is selective and based on a careful vetting process."}
         </p>
       </div>
 
-      <div className="max-w-2xl mb-10">
-        <div className="relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="What would you like help with? e.g. alcohol addiction, anxiety, sleep"
-            className="rounded-full h-14 pl-12 pr-5 text-base bg-card border-border"
-            aria-label="Search practitioners by concern"
-          />
+      {!isPractitioner && (
+        <div className="max-w-2xl mb-10">
+          <div className="relative">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="What would you like help with? e.g. alcohol addiction, anxiety, sleep"
+              className="rounded-full h-14 pl-12 pr-5 text-base bg-card border-border"
+              aria-label="Search practitioners by concern"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2 mt-4">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setQuery(s === query ? "" : s)}
+                className={`rounded-full border px-4 h-9 text-sm transition-smooth ${
+                  query === s
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2 mt-4">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setQuery(s === query ? "" : s)}
-              className={`rounded-full border px-4 h-9 text-sm transition-smooth ${
-                query === s
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              {s}
-            </button>
+      )}
+
+      {isLoadingInitial ? (
+        <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-card rounded-[2rem] overflow-hidden border border-border p-7 animate-pulse">
+              <div className="w-full aspect-[4/5] bg-secondary/70 rounded-2xl mb-6" />
+              <div className="h-6 bg-secondary rounded w-3/4 mb-2" />
+              <div className="h-4 bg-secondary rounded w-1/2 mb-6" />
+              <div className="h-10 bg-secondary rounded-full mt-4" />
+            </div>
           ))}
         </div>
-      </div>
-
-      {query.trim() !== "" && visible.length === 0 ? (
+      ) : query.trim() !== "" && visible.length === 0 ? (
         <div className="rounded-[2rem] border border-border bg-card p-12 text-center">
           <p className="font-display text-2xl text-foreground">No practitioners match that yet.</p>
           <p className="text-muted-foreground mt-2">
@@ -219,7 +299,14 @@ const Practitioners = () => {
                         <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">From</div>
                         <div className="font-display text-2xl text-foreground">₹{p.price_inr.toLocaleString("en-IN")}<span className="text-sm text-muted-foreground"> /session</span></div>
                       </div>
-                      {p.bookable ? (
+                      {isPractitioner ? (
+                        <Button asChild variant="outline" className="rounded-full h-11 px-5 text-xs font-medium gap-1.5 border-accent/40 text-accent hover:bg-accent hover:text-accent-foreground">
+                          <Link to="/practitioner">
+                            <Settings className="size-3.5" />
+                            Manage Profile
+                          </Link>
+                        </Button>
+                      ) : p.bookable ? (
                         <Button asChild className="rounded-full h-11 px-6 text-sm">
                           <Link to={`/book?practitioner=${p.slug}`}>Book</Link>
                         </Button>
@@ -282,8 +369,9 @@ const Practitioners = () => {
                   {(() => {
                     const practitionerBlogs = publishedBlogs.filter(
                       (b) =>
-                        b.practitioner_slug === p.slug ||
-                        b.author?.practitioner_slug === p.slug ||
+                        (b.practitioner_slug && b.practitioner_slug === p.slug) ||
+                        (b.author?.practitioner_slug && b.author.practitioner_slug === p.slug) ||
+                        (b.author?.full_name && p.name && b.author.full_name.trim().toLowerCase() === p.name.trim().toLowerCase()) ||
                         (p.id && b.author_id === p.id) ||
                         ((p as any).user_id && b.author_id === (p as any).user_id)
                     );
@@ -338,13 +426,19 @@ const Practitioners = () => {
                     );
                   })()}
 
-                  {p.bookable && (
+                  {isPractitioner ? (
+                    <div className="pt-4 border-t border-border/60 flex justify-end">
+                      <Button asChild className="rounded-full h-12 px-8 text-sm w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft">
+                        <Link to="/practitioner">Edit Profile in Portal</Link>
+                      </Button>
+                    </div>
+                  ) : p.bookable ? (
                     <div className="pt-4 border-t border-border/60 flex justify-end">
                       <Button asChild className="rounded-full h-12 px-8 text-sm w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft">
                         <Link to={`/book?practitioner=${p.slug}`}>Book a session</Link>
                       </Button>
                     </div>
-                  )}
+                  ) : null}
                 </DialogContent>
               </Dialog>
             ))}
@@ -352,16 +446,26 @@ const Practitioners = () => {
         </>
       )}
 
-      {visible.length > 3 && query.trim() === "" && (
+      {!isPractitioner && (totalCount > 3 || people.length > 3) && query.trim() === "" && (
         <div className="mt-12 text-center">
           <Button
             type="button"
             variant="outline"
             size="lg"
-            onClick={() => setShowAll((prev) => !prev)}
-            className="rounded-full h-14 px-10 border-foreground/30 text-foreground bg-card/60 hover:bg-secondary hover:text-foreground text-base transition-all duration-200 shadow-soft cursor-pointer"
+            onClick={handleToggleShowAll}
+            disabled={isLoadingMore}
+            className="rounded-full h-14 px-10 border-foreground/30 text-foreground bg-card/60 hover:bg-secondary hover:text-foreground text-base transition-all duration-200 shadow-soft cursor-pointer gap-2"
           >
-            {showAll ? "Show fewer guides" : `See all practitioners (${visible.length})`}
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="size-4 animate-spin text-accent" />
+                <span>Loading practitioners...</span>
+              </>
+            ) : showAll ? (
+              "Show fewer guides"
+            ) : (
+              `See all practitioners (${totalCount || people.length})`
+            )}
           </Button>
         </div>
       )}

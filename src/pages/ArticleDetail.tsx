@@ -40,6 +40,7 @@ export default function ArticleDetail() {
               (p) =>
                 (data.practitioner_slug && p.slug === data.practitioner_slug) ||
                 (data.author?.practitioner_slug && p.slug === data.author.practitioner_slug) ||
+                (data.author?.full_name && p.name && data.author.full_name.trim().toLowerCase() === p.name.trim().toLowerCase()) ||
                 p.id === data.author_id ||
                 (p as any).user_id === data.author_id
             );
@@ -175,7 +176,7 @@ export default function ArticleDetail() {
               variant="outline"
               size="sm"
               onClick={handleShare}
-              className="rounded-full h-9 px-4 text-xs font-medium border-border/80 hover:bg-secondary"
+              className="rounded-full h-9 px-4 text-xs font-medium border-border/80 hover:bg-secondary hover:text-foreground"
             >
               {copied ? (
                 <>

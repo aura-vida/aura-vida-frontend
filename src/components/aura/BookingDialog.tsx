@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MAX_GROUP_SIZE, formatINR, groupTotal, parsePrice } from "@/lib/pricing";
 import { getPractitioner, type Practitioner } from "@/lib/practitionersApi";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
+import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
 
 type Location = "host" | "centre" | "online";
 
@@ -25,8 +26,6 @@ const getTomorrowDate = () => {
   d.setDate(d.getDate() + 1);
   return d.toISOString().split("T")[0];
 };
-const getTodayDate = () => new Date().toISOString().split("T")[0];
-
 const getTodayDate = () => new Date().toISOString().split("T")[0];
 
 const LARGE_GROUP_MAILTO =
@@ -493,7 +492,14 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
                         <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
                         <div>
                           <div className="text-sm font-medium text-foreground">{c.space_name}</div>
-                          <div className="text-xs text-muted-foreground max-w-[200px] sm:max-w-sm mt-0.5">{c.address}, {c.city}</div>
+                          <div className="text-xs text-muted-foreground max-w-[200px] sm:max-w-md mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span>{c.address}, {c.city}</span>
+                            {c.pin && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-secondary text-foreground border border-border/80">
+                                PIN: {c.pin}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                             <Users className="size-3 text-primary" /> Up to {c.capacity} people
                           </div>
@@ -555,71 +561,16 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
             </span>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Session Date</Label>
-            <Input
-              type="date"
-              min={getTodayDate()}
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="rounded-2xl h-11 bg-background px-4 text-sm max-w-xs"
-            />
-          </div>
-
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">Available Time Slots</Label>
-              {loadingSlots && (
-                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <Clock className="size-3 animate-spin" /> Checking slots…
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {loadingSlots ? null : availableSlots.length === 0 ? (
-                <p className="col-span-3 text-sm text-muted-foreground py-3 text-center">
-                  No available slots for this date. Please try another day.
-                </p>
-              ) : (
-                availableSlots.map((slot) => {
-                  const isSelected = selectedTime === slot;
-                  const [h, m] = slot.split(":").map(Number);
-                  const duration = selectedService?.duration_min || 60;
-                  const endTotalMin = h * 60 + m + duration;
-                  const endH = Math.floor(endTotalMin / 60) % 24;
-                  const endM = endTotalMin % 60;
-
-                  const startAmpm = h >= 12 ? "PM" : "AM";
-                  const endAmpm = endH >= 12 ? "PM" : "AM";
-
-                  const startFormatted = `${h % 12 || 12}:${String(m).padStart(2, "0")} ${startAmpm}`;
-                  const endFormatted = `${endH % 12 || 12}:${String(endM).padStart(2, "0")} ${endAmpm}`;
-
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => setSelectedTime(slot)}
-                      className={cn(
-                        "flex flex-col items-center justify-center py-2.5 px-3 rounded-2xl border transition-all text-center",
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
-                          : "bg-secondary/40 border-border hover:border-accent/40 text-foreground hover:bg-secondary/70"
-                      )}
-                    >
-                      <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
-                        {startFormatted}
-                      </span>
-                      <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                        to {endFormatted}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          <AuraBookingCalendar
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            availableSlots={availableSlots}
+            selectedTime={selectedTime}
+            onTimeChange={setSelectedTime}
+            loadingSlots={loadingSlots}
+            durationMin={selectedService?.duration_min || 60}
+            practitionerSlug={practitioner?.slug || itemId}
+          />
         </div>
 
         <div className="mt-5 grid sm:grid-cols-3 gap-3">

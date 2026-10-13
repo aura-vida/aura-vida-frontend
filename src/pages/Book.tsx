@@ -33,6 +33,7 @@ import { createAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 import { MAX_GROUP_SIZE, formatINR, groupTotal } from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
+import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
 
 type Location = "host" | "centre" | "online";
 
@@ -59,6 +60,17 @@ const Book = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, profile } = useAuth();
+
+  // If user is logged in as a practitioner, redirect them to their portal
+  useEffect(() => {
+    if ((profile?.role || "").toLowerCase() === "practitioner") {
+      toast({
+        title: "Practitioner Portal",
+        description: "You are signed in as a practitioner. Redirecting to your practitioner portal.",
+      });
+      navigate("/practitioner", { replace: true });
+    }
+  }, [profile?.role, navigate, toast]);
 
   // Data fetching states
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
@@ -587,7 +599,14 @@ const Book = () => {
                                 <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
                                 <div>
                                   <div className="text-sm font-medium text-foreground">{c.space_name}</div>
-                                  <div className="text-xs text-muted-foreground mt-0.5 max-w-[200px] sm:max-w-xs">{c.address}, {c.city}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5 max-w-[200px] sm:max-w-md flex flex-wrap items-center gap-1.5">
+                                    <span>{c.address}, {c.city}</span>
+                                    {c.pin && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-secondary text-foreground border border-border/80">
+                                        PIN: {c.pin}
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                                     <Users className="size-3 text-primary" /> Up to {c.capacity} people
                                   </div>
@@ -646,62 +665,17 @@ const Book = () => {
                   </span>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="max-w-xs space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Session Date</Label>
-                    <Input
-                      type="date"
-                      min={getTodayDate()}
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="rounded-2xl h-11 bg-background px-4 text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-muted-foreground">Available Time Slots</Label>
-                      {loadingSlots && (
-                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                          <Clock className="size-3 animate-spin" /> Checking schedule…
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                      {loadingSlots ? null : availableSlots.length === 0 ? (
-                        <p className="col-span-4 text-sm text-muted-foreground py-4 text-center">
-                          No available slots for this date. Please try another day.
-                        </p>
-                      ) : (
-                        availableSlots.map((slot) => {
-                          const isSelected = selectedTime === slot;
-                          const { start, end } = formatSlot(slot);
-                          return (
-                            <button
-                              key={slot}
-                              type="button"
-                              onClick={() => setSelectedTime(slot)}
-                              className={cn(
-                                "flex flex-col items-center justify-center py-3 px-3 rounded-2xl border transition-all text-center",
-                                isSelected
-                                  ? "bg-primary text-primary-foreground border-primary shadow-sm ring-1 ring-primary"
-                                  : "bg-background border-border hover:border-accent/40 text-foreground hover:bg-secondary/40"
-                              )}
-                            >
-                              <span className={cn("text-xs font-semibold leading-tight", isSelected ? "text-primary-foreground" : "text-foreground")}>
-                                {start}
-                              </span>
-                              <span className={cn("text-[10px] mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                                to {end}
-                              </span>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <AuraBookingCalendar
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  availableSlots={availableSlots}
+                  selectedTime={selectedTime}
+                  onTimeChange={setSelectedTime}
+                  loadingSlots={loadingSlots}
+                  durationMin={duration}
+                  formatSlot={formatSlot}
+                  practitionerSlug={selectedPractitioner?.slug}
+                />
               </section>
 
               {/* STEP 5: Contact Details */}
