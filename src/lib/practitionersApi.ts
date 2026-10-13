@@ -88,3 +88,16 @@ export const adminApprovePractitioner = (id: string) =>
     `/api/admin/practitioners/${id}/approve`,
     { method: "POST" }
   );
+
+export const submitPractitionerSupport = (fields: {
+  title: string;
+  description: string;
+  category?: string;
+}) =>
+  api<{ message: string; ticket: { title: string; description: string; enquiryId?: string | null } }>(
+    "/api/practitioners/support",
+    {
+      method: "POST",
+      body: fields,
+    }
+  );

@@ -75,11 +75,15 @@ import {
   Image as ImageIcon,
   MoreVertical,
   CalendarOff,
-  XCircle
+  XCircle,
+  HelpCircle,
+  Send,
+  MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import AuraPagination from "@/components/aura/AuraPagination";
 import { useServices } from "@/hooks/useServices";
+import { submitPractitionerSupport } from "@/lib/practitionersApi";
 
 interface Booking {
   id: string;
@@ -130,6 +134,13 @@ const PractitionerArea = () => {
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [cancelModalBooking, setCancelModalBooking] = useState<Booking | null>(null);
+
+  // Support / Contact Admin state
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportTitle, setSupportTitle] = useState("");
+  const [supportDescription, setSupportDescription] = useState("");
+  const [supportCategory, setSupportCategory] = useState("General Support");
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
 
   // Pagination for appointments
   const [appointmentsPage, setAppointmentsPage] = useState(1);
@@ -308,6 +319,33 @@ const PractitionerArea = () => {
     }
   };
 
+  // Submit Support Request to Admin
+  const handleSupportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supportTitle.trim() || !supportDescription.trim()) {
+      toast.error("Please enter both a title and description.");
+      return;
+    }
+
+    setSupportSubmitting(true);
+    try {
+      await submitPractitionerSupport({
+        title: supportTitle.trim(),
+        description: supportDescription.trim(),
+        category: supportCategory,
+      });
+
+      toast.success("Support request sent to admin via email and notification!");
+      setSupportTitle("");
+      setSupportDescription("");
+      setSupportOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send support request to admin");
+    } finally {
+      setSupportSubmitting(false);
+    }
+  };
+
   // Save Weekly Schedule
   const handleSaveSchedule = async () => {
     setSavingSchedule(true);
@@ -461,6 +499,14 @@ const PractitionerArea = () => {
             <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Practitioner Workspace</span>
             <h1 className="font-display text-4xl md:text-5xl mt-3">Guide Portal</h1>
           </div>
+          <Button
+            onClick={() => setSupportOpen(true)}
+            variant="outline"
+            className="rounded-full border-border bg-card hover:bg-secondary text-foreground text-xs font-medium px-5 h-11 gap-2 shadow-soft transition-smooth self-start sm:self-auto"
+          >
+            <HelpCircle className="size-4 text-accent" />
+            <span>Contact Admin</span>
+          </Button>
         </div>
 
         {!profile?.practitioner_slug ? (
@@ -814,11 +860,11 @@ const PractitionerArea = () => {
                   {appointmentsTotalPages > 1 && (
                     <div className="pt-6 pb-2 border-t border-border mt-8">
                       <AuraPagination
-                        currentPage={appointmentsPage}
+                        page={appointmentsPage}
                         totalPages={appointmentsTotalPages}
                         totalItems={appointmentsTotal}
                         onPageChange={setAppointmentsPage}
-                        itemsName="appointments"
+                        itemName="appointments"
                       />
                     </div>
                   )}
@@ -1514,13 +1560,13 @@ const PractitionerArea = () => {
                       <p className="text-xs text-foreground mt-0.5">
                         {cancelModalBooking.scheduled_at
                           ? new Date(
-                              cancelModalBooking.scheduled_at
-                            ).toLocaleDateString("en-IN", {
-                              weekday: "short",
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
+                            cancelModalBooking.scheduled_at
+                          ).toLocaleDateString("en-IN", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
                           : "Date pending"}
                       </p>
                     </div>
@@ -1532,11 +1578,11 @@ const PractitionerArea = () => {
                       <p className="text-xs text-foreground mt-0.5">
                         {cancelModalBooking.scheduled_at
                           ? new Date(
-                              cancelModalBooking.scheduled_at
-                            ).toLocaleTimeString("en-IN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                            cancelModalBooking.scheduled_at
+                          ).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
                           : "Time pending"}
                       </p>
                     </div>
@@ -1586,6 +1632,104 @@ const PractitionerArea = () => {
                 )}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Support / Contact Admin Dialog */}
+        <Dialog open={supportOpen} onOpenChange={setSupportOpen}>
+          <DialogContent className="sm:max-w-md rounded-3xl bg-card border-border">
+            <DialogHeader>
+              <div className="flex items-center gap-2 text-accent text-xs font-semibold uppercase tracking-wider mb-1">
+                <MessageSquare className="size-4" />
+                <span>Practitioner Support</span>
+              </div>
+              <DialogTitle className="font-display text-2xl text-foreground">
+                Contact Admin
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Send a message or support query directly to platform administrators. This will notify them via in-app notification and email.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSupportSubmit} className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="support-category" className="text-xs font-medium text-foreground">
+                  Topic / Category
+                </Label>
+                <Select value={supportCategory} onValueChange={setSupportCategory}>
+                  <SelectTrigger id="support-category" className="rounded-xl bg-background border-border text-xs">
+                    <SelectValue placeholder="Select Category" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="General Support">General Support</SelectItem>
+                    <SelectItem value="Schedule & Availability">Schedule & Availability</SelectItem>
+                    <SelectItem value="Appointment & Booking Issue">Appointment & Booking Issue</SelectItem>
+                    <SelectItem value="Payouts & Billing">Payouts & Billing</SelectItem>
+                    <SelectItem value="Profile & Services Update">Profile & Services Update</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="support-title" className="text-xs font-medium text-foreground">
+                  Title / Subject <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="support-title"
+                  value={supportTitle}
+                  onChange={(e) => setSupportTitle(e.target.value)}
+                  placeholder="Brief subject of your query or request"
+                  className="rounded-xl bg-background border-border text-xs"
+                  required
+                  maxLength={150}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="support-desc" className="text-xs font-medium text-foreground">
+                  Description <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="support-desc"
+                  value={supportDescription}
+                  onChange={(e) => setSupportDescription(e.target.value)}
+                  placeholder="Describe what you need assistance with in detail..."
+                  rows={5}
+                  className="rounded-xl bg-background border-border text-xs resize-none"
+                  required
+                />
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0 pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSupportOpen(false)}
+                  disabled={supportSubmitting}
+                  className="rounded-full h-10 text-xs px-5"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={supportSubmitting || !supportTitle.trim() || !supportDescription.trim()}
+                  className="rounded-full h-10 text-xs px-6 bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
+                >
+                  {supportSubmitting ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-3.5" />
+                      Send to Admin
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </section>
