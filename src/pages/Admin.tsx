@@ -44,6 +44,7 @@ import AdminOverview from "@/components/aura/AdminOverview";
 import AdminUsers from "@/components/aura/AdminUsers";
 import AdminCoupons from "@/components/aura/AdminCoupons";
 import AuraPagination from "@/components/aura/AuraPagination";
+import ConfirmDialog from "@/components/aura/ConfirmDialog";
 
 
 
@@ -93,6 +94,9 @@ const Admin = () => {
   const [approving, setApproving] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [expandedPractitioners, setExpandedPractitioners] = useState<Record<string, boolean>>({});
+  const [practitionerDeleteTarget, setPractitionerDeleteTarget] = useState<Practitioner | null>(null);
+  const [rejectApplicantTarget, setRejectApplicantTarget] = useState<Practitioner | null>(null);
+  const [isDeletingPractitioner, setIsDeletingPractitioner] = useState(false);
 
   const togglePractitionerExpanded = (id?: string) => {
     if (!id) return;
@@ -204,13 +208,22 @@ const Admin = () => {
     }
   };
 
-  const remove = async (row: Practitioner) => {
-    if (!confirm(`Remove ${row.name}?`)) return;
+  const remove = (row: Practitioner) => {
+    setPractitionerDeleteTarget(row);
+  };
+
+  const handleConfirmDeletePractitioner = async () => {
+    if (!practitionerDeleteTarget?.id) return;
+    setIsDeletingPractitioner(true);
     try {
-      await adminDeletePractitioner(row.id!);
-      setRows((r) => r.filter((x) => x.id !== row.id));
+      await adminDeletePractitioner(practitionerDeleteTarget.id);
+      setRows((r) => r.filter((x) => x.id !== practitionerDeleteTarget.id));
+      toast.success(`${practitionerDeleteTarget.name} removed successfully.`);
+      setPractitionerDeleteTarget(null);
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || "Failed to remove practitioner");
+    } finally {
+      setIsDeletingPractitioner(false);
     }
   };
 
@@ -460,24 +473,9 @@ const Admin = () => {
                       variant="destructive"
                       className="rounded-full px-5 gap-1.5"
                       disabled={approving}
-                      onClick={async () => {
+                      onClick={() => {
                         if (!viewApplicant?.id) return;
-                        if (!confirm(`Are you sure you want to reject the application for ${viewApplicant.name}?`)) return;
-                        setApproving(true);
-                        try {
-                          await adminUpdatePractitioner(viewApplicant.id, {
-                            application_status: "rejected",
-                            is_published: false,
-                            bookable: false,
-                          });
-                          toast.success(`Application for ${viewApplicant.name} has been rejected`);
-                          setViewApplicant(null);
-                          load();
-                        } catch (err: any) {
-                          toast.error(err.message || "Failed to reject application");
-                        } finally {
-                          setApproving(false);
-                        }
+                        setRejectApplicantTarget(viewApplicant);
                       }}
                     >
                       <XCircle className="size-4 mr-1" />
@@ -650,7 +648,7 @@ const Admin = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground hover:bg-secondary border-border/80"
+                          className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                           onClick={() => togglePractitionerExpanded(row.id)}
                         >
                           <Pencil className="size-3.5 text-accent" />
@@ -659,16 +657,16 @@ const Admin = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="rounded-full size-9 text-destructive hover:bg-destructive/10"
+                          className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                           onClick={() => remove(row)}
                           aria-label={`Remove ${row.name}`}
                         >
-                          <Trash2 className="size-4" />
+                          <Trash2 className="size-4 text-destructive" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                          className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
                           onClick={() => togglePractitionerExpanded(row.id)}
                           aria-label={isExpanded ? "Collapse card" : "Expand card"}
                         >
@@ -892,6 +890,50 @@ const Admin = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Confirmation Dialog: Delete Practitioner */}
+      <ConfirmDialog
+        open={!!practitionerDeleteTarget}
+        onOpenChange={(open) => !open && setPractitionerDeleteTarget(null)}
+        title={practitionerDeleteTarget ? `Remove ${practitionerDeleteTarget.name}?` : "Remove Practitioner"}
+        description={`Are you sure you want to remove ${practitionerDeleteTarget?.name || "this practitioner"}? Their listing, bookings, and profile details will be permanently affected.`}
+        confirmLabel="Yes, Remove Practitioner"
+        cancelLabel="Keep Practitioner"
+        variant="destructive"
+        isLoading={isDeletingPractitioner}
+        onConfirm={handleConfirmDeletePractitioner}
+      />
+
+      {/* Confirmation Dialog: Reject Applicant */}
+      <ConfirmDialog
+        open={!!rejectApplicantTarget}
+        onOpenChange={(open) => !open && setRejectApplicantTarget(null)}
+        title={rejectApplicantTarget ? `Reject application for ${rejectApplicantTarget.name}?` : "Reject Application"}
+        description={`Are you sure you want to reject the practitioner application for ${rejectApplicantTarget?.name || "this applicant"}? They will not be published or bookable on the platform.`}
+        confirmLabel="Yes, Reject Application"
+        cancelLabel="Back"
+        variant="destructive"
+        isLoading={approving}
+        onConfirm={async () => {
+          if (!rejectApplicantTarget?.id) return;
+          setApproving(true);
+          try {
+            await adminUpdatePractitioner(rejectApplicantTarget.id, {
+              application_status: "rejected",
+              is_published: false,
+              bookable: false,
+            });
+            toast.success(`Application for ${rejectApplicantTarget.name} has been rejected`);
+            setRejectApplicantTarget(null);
+            setViewApplicant(null);
+            load();
+          } catch (err: any) {
+            toast.error(err.message || "Failed to reject application");
+          } finally {
+            setApproving(false);
+          }
+        }}
+      />
     </div>
   );
 };
@@ -972,15 +1014,26 @@ const ServicesManager = () => {
     }
   };
 
-  const remove = async (row: any) => {
-    if (!confirm(`Remove ${row.name}?`)) return;
+  const [serviceDeleteTarget, setServiceDeleteTarget] = React.useState<any | null>(null);
+  const [isDeletingService, setIsDeletingService] = React.useState(false);
+
+  const remove = (row: any) => {
+    setServiceDeleteTarget(row);
+  };
+
+  const handleConfirmDeleteService = async () => {
+    if (!serviceDeleteTarget?.id) return;
+    setIsDeletingService(true);
     try {
-      await adminDeleteService(row.id);
-      setLocalServices((curr) => curr.filter((s) => s.id !== row.id));
-      toast.success("Service removed");
+      await adminDeleteService(serviceDeleteTarget.id);
+      setLocalServices((curr) => curr.filter((s) => s.id !== serviceDeleteTarget.id));
+      toast.success(`${serviceDeleteTarget.name || "Service"} removed successfully.`);
+      setServiceDeleteTarget(null);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to delete service");
+    } finally {
+      setIsDeletingService(false);
     }
   };
 
@@ -1136,7 +1189,7 @@ const ServicesManager = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground hover:bg-secondary border-border/80"
+                    className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                     onClick={() => toggleServiceExpanded(row.id)}
                   >
                     <Pencil className="size-3.5 text-accent" />
@@ -1145,16 +1198,16 @@ const ServicesManager = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="rounded-full size-9 text-destructive hover:bg-destructive/10"
+                    className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                     onClick={() => remove(row)}
                     aria-label={`Remove ${row.name}`}
                   >
-                    <Trash2 className="size-4" />
+                    <Trash2 className="size-4 text-destructive" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
                     onClick={() => toggleServiceExpanded(row.id)}
                     aria-label={isExpanded ? "Collapse card" : "Expand card"}
                   >
@@ -1252,6 +1305,19 @@ const ServicesManager = () => {
           );
         })}
       </div>
+
+      {/* Confirmation Dialog: Delete Service */}
+      <ConfirmDialog
+        open={!!serviceDeleteTarget}
+        onOpenChange={(open) => !open && setServiceDeleteTarget(null)}
+        title={serviceDeleteTarget ? `Remove ${serviceDeleteTarget.name}?` : "Remove Service"}
+        description={`Are you sure you want to remove "${serviceDeleteTarget?.name || "this service"}"? Clients will no longer be able to discover or book this therapy.`}
+        confirmLabel="Yes, Remove Service"
+        cancelLabel="Keep Service"
+        variant="destructive"
+        isLoading={isDeletingService}
+        onConfirm={handleConfirmDeleteService}
+      />
     </div>
   );
 };

@@ -56,6 +56,7 @@ import {
 } from "@/lib/blogsApi";
 import { CircularTimePicker } from "@/components/aura/CircularTimePicker";
 import { ClickableDatePicker } from "@/components/aura/ClickableDatePicker";
+import ConfirmDialog from "@/components/aura/ConfirmDialog";
 import {
   Calendar,
   Clock,
@@ -486,12 +487,20 @@ const PractitionerArea = () => {
     }
   };
 
-  const handleDeleteArticle = async (id: string) => {
-    setDeletingArticleId(id);
+  const [articleDeleteTarget, setArticleDeleteTarget] = useState<Blog | null>(null);
+
+  const handleDeleteArticle = (blog: Blog) => {
+    setArticleDeleteTarget(blog);
+  };
+
+  const handleConfirmDeleteArticle = async () => {
+    if (!articleDeleteTarget) return;
+    setDeletingArticleId(articleDeleteTarget.id);
     try {
-      await deleteBlog(id);
-      toast.success("Article deleted");
-      setBlogs((prev) => prev.filter((item) => item.id !== id));
+      await deleteBlog(articleDeleteTarget.id);
+      toast.success(`Article "${articleDeleteTarget.title}" deleted`);
+      setBlogs((prev) => prev.filter((item) => item.id !== articleDeleteTarget.id));
+      setArticleDeleteTarget(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete article");
     } finally {
@@ -1358,19 +1367,19 @@ const PractitionerArea = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleOpenEditArticle(b)}
-                            className="rounded-full h-8 px-3 text-xs"
+                            className="rounded-full h-8 px-3 text-xs bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                           >
-                            <Edit3 className="size-3 mr-1" /> Edit
+                            <Edit3 className="size-3 mr-1 text-accent" /> Edit
                           </Button>
 
                           <Button
                             variant="ghost"
                             size="sm"
                             disabled={deletingArticleId === b.id}
-                            onClick={() => handleDeleteArticle(b.id)}
-                            className="rounded-full h-8 px-3 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                            onClick={() => handleDeleteArticle(b)}
+                            className="rounded-full h-8 px-3 text-xs text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                           >
-                            <Trash2 className="size-3" />
+                            <Trash2 className="size-3 text-destructive" />
                           </Button>
                         </div>
                       </article>
@@ -1765,6 +1774,19 @@ const PractitionerArea = () => {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Confirmation Dialog: Delete Article */}
+        <ConfirmDialog
+          open={!!articleDeleteTarget}
+          onOpenChange={(open) => !open && setArticleDeleteTarget(null)}
+          title={articleDeleteTarget ? `Delete Article "${articleDeleteTarget.title}"?` : "Delete Article"}
+          description={`Are you sure you want to permanently delete "${articleDeleteTarget?.title}"? This cannot be undone and will remove it from your public profile.`}
+          confirmLabel="Yes, Delete Article"
+          cancelLabel="Keep Article"
+          variant="destructive"
+          isLoading={deletingArticleId === articleDeleteTarget?.id}
+          onConfirm={handleConfirmDeleteArticle}
+        />
       </section>
       <Footer />
     </main>
