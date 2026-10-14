@@ -17,11 +17,13 @@ import {
 } from "lucide-react";
 import { getBlogBySlug, type Blog } from "@/lib/blogsApi";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export default function ArticleDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [blog, setBlog] = useState<Blog | null>(null);
   const [author, setAuthor] = useState<Practitioner | null>(null);
   const [loading, setLoading] = useState(true);
@@ -294,7 +296,11 @@ export default function ArticleDetail() {
                   </div>
                   {author.bookable ? (
                     <Button asChild className="rounded-full h-11 px-7 bg-primary text-primary-foreground hover:bg-primary/90 ml-auto">
-                      <Link to={`/book?practitioner=${author.slug}`}>
+                      <Link to={
+                        user
+                          ? `/book?practitioner=${author.slug}`
+                          : `/auth?view=signup&redirect=${encodeURIComponent(`/book?practitioner=${author.slug}`)}`
+                      }>
                         Book a session with {author.name.split(" ")[0]}
                       </Link>
                     </Button>

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isValidPhoneNumber } from "@/lib/whatsapp";
 import { adminCreateService, adminUpdateService, adminDeleteService } from "@/lib/servicesApi";
 import { useServices } from "@/hooks/useServices";
 
@@ -156,8 +157,11 @@ const Admin = () => {
   };
 
   const [isAddPractitionerOpen, setIsAddPractitionerOpen] = useState(false);
-  const [newPractitioner, setNewPractitioner] = useState({
+  const emptyNewPractitioner = () => ({
     name: "",
+    email: "",
+    mobile_number: "",
+    whatsapp_number: "",
     craft: "",
     city: "",
     rating: 5,
@@ -165,18 +169,23 @@ const Admin = () => {
     price_inr: 1500,
     bio: "",
   });
+  const [newPractitioner, setNewPractitioner] = useState(emptyNewPractitioner());
 
   const addNew = async () => {
     if (!newPractitioner.name.trim()) { toast.error("Name is required"); return; }
+    if (!newPractitioner.email.trim()) { toast.error("Email is required to create their login"); return; }
+    if (!isValidPhoneNumber(newPractitioner.mobile_number)) { toast.error("Please enter a valid mobile number"); return; }
+    if (!isValidPhoneNumber(newPractitioner.whatsapp_number)) { toast.error("Please enter a valid WhatsApp number, including the country code"); return; }
 
     const draft = blank(rows.length + 1);
-    const slug = newPractitioner.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
     try {
       const data = await adminCreatePractitioner({
         ...draft,
-        slug,
         name: newPractitioner.name.trim(),
+        email: newPractitioner.email.trim(),
+        mobile_number: newPractitioner.mobile_number.trim(),
+        whatsapp_number: newPractitioner.whatsapp_number.trim(),
         craft: newPractitioner.craft.trim(),
         city: newPractitioner.city.trim(),
         rating: Number(newPractitioner.rating) || 5,
@@ -188,17 +197,9 @@ const Admin = () => {
       });
       setRows((r) => [data.practitioner, ...r]);
       setIsAddPractitionerOpen(false);
-      setNewPractitioner({
-        name: "",
-        craft: "",
-        city: "",
-        rating: 5,
-        sessions: 0,
-        price_inr: 1500,
-        bio: "",
-      });
+      setNewPractitioner(emptyNewPractitioner());
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      toast.success("Practitioner created!");
+      toast.success(data.message || "Practitioner created!");
     } catch (err: any) {
       toast.error(err.message || "Failed to create practitioner");
     }
@@ -521,6 +522,34 @@ const Admin = () => {
                       value={newPractitioner.name}
                       onChange={(e) => setNewPractitioner(p => ({ ...p, name: e.target.value }))}
                       placeholder="e.g. Dr. Shah"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={newPractitioner.email}
+                      onChange={(e) => setNewPractitioner(p => ({ ...p, email: e.target.value }))}
+                      placeholder="their@email.com"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">An invite to set their password is sent here.</p>
+                  </div>
+                  <div>
+                    <Label>Mobile number</Label>
+                    <Input
+                      type="tel"
+                      value={newPractitioner.mobile_number}
+                      onChange={(e) => setNewPractitioner(p => ({ ...p, mobile_number: e.target.value }))}
+                      placeholder="e.g. +91 98765 43210"
+                    />
+                  </div>
+                  <div>
+                    <Label>WhatsApp number</Label>
+                    <Input
+                      type="tel"
+                      value={newPractitioner.whatsapp_number}
+                      onChange={(e) => setNewPractitioner(p => ({ ...p, whatsapp_number: e.target.value }))}
+                      placeholder="e.g. +91 98765 43210"
                     />
                   </div>
                   <div>

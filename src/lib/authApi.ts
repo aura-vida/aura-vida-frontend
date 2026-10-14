@@ -16,6 +16,7 @@ export type AuthProfile = {
   practitioner_slug: string | null;
   referral_code: string | null;
   credit_inr: number | null;
+  referral_count?: number;
   role?: string | null;
   status?: string | null;           // e.g. 'active', 'suspended'
   referred_by?: string | null;      // UUID of referrer

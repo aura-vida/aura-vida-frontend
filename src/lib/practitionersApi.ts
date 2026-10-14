@@ -65,8 +65,8 @@ export const updateMyPractitionerProfile = (fields: Partial<Practitioner> | Form
   });
 
 
-export const adminCreatePractitioner = (fields: Partial<Practitioner>) => 
-  api<{ message: string; practitioner: Practitioner }>("/api/admin/practitioners", {
+export const adminCreatePractitioner = (fields: Partial<Practitioner> & { email: string }) =>
+  api<{ message: string; practitioner: Practitioner; email: string }>("/api/admin/practitioners", {
     method: "POST",
     body: fields,
   });

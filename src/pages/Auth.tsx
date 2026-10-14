@@ -26,7 +26,9 @@ const otpWaitSeconds = (message: string) => {
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
   const referralCode = (searchParams.get("ref") ?? "").trim().toUpperCase();
-  const [view, setView] = useState<AuthView>(referralCode ? "signup" : "signin");
+  const requestedView = searchParams.get("view");
+  const redirectTo = searchParams.get("redirect") || "/account";
+  const [view, setView] = useState<AuthView>(requestedView === "signup" || referralCode ? "signup" : "signin");
   const [signMethod, setSignMethod] = useState<SignMethod>("password");
   const [codeSent, setCodeSent] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -41,8 +43,8 @@ const AuthPage = () => {
   const { user, loading, signIn, signUp, sendOtp, verifyOtp, requestPasswordReset } = useAuth();
 
   useEffect(() => {
-    if (!loading && user) navigate("/account", { replace: true });
-  }, [user, loading, navigate]);
+    if (!loading && user) navigate(redirectTo, { replace: true });
+  }, [user, loading, navigate, redirectTo]);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -93,7 +95,7 @@ const AuthPage = () => {
     setBusy(true);
     try {
       await signIn(email, password);
-      navigate("/account");
+      navigate(redirectTo);
     } catch (error) {
       toast({
         title: "Could not sign in",
@@ -130,7 +132,7 @@ const AuthPage = () => {
     try {
       const result = await signUp({ email, password, name: fullName, referral_code: referralCode || undefined });
       if (result.session?.access_token && result.user) {
-        navigate("/account");
+        navigate(redirectTo);
         return;
       }
       setView("confirm");
@@ -195,7 +197,7 @@ const AuthPage = () => {
     setBusy(true);
     try {
       await verifyOtp(email, otp);
-      navigate("/account");
+      navigate(redirectTo);
     } catch (error) {
       toast({
         title: "Could not verify the code",

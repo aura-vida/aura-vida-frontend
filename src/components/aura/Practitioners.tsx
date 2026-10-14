@@ -57,9 +57,17 @@ const expandWord = (word: string): string[] => {
 const SUGGESTIONS = ["Anxiety & stress", "Alcohol addiction", "Better sleep", "Grief & loss", "Chronic pain"];
 
 const Practitioners = () => {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const isPractitioner = (profile?.role || "").toLowerCase() === "practitioner";
   const myPractitionerSlug = profile?.practitioner_slug || "";
+
+  // A logged-out visitor needs an account before booking — send them to sign
+  // up first instead of letting them fill out the whole booking form and
+  // only discovering that requirement at the final "Pay" step.
+  const bookLink = (slug: string) => {
+    const bookingPath = `/book?practitioner=${slug}`;
+    return user ? bookingPath : `/auth?view=signup&redirect=${encodeURIComponent(bookingPath)}`;
+  };
 
   const [people, setPeople] = useState<Practitioner[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -325,7 +333,7 @@ const Practitioners = () => {
                         </Button>
                       ) : p.bookable ? (
                         <Button asChild className="rounded-full h-11 px-6 text-sm">
-                          <Link to={`/book?practitioner=${p.slug}`}>Book</Link>
+                          <Link to={bookLink(p.slug)}>Book</Link>
                         </Button>
                       ) : (
                         <span className="rounded-full bg-primary text-primary-foreground h-11 px-6 inline-flex items-center justify-center text-sm font-medium opacity-80 cursor-not-allowed select-none">
@@ -452,7 +460,7 @@ const Practitioners = () => {
                   ) : p.bookable ? (
                     <div className="pt-4 border-t border-border/60 flex justify-end">
                       <Button asChild className="rounded-full h-12 px-8 text-sm w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft">
-                        <Link to={`/book?practitioner=${p.slug}`}>Book a session</Link>
+                        <Link to={bookLink(p.slug)}>Book a session</Link>
                       </Button>
                     </div>
                   ) : null}

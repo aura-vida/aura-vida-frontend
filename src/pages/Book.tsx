@@ -62,7 +62,7 @@ const Book = () => {
   const practitionerSlug = searchParams.get("practitioner") || "";
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
 
   // If user is logged in as a practitioner, redirect them to their portal
   useEffect(() => {
@@ -74,6 +74,16 @@ const Book = () => {
       navigate("/practitioner", { replace: true });
     }
   }, [profile?.role, navigate, toast]);
+
+  // A logged-out visitor landing here directly (e.g. a shared/bookmarked
+  // link) needs an account before booking — send them to sign up rather than
+  // letting them fill out the whole form and only discovering that at Pay.
+  useEffect(() => {
+    if (!authLoading && !user && practitionerSlug) {
+      const bookingPath = `/book?practitioner=${practitionerSlug}`;
+      navigate(`/auth?view=signup&redirect=${encodeURIComponent(bookingPath)}`, { replace: true });
+    }
+  }, [authLoading, user, practitionerSlug, navigate]);
 
   // Data fetching states
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);

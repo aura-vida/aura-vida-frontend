@@ -1,28 +1,23 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Copy, Gift, MessageCircle, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 const ReferralCard = () => {
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const [count, setCount] = useState(0);
 
   const code = profile?.referral_code ?? "";
   const link = code ? `${window.location.origin}/auth?ref=${code}` : "";
   const credit = profile?.credit_inr ?? 0;
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("referrals")
-      .select("id", { count: "exact", head: true })
-      .eq("referrer_id", user.id)
-      .then(({ count: c }) => setCount(c ?? 0));
-  }, [user]);
+  // Read from the server-computed count on the profile rather than querying
+  // `referrals` directly — that table's RLS checks auth.uid(), which this
+  // app's frontend Supabase client never has set (login goes through the
+  // Node backend, not supabase-js's own session), so a direct client-side
+  // query always silently returned zero regardless of the real count.
+  const count = profile?.referral_count ?? 0;
 
   const copy = async () => {
     try {
