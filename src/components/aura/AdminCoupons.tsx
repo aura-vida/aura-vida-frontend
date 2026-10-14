@@ -20,6 +20,7 @@ import {
   adminDeleteCoupon,
   type Coupon,
 } from "@/lib/couponsApi";
+import ConfirmDialog from "@/components/aura/ConfirmDialog";
 
 const emptyDraft = () => ({
   code: "",
@@ -108,14 +109,25 @@ export default function AdminCoupons() {
     }
   };
 
-  const remove = async (row: Coupon) => {
-    if (!confirm(`Delete coupon ${row.code}? This cannot be undone.`)) return;
+  const [couponDeleteTarget, setCouponDeleteTarget] = useState<Coupon | null>(null);
+  const [isDeletingCoupon, setIsDeletingCoupon] = useState(false);
+
+  const remove = (row: Coupon) => {
+    setCouponDeleteTarget(row);
+  };
+
+  const handleConfirmDeleteCoupon = async () => {
+    if (!couponDeleteTarget?.id) return;
+    setIsDeletingCoupon(true);
     try {
-      await adminDeleteCoupon(row.id);
-      setCoupons((curr) => curr.filter((c) => c.id !== row.id));
-      toast.success("Coupon deleted");
+      await adminDeleteCoupon(couponDeleteTarget.id);
+      setCoupons((curr) => curr.filter((c) => c.id !== couponDeleteTarget.id));
+      toast.success(`Coupon ${couponDeleteTarget.code} deleted successfully.`);
+      setCouponDeleteTarget(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete coupon");
+    } finally {
+      setIsDeletingCoupon(false);
     }
   };
 
@@ -229,7 +241,7 @@ export default function AdminCoupons() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground hover:bg-secondary border-border/80"
+                      className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                       onClick={() => toggleExpanded(row.id)}
                     >
                       <Pencil className="size-3.5 text-accent" />
@@ -238,16 +250,16 @@ export default function AdminCoupons() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full size-9 text-destructive hover:bg-destructive/10"
+                      className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                       onClick={() => remove(row)}
                       aria-label={`Delete ${row.code}`}
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2 className="size-4 text-destructive" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
                       onClick={() => toggleExpanded(row.id)}
                       aria-label={isExpanded ? "Collapse card" : "Expand card"}
                     >
@@ -317,6 +329,19 @@ export default function AdminCoupons() {
           })}
         </div>
       )}
+
+      {/* Confirmation Dialog: Delete Coupon */}
+      <ConfirmDialog
+        open={!!couponDeleteTarget}
+        onOpenChange={(open) => !open && setCouponDeleteTarget(null)}
+        title={couponDeleteTarget ? `Delete Coupon ${couponDeleteTarget.code}?` : "Delete Coupon"}
+        description={`Are you sure you want to delete coupon "${couponDeleteTarget?.code}"? This action cannot be undone and customers will no longer be able to apply it at checkout.`}
+        confirmLabel="Yes, Delete Coupon"
+        cancelLabel="Keep Coupon"
+        variant="destructive"
+        isLoading={isDeletingCoupon}
+        onConfirm={handleConfirmDeleteCoupon}
+      />
     </div>
   );
 }

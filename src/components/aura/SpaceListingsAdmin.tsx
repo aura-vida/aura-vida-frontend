@@ -37,6 +37,7 @@ import {
   adminDeleteSpace,
   type Space,
 } from "@/lib/spacesApi";
+import ConfirmDialog from "@/components/aura/ConfirmDialog";
 
 const STATUS_CONFIG: Record<
   Space["status"],
@@ -202,22 +203,28 @@ const SpaceListingsAdmin = () => {
     }
   };
 
+  const [spaceDeleteTarget, setSpaceDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingSpace, setIsDeletingSpace] = useState(false);
+
   // Delete space
-  const handleDeleteSpace = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteSpace = (id: string, name: string) => {
+    setSpaceDeleteTarget({ id, name });
+  };
+
+  const handleConfirmDeleteSpace = async () => {
+    if (!spaceDeleteTarget) return;
 
     try {
-      setBusy(true);
-      await adminDeleteSpace(id);
-      toast.success("Space deleted successfully");
-      setSpaces((prev) => prev.filter((s) => s.id !== id));
+      setIsDeletingSpace(true);
+      await adminDeleteSpace(spaceDeleteTarget.id);
+      toast.success(`Space "${spaceDeleteTarget.name}" deleted successfully`);
+      setSpaces((prev) => prev.filter((s) => s.id !== spaceDeleteTarget.id));
       setTotalCount((c) => Math.max(0, c - 1));
+      setSpaceDeleteTarget(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete space");
     } finally {
-      setBusy(false);
+      setIsDeletingSpace(false);
     }
   };
 
@@ -411,7 +418,7 @@ const SpaceListingsAdmin = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full h-8 px-3 text-xs gap-1.5 text-foreground hover:bg-secondary"
+                      className="rounded-full h-8 px-3 text-xs gap-1.5 text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                       onClick={() => toggleExpand(space.id)}
                     >
                       <Pencil className="size-3 text-accent" />
@@ -420,16 +427,16 @@ const SpaceListingsAdmin = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full size-8 text-destructive hover:bg-destructive/10"
+                      className="rounded-full size-8 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                       onClick={() => handleDeleteSpace(space.id, space.space_name)}
                       aria-label="Delete space"
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash2 className="size-3.5 text-destructive" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full size-8 text-muted-foreground hover:bg-secondary"
+                      className="rounded-full size-8 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
                       onClick={() => toggleExpand(space.id)}
                       aria-label="Expand space"
                     >
@@ -781,6 +788,19 @@ const SpaceListingsAdmin = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog: Delete Space */}
+      <ConfirmDialog
+        open={!!spaceDeleteTarget}
+        onOpenChange={(open) => !open && setSpaceDeleteTarget(null)}
+        title={spaceDeleteTarget ? `Delete "${spaceDeleteTarget.name}"?` : "Delete Partner Space"}
+        description={`Are you sure you want to delete "${spaceDeleteTarget?.name}"? This action cannot be undone and will permanently remove this partner location from the platform.`}
+        confirmLabel="Yes, Delete Space"
+        cancelLabel="Keep Space"
+        variant="destructive"
+        isLoading={isDeletingSpace}
+        onConfirm={handleConfirmDeleteSpace}
+      />
     </div>
   );
 };
