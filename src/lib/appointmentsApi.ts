@@ -17,6 +17,7 @@ export type AppointmentPayload = {
   };
   mode?: "host" | "centre" | "online";
   pin?: string | null;
+  coupon_code?: string | null;
 };
 
 export async function listMyAppointments(status?: string, page = 1) {

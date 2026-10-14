@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   ArrowLeft,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Tag,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +33,7 @@ import { listPractitioners, getPractitionerServices, type Practitioner } from "@
 import type { Service } from "@/lib/servicesApi";
 import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
+import { validateCoupon } from "@/lib/couponsApi";
 import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax } from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
@@ -98,6 +101,12 @@ const Book = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [paying, setPaying] = useState(false);
+
+  // Coupon
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   // Load practitioners
   useEffect(() => {
@@ -202,14 +211,46 @@ const Book = () => {
   // must mirror that, not the service's own catalog price.
   const basePrice = selectedPractitioner?.price_inr ?? selectedService?.price_inr ?? 0;
   const total = basePrice ? groupTotal(basePrice, groupSize) : 0;
-  // 5% tax on the session subtotal — mirrors the backend's authoritative
-  // calculation in payment.controller.js so this is just an accurate preview;
-  // the backend still computes and validates the real charged amount.
-  const tax = total ? sessionTax(total) : 0;
-  const totalWithTax = total + tax;
+  // Coupon discount applies to the subtotal, before tax — mirrors the
+  // backend's authoritative order in payment.controller.js.
+  const couponDiscount = appliedCoupon && total ? Math.round(total * appliedCoupon.discountPercent / 100) : 0;
+  const discountedTotal = total - couponDiscount;
+  // 5% tax on the (post-coupon) session subtotal — mirrors the backend's
+  // authoritative calculation in payment.controller.js so this is just an
+  // accurate preview; the backend still computes and validates the real
+  // charged amount (and independently re-validates the coupon).
+  const tax = discountedTotal ? sessionTax(discountedTotal) : 0;
+  const totalWithTax = discountedTotal + tax;
   const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
   const creditApplied = credit > 0 && totalWithTax ? Math.min(credit, Math.max(0, totalWithTax - 100)) : 0;
   const payable = totalWithTax - creditApplied;
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    if (!user) {
+      setCouponError("Please sign in first to apply a coupon.");
+      return;
+    }
+    setValidatingCoupon(true);
+    setCouponError("");
+    try {
+      const res = await validateCoupon(code, total);
+      setAppliedCoupon({ code: res.code, discountPercent: res.discountPercent });
+      toast({ title: "Coupon applied!", description: `${res.code} — ${res.discountPercent}% off your session.` });
+    } catch (err: any) {
+      setAppliedCoupon(null);
+      setCouponError(err.message || "Invalid coupon code.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+  };
   const extraEach = basePrice ? Math.round(basePrice * 0.6) : 0;
 
   const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
@@ -333,6 +374,7 @@ const Book = () => {
           group_size: groupSize,
           attendees,
           meeting_location,
+          coupon_code: appliedCoupon?.code || null,
         },
         customerName: name,
         customerEmail: email,
@@ -771,6 +813,46 @@ const Book = () => {
                   </div>
                 </div>
 
+                {/* Coupon */}
+                <div className="pt-2">
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between rounded-xl border border-accent/30 bg-accent-soft px-4 py-2.5">
+                      <span className="flex items-center gap-1.5 text-xs font-medium text-accent">
+                        <Tag className="size-3.5" /> {appliedCoupon.code} applied — {appliedCoupon.discountPercent}% off
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Remove coupon"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex gap-2">
+                        <Input
+                          value={couponInput}
+                          onChange={(e) => { setCouponInput(e.target.value); setCouponError(""); }}
+                          placeholder="Have a coupon code?"
+                          className="rounded-xl h-11 bg-background flex-1 uppercase placeholder:normal-case"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleApplyCoupon}
+                          disabled={!couponInput.trim() || validatingCoupon}
+                          className="rounded-xl h-11 px-5 shrink-0"
+                        >
+                          {validatingCoupon ? "Checking…" : "Apply"}
+                        </Button>
+                      </div>
+                      {couponError && <p className="text-xs text-destructive">{couponError}</p>}
+                    </div>
+                  )}
+                </div>
+
                 {/* Pricing Breakdown */}
                 <div className="pt-4 border-t border-border space-y-2 text-xs">
                   <div className="flex items-center justify-between text-muted-foreground">
@@ -781,6 +863,12 @@ const Book = () => {
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Extra guests ({guests.filter(Boolean).length})</span>
                       <span>{formatINR(total - basePrice)}</span>
+                    </div>
+                  )}
+                  {couponDiscount > 0 && (
+                    <div className="flex items-center justify-between text-accent font-medium">
+                      <span>Coupon {appliedCoupon?.code} (−{appliedCoupon?.discountPercent}%)</span>
+                      <span>−{formatINR(couponDiscount)}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between text-muted-foreground">

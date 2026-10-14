@@ -42,6 +42,7 @@ import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractition
 import AdminAppointments from "@/components/aura/AdminAppointments";
 import AdminOverview from "@/components/aura/AdminOverview";
 import AdminUsers from "@/components/aura/AdminUsers";
+import AdminCoupons from "@/components/aura/AdminCoupons";
 import AuraPagination from "@/components/aura/AuraPagination";
 
 
@@ -74,6 +75,7 @@ const ADMIN_TABS = [
   { value: "practitioners", label: "Practitioners" },
   { value: "services", label: "Services" },
   { value: "spaces", label: "Spaces" },
+  { value: "coupons", label: "Coupons" },
 ];
 
 const Admin = () => {
@@ -883,6 +885,10 @@ const Admin = () => {
 
           <TabsContent value="spaces" className="mt-0">
             <SpaceListingsAdmin />
+          </TabsContent>
+
+          <TabsContent value="coupons" className="mt-0">
+            <AdminCoupons />
           </TabsContent>
         </Tabs>
       </main>
