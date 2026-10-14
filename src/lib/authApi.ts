@@ -101,6 +101,7 @@ export const registerUser = async (payload: {
   password: string;
   name: string;
   role?: "Customer" | "Practitioner" | "Admin";
+  referral_code?: string;
 }) => {
   const data = await api<BackendAuthResponse>("/api/auth/register", {
     method: "POST",
@@ -109,6 +110,7 @@ export const registerUser = async (payload: {
       password: payload.password,
       name: payload.name,
       role: payload.role ?? "Customer",
+      referral_code: payload.referral_code,
     },
   });
   return toAuthResult(data);

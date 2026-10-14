@@ -31,7 +31,7 @@ interface AuthContextValue {
   profile: AuthProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (payload: { email: string; password: string; name: string }) => Promise<AuthResult>;
+  signUp: (payload: { email: string; password: string; name: string; referral_code?: string }) => Promise<AuthResult>;
   sendOtp: (identifier: string) => Promise<{ message: string }>;
   verifyOtp: (identifier: string, otp: string) => Promise<AuthResult>;
   requestPasswordReset: (email: string) => Promise<{ message: string }>;
@@ -264,7 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return applyAuth(result);
   };
 
-  const signUp = async (payload: { email: string; password: string; name: string }) => {
+  const signUp = async (payload: { email: string; password: string; name: string; referral_code?: string }) => {
     const result = await registerUser(payload);
     if (result.session?.access_token && result.user) {
       return applyAuth(result);

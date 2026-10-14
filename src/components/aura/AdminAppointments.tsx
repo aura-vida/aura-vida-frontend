@@ -43,8 +43,9 @@ import {
   adminConfirmAppointment, 
   adminAssignPractitioner, 
   cancelAppointment,
-  type AdminBooking 
+  type AdminBooking
 } from "@/lib/appointmentsApi";
+import { splitTaxInclusiveTotal } from "@/lib/pricing";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { useServices } from "@/hooks/useServices";
 import AuraPagination from "@/components/aura/AuraPagination";
@@ -155,8 +156,19 @@ export default function AdminAppointments() {
     if (!cancelModalBooking) return;
     setActionBusyId(cancelModalBooking.id);
     try {
-      await cancelAppointment(cancelModalBooking.id);
-      toast.success("Appointment has been cancelled");
+      const res = await cancelAppointment(cancelModalBooking.id);
+      const refund = res.refund;
+      if (refund && !refund.error && typeof refund.amount === "number") {
+        const refundInr = Math.round(refund.amount / 100);
+        const taxInr = refund.non_refundable_tax_inr || 0;
+        toast.success(
+          taxInr > 0
+            ? `Appointment cancelled. ₹${refundInr.toLocaleString("en-IN")} refunded (₹${taxInr.toLocaleString("en-IN")} tax is non-refundable).`
+            : `Appointment cancelled. ₹${refundInr.toLocaleString("en-IN")} refunded.`
+        );
+      } else {
+        toast.success("Appointment has been cancelled");
+      }
       setAppointments((prev) =>
         prev.map((b) => (b.id === cancelModalBooking.id ? { ...b, status: "cancelled" } : b))
       );
@@ -563,6 +575,29 @@ export default function AdminAppointments() {
               <strong>{cancelModalBooking?.client_name || "this client"}</strong>? This status will be permanently marked as cancelled.
             </DialogDescription>
           </DialogHeader>
+
+          {cancelModalBooking?.amount != null && cancelModalBooking.status === "confirmed" && (() => {
+            const paidInr = cancelModalBooking.amount > 10000
+              ? Math.round(cancelModalBooking.amount / 100)
+              : cancelModalBooking.amount;
+            const { subtotal, tax } = splitTaxInclusiveTotal(paidInr);
+            return (
+              <div className="rounded-2xl border border-border bg-secondary/30 p-4 text-xs space-y-1.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Session price</span>
+                  <span className="text-foreground font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Tax (non-refundable)</span>
+                  <span>−₹{tax.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-border font-medium">
+                  <span className="text-foreground">Client will be refunded</span>
+                  <span className="text-accent">₹{subtotal.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           <DialogFooter className="gap-2 sm:gap-0 pt-4">
             <Button

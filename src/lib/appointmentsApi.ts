@@ -19,14 +19,6 @@ export type AppointmentPayload = {
   pin?: string | null;
 };
 
-export async function createAppointment(payload: AppointmentPayload) {
-  return api("/api/appointments", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: payload,
-  });
-}
-
 export async function listMyAppointments(status?: string, page = 1) {
   const params = new URLSearchParams({ page: String(page) });
   if (status) params.append("status", status);
@@ -60,10 +52,18 @@ export async function getAvailableSlots(slug: string, date: string, serviceId?: 
   return api<{ date: string; slots: TimeSlot[] }>(`/api/appointments/available-slots?${params.toString()}`);
 }
 
+export type CancelRefundResult = {
+  amount?: number; // paise — only the session price, tax is non-refundable
+  non_refundable_tax_inr?: number;
+  status?: string;
+  error?: string;
+} | null;
+
 export async function cancelAppointment(id: string) {
-  return api(`/api/appointments/${id}/cancel`, {
-    method: "POST",
-  });
+  return api<{ message: string; appointment: unknown; refund?: CancelRefundResult }>(
+    `/api/appointments/${id}/cancel`,
+    { method: "POST" }
+  );
 }
 
 export async function rescheduleAppointment(id: string, date: string, time: string) {

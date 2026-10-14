@@ -39,6 +39,34 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
   return api<AdminDashboardSummary>("/api/admin/dashboard");
 }
 
+export interface ReconcileAnomaly {
+  type: "no_local_order" | "amount_mismatch" | "auto_fixed" | "fix_failed";
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  amount?: number;
+  razorpay_amount?: number;
+  local_amount?: number;
+  error?: string;
+}
+
+export interface ReconcilePaymentsResponse {
+  message: string;
+  range: { from: string; to: string };
+  matched: number;
+  autoFixed: number;
+  anomalies: ReconcileAnomaly[];
+}
+
+export async function reconcilePayments(params?: { from?: string; to?: string }): Promise<ReconcilePaymentsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.from) qs.set("from", params.from);
+  if (params?.to) qs.set("to", params.to);
+  const query = qs.toString();
+  return api<ReconcilePaymentsResponse>(`/api/admin/payments/reconcile${query ? `?${query}` : ""}`, {
+    method: "POST",
+  });
+}
+
 export async function getAdminUsers(params?: {
   page?: number;
   limit?: number;

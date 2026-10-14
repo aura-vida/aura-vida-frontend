@@ -8,7 +8,7 @@ import { Home, Building2, Video, MapPin, Search, ArrowRight, User, Users, Minus,
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { startCheckout } from "@/lib/razorpay";
-import { createAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
+import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { useServices } from "@/hooks/useServices";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -243,24 +243,20 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
         type: "host"
       } : undefined;
 
-      // 1. Create the appointment in our custom Node.js backend first
-      const res: any = await createAppointment({
-        service_id: selectedServiceId,
-        practitioner_slug: itemId,
-        date: selectedDate,
-        time: selectedTime,
-        mode: location,
-        pin: location === "centre" ? pin : null,
-        group_size: groupSize,
-        attendees,
-        meeting_location,
-      });
-
-      const booking = res.booking || res;
-
-      // 2. Start Razorpay checkout using the booking.id
+      // Start Razorpay checkout. The booking itself is only created once
+      // payment is verified, so an abandoned checkout never registers one.
       await startCheckout({
-        bookingId: booking.id,
+        booking: {
+          service_id: selectedServiceId,
+          practitioner_slug: itemId,
+          date: selectedDate,
+          time: selectedTime,
+          mode: location,
+          pin: location === "centre" ? pin : null,
+          group_size: groupSize,
+          attendees,
+          meeting_location,
+        },
         customerName: name,
         customerEmail: email,
         customerPhone: phone,

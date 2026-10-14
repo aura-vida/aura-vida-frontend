@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { AppointmentPayload } from "@/lib/appointmentsApi";
 
 declare global {
   interface Window {
@@ -25,7 +26,7 @@ const loadScript = () =>
   });
 
 export interface CheckoutOptions {
-  bookingId: string;
+  booking: AppointmentPayload;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -43,7 +44,7 @@ export const startCheckout = async (opts: CheckoutOptions) => {
     data = await api("/api/payments/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: { booking_id: opts.bookingId }
+      body: opts.booking
     });
   } catch (e: any) {
     return opts.onError?.(e.message || "Could not start the payment. Please try again.");

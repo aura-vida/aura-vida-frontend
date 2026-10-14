@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { updateMe } from "@/lib/usersApi";
 import { getMyPractitionerProfile, updateMyPractitionerProfile, type Practitioner } from "@/lib/practitionersApi";
+import { isValidPhoneNumber } from "@/lib/whatsapp";
 import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck } from "lucide-react";
 
 export default function SettingsPage() {
@@ -34,6 +35,8 @@ export default function SettingsPage() {
         city: "",
         craft: "",
         price_inr: 0,
+        mobile_number: "",
+        whatsapp_number: "",
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,6 +65,8 @@ export default function SettingsPage() {
                         city: res.practitioner.city || "",
                         craft: res.practitioner.craft || "",
                         price_inr: res.practitioner.price_inr || 0,
+                        mobile_number: res.practitioner.mobile_number || "",
+                        whatsapp_number: res.practitioner.whatsapp_number || "",
                     });
                 })
                 .catch((err) => {
@@ -95,6 +100,16 @@ export default function SettingsPage() {
 
     const handlePracSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!isValidPhoneNumber(pracFields.mobile_number)) {
+            toast.error("Please enter a valid mobile number");
+            return;
+        }
+        if (!isValidPhoneNumber(pracFields.whatsapp_number)) {
+            toast.error("Please enter a valid WhatsApp number, including the country code");
+            return;
+        }
+
         setSavingPrac(true);
 
         try {
@@ -106,6 +121,8 @@ export default function SettingsPage() {
                 formData.append("city", pracFields.city);
                 formData.append("craft", pracFields.craft);
                 formData.append("price_inr", String(pracFields.price_inr));
+                formData.append("mobile_number", pracFields.mobile_number);
+                formData.append("whatsapp_number", pracFields.whatsapp_number);
                 formData.append("image", imageFile);
 
                 await updateMyPractitionerProfile(formData);
@@ -333,6 +350,31 @@ export default function SettingsPage() {
                                             className="h-12 rounded-2xl bg-background"
                                             required
                                         />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="pracMobile" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Mobile Number</Label>
+                                        <Input
+                                            id="pracMobile"
+                                            type="tel"
+                                            value={pracFields.mobile_number}
+                                            onChange={(e) => setPracFields({ ...pracFields, mobile_number: e.target.value })}
+                                            placeholder="e.g. +91 98765 43210"
+                                            className="h-12 rounded-2xl bg-background"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="pracWhatsapp" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">WhatsApp Number</Label>
+                                        <Input
+                                            id="pracWhatsapp"
+                                            type="tel"
+                                            value={pracFields.whatsapp_number}
+                                            onChange={(e) => setPracFields({ ...pracFields, whatsapp_number: e.target.value })}
+                                            placeholder="e.g. +91 98765 43210"
+                                            className="h-12 rounded-2xl bg-background"
+                                            required
+                                        />
+                                        <p className="text-xs text-muted-foreground">Include your country code — clients use this to chat with you directly.</p>
                                     </div>
                                 </div>
 

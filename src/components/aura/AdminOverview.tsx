@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { 
-  getAdminDashboardSummary, 
-  type AdminDashboardSummary 
+import {
+  getAdminDashboardSummary,
+  reconcilePayments,
+  type AdminDashboardSummary
 } from "@/lib/adminApi";
 import { 
   Users, 
@@ -25,6 +26,7 @@ interface AdminOverviewProps {
 export default function AdminOverview({ onNavigateTab }: AdminOverviewProps) {
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reconciling, setReconciling] = useState(false);
 
   const fetchSummary = async () => {
     setLoading(true);
@@ -42,6 +44,27 @@ export default function AdminOverview({ onNavigateTab }: AdminOverviewProps) {
   useEffect(() => {
     fetchSummary();
   }, []);
+
+  const handleReconcile = async () => {
+    setReconciling(true);
+    try {
+      const result = await reconcilePayments();
+      const anomalyCount = result.anomalies.filter((a) => a.type !== "auto_fixed").length;
+      if (result.autoFixed > 0 || anomalyCount > 0) {
+        toast.message(
+          `Reconciled last 48h: ${result.matched} matched, ${result.autoFixed} auto-fixed, ${anomalyCount} need review.`,
+          { description: "Check the server logs for the full anomaly list." }
+        );
+      } else {
+        toast.success(`All clear — ${result.matched} payments matched Razorpay for the last 48 hours.`);
+      }
+      if (result.autoFixed > 0) fetchSummary();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reconcile with Razorpay");
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return `₹${Math.round(amount).toLocaleString("en-IN")}`;
@@ -96,6 +119,15 @@ export default function AdminOverview({ onNavigateTab }: AdminOverviewProps) {
           <p className="text-xs text-muted-foreground mt-2">
             Settled client payments across all modalities
           </p>
+          <button
+            type="button"
+            onClick={handleReconcile}
+            disabled={reconciling}
+            className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-accent hover:text-accent/80 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw className={`size-3 ${reconciling ? "animate-spin" : ""}`} />
+            {reconciling ? "Reconciling with Razorpay…" : "Reconcile with Razorpay (last 48h)"}
+          </button>
         </div>
 
         {/* Registered Users */}

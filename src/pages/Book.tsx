@@ -27,11 +27,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { useServices } from "@/hooks/useServices";
-import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
-import { createAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
+import { listPractitioners, getPractitionerServices, type Practitioner } from "@/lib/practitionersApi";
+import type { Service } from "@/lib/servicesApi";
+import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
-import { MAX_GROUP_SIZE, formatINR, groupTotal } from "@/lib/pricing";
+import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax } from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
 
@@ -75,7 +75,7 @@ const Book = () => {
   // Data fetching states
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);
-  const { services } = useServices();
+  const [services, setServices] = useState<Service[]>([]);
 
   // Form selections
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
@@ -114,6 +114,21 @@ const Book = () => {
       })
       .catch((err) => console.error("Failed to load practitioners:", err));
   }, [practitionerSlug]);
+
+  // Load services this practitioner offers (resets selection on practitioner change)
+  useEffect(() => {
+    setSelectedServiceId("");
+    if (!selectedPractitioner?.slug) {
+      setServices([]);
+      return;
+    }
+    getPractitionerServices(selectedPractitioner.slug)
+      .then((res) => setServices(res.services || []))
+      .catch((err) => {
+        console.error("Failed to load practitioner services:", err);
+        setServices([]);
+      });
+  }, [selectedPractitioner?.slug]);
 
   // Set default service
   useEffect(() => {
@@ -182,11 +197,19 @@ const Book = () => {
 
   // Pricing calculations
   const selectedService = services.find((s) => s.id === selectedServiceId);
-  const basePrice = selectedService?.price_inr ?? selectedPractitioner?.price_inr ?? 2500;
+  // The amount actually charged is always the practitioner's own rate (see
+  // payment.controller.js) — services aren't priced per-practitioner, so this
+  // must mirror that, not the service's own catalog price.
+  const basePrice = selectedPractitioner?.price_inr ?? selectedService?.price_inr ?? 0;
   const total = basePrice ? groupTotal(basePrice, groupSize) : 0;
+  // 5% tax on the session subtotal — mirrors the backend's authoritative
+  // calculation in payment.controller.js so this is just an accurate preview;
+  // the backend still computes and validates the real charged amount.
+  const tax = total ? sessionTax(total) : 0;
+  const totalWithTax = total + tax;
   const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
-  const creditApplied = credit > 0 && total ? Math.min(credit, Math.max(0, total - 100)) : 0;
-  const payable = total - creditApplied;
+  const creditApplied = credit > 0 && totalWithTax ? Math.min(credit, Math.max(0, totalWithTax - 100)) : 0;
+  const payable = totalWithTax - creditApplied;
   const extraEach = basePrice ? Math.round(basePrice * 0.6) : 0;
 
   const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
@@ -297,22 +320,20 @@ const Book = () => {
         type: "host"
       } : undefined;
 
-      const res: any = await createAppointment({
-        service_id: selectedServiceId,
-        practitioner_slug: selectedPractitioner?.slug || "session-priya-shah",
-        date: selectedDate,
-        time: selectedTime,
-        mode: location,
-        pin: location === "centre" ? pin : null,
-        group_size: groupSize,
-        attendees,
-        meeting_location,
-      });
-
-      const booking = res.booking || res;
-
+      // Start Razorpay checkout. The booking itself is only created once
+      // payment is verified, so an abandoned checkout never reserves a slot.
       await startCheckout({
-        bookingId: booking.id,
+        booking: {
+          service_id: selectedServiceId,
+          practitioner_slug: selectedPractitioner?.slug || "session-priya-shah",
+          date: selectedDate,
+          time: selectedTime,
+          mode: location,
+          pin: location === "centre" ? pin : null,
+          group_size: groupSize,
+          attendees,
+          meeting_location,
+        },
         customerName: name,
         customerEmail: email,
         customerPhone: phone,
@@ -422,8 +443,7 @@ const Book = () => {
                             </span>
 
                             <span className="text-xs leading-tight text-muted-foreground">
-                              ₹{s.price_inr} · {s.duration_min} mins ·{" "}
-                              {s.category || "Holistic"}
+                              {s.duration_min} mins · {s.category || "Holistic"}
                             </span>
                           </div>
                         </SelectItem>
@@ -763,6 +783,10 @@ const Book = () => {
                       <span>{formatINR(total - basePrice)}</span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Tax (5%)</span>
+                    <span>{formatINR(tax)}</span>
+                  </div>
                   {creditApplied > 0 && (
                     <div className="flex items-center justify-between text-accent font-medium">
                       <span>Referral credit applied</span>

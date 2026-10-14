@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Star, MapPin, Search, ArrowUpRight, FileText, Loader2, Settings, UserCheck } from "lucide-react";
+import { Star, MapPin, Search, ArrowUpRight, FileText, Loader2, Settings, UserCheck, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getWhatsappLink } from "@/lib/whatsapp";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { listPublishedBlogs, type Blog } from "@/lib/blogsApi";
@@ -287,6 +288,22 @@ const Practitioners = () => {
                         </DialogTrigger>
                       )}
                     </div>
+                    {(() => {
+                      const waLink = getWhatsappLink(p.whatsapp_number);
+                      if (!waLink) return null;
+                      return (
+                        <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/5 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 transition-colors"
+                        >
+                          <MessageCircle className="size-3.5" />
+                          Talk on WhatsApp &middot; {p.whatsapp_number}
+                        </a>
+                      );
+                    })()}
                     {query.trim() !== "" && (p.keywords ?? []).length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-4">
                         {(p.keywords ?? []).slice(0, 4).map((k) => (

@@ -14,6 +14,7 @@ import {
 import { Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { isValidPhoneNumber } from "@/lib/whatsapp";
 
 const benefits = [
   "Steady stream of clients matched to your craft",
@@ -26,6 +27,8 @@ const benefits = [
 const emptyForm = () => ({
   name: "",
   email: "",
+  mobile_number: "",
+  whatsapp_number: "",
   bio: "",
   craft: "",
   city: "",
@@ -47,6 +50,14 @@ const ForHealers = () => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim()) {
       toast.error("Name and email are required");
+      return;
+    }
+    if (!isValidPhoneNumber(form.mobile_number)) {
+      toast.error("Please enter a valid mobile number");
+      return;
+    }
+    if (!isValidPhoneNumber(form.whatsapp_number)) {
+      toast.error("Please enter a valid WhatsApp number, including the country code");
       return;
     }
     setSubmitting(true);
@@ -152,6 +163,17 @@ const ForHealers = () => {
                   <Label htmlFor="ap-email">Email address <span className="text-destructive">*</span></Label>
                   <Input id="ap-email" type="email" required value={form.email} onChange={set("email")} placeholder="you@email.com" className="rounded-xl h-11" />
                   <p className="text-xs text-muted-foreground">Your login credentials will be sent here after approval.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ap-mobile">Mobile number <span className="text-destructive">*</span></Label>
+                  <Input id="ap-mobile" type="tel" required value={form.mobile_number} onChange={set("mobile_number")} placeholder="e.g. +91 98765 43210" className="rounded-xl h-11" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ap-whatsapp">WhatsApp number <span className="text-destructive">*</span></Label>
+                  <Input id="ap-whatsapp" type="tel" required value={form.whatsapp_number} onChange={set("whatsapp_number")} placeholder="e.g. +91 98765 43210" className="rounded-xl h-11" />
+                  <p className="text-xs text-muted-foreground">Include your country code — clients will use this to chat with you.</p>
                 </div>
 
                 <div className="space-y-1.5">

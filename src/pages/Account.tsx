@@ -43,8 +43,7 @@ import { listPractitioners } from "@/lib/practitionersApi";
 import { getMyAppointments, updateMe, getMe, type Appointment as Booking } from "@/lib/usersApi";
 import { cancelAppointment, rescheduleAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
-
-const DEFAULT_SLOTS = ["09:00", "10:30", "12:00", "14:00", "15:30", "17:00", "18:30"];
+import { splitTaxInclusiveTotal } from "@/lib/pricing";
 
 const getTomorrowDate = () => {
   const d = new Date();
@@ -87,7 +86,7 @@ const Account = () => {
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState<string>(getTomorrowDate());
   const [rescheduleTime, setRescheduleTime] = useState<string>("10:00");
-  const [availableSlots, setAvailableSlots] = useState<string[]>(DEFAULT_SLOTS);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -140,17 +139,13 @@ const Account = () => {
         const active = (res.slots || [])
           .filter((s) => s.available !== false)
           .map((s) => s.start.slice(0, 5));
-        const list = active.length > 0 ? active : DEFAULT_SLOTS;
-        setAvailableSlots(list);
-        if (!list.includes(rescheduleTime)) {
-          setRescheduleTime(list[0] || "10:00");
-        }
+        setAvailableSlots(active);
+        setRescheduleTime(active.includes(rescheduleTime) ? rescheduleTime : active[0] || "");
       })
-      .catch(() => {
-        setAvailableSlots(DEFAULT_SLOTS);
-        if (!DEFAULT_SLOTS.includes(rescheduleTime)) {
-          setRescheduleTime(DEFAULT_SLOTS[0]);
-        }
+      .catch((err) => {
+        console.error("Failed to load available slots:", err);
+        setAvailableSlots([]);
+        setRescheduleTime("");
       })
       .finally(() => setLoadingSlots(false));
   }, [rescheduleBooking, rescheduleDate]);
@@ -160,8 +155,19 @@ const Account = () => {
     if (!cancelModalBooking) return;
     setActionBusy(true);
     try {
-      await cancelAppointment(cancelModalBooking.id);
-      toast.success("Session cancelled successfully. We have processed your update.");
+      const res = await cancelAppointment(cancelModalBooking.id);
+      const refund = res.refund;
+      if (refund && !refund.error && typeof refund.amount === "number") {
+        const refundInr = Math.round(refund.amount / 100);
+        const taxInr = refund.non_refundable_tax_inr || 0;
+        toast.success(
+          taxInr > 0
+            ? `Session cancelled. ₹${refundInr.toLocaleString("en-IN")} refunded to your original payment method (₹${taxInr.toLocaleString("en-IN")} tax is non-refundable).`
+            : `Session cancelled. ₹${refundInr.toLocaleString("en-IN")} refunded to your original payment method.`
+        );
+      } else {
+        toast.success("Session cancelled successfully. We have processed your update.");
+      }
       setBookings((prev) =>
         prev.map((b) => (b.id === cancelModalBooking.id ? { ...b, status: "cancelled" } : b))
       );
@@ -187,12 +193,13 @@ const Account = () => {
         rescheduleTime
       );
       toast.success("Session rescheduled! Your practitioner has been notified.");
-      const updatedDate = `${rescheduleDate}T${rescheduleTime}:00.000Z`;
+      // Use the server's correctly IST->UTC-converted value, not a hand-built
+      // one here (the date/time picked in the UI is IST wall-clock, not UTC).
+      const updatedDate = res?.appointment?.scheduled_at;
+      // Only the date/time changes — a reschedule never affects payment status.
       setBookings((prev) =>
         prev.map((b) =>
-          b.id === rescheduleBooking.id
-            ? { ...b, scheduled_at: updatedDate, status: "pending" }
-            : b
+          b.id === rescheduleBooking.id ? { ...b, scheduled_at: updatedDate ?? b.scheduled_at } : b
         )
       );
       setRescheduleBooking(null);
@@ -203,20 +210,56 @@ const Account = () => {
     }
   };
 
-  // Handle Pay Pending action via Razorpay
+  // Handle Pay Pending action via Razorpay.
+  // Bookings are now only ever created already `confirmed` (payment-first
+  // flow), so this only matters for a stray legacy `pending` row — paying
+  // starts a fresh checkout for the same session details, which creates a
+  // new confirmed booking on success (the old pending row is left as-is).
   const handlePayPending = async (b: Booking) => {
+    if (!b.scheduled_at || !b.practitioner_slug) {
+      toast.error("This session is missing details needed to pay — please contact support.");
+      return;
+    }
     setPayingBookingId(b.id);
+    // scheduled_at is stored as UTC; shift to IST before splitting into
+    // date/time so we recover the wall-clock values the practitioner's
+    // schedule and the booking API both expect (IST, not UTC).
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const istShifted = new Date(new Date(b.scheduled_at).getTime() + IST_OFFSET_MS);
+    const date = istShifted.toISOString().split("T")[0];
+    const time = `${String(istShifted.getUTCHours()).padStart(2, "0")}:${String(istShifted.getUTCMinutes()).padStart(2, "0")}`;
+    const attendees = (b.attendees || [])
+      .map((a) => {
+        if (typeof a === "string" && a.trim().startsWith("{")) {
+          try {
+            const parsed = JSON.parse(a);
+            return { name: parsed.name || "", email: parsed.email || "" };
+          } catch {
+            return null;
+          }
+        }
+        return typeof a === "string" && a.includes("@") ? { name: a, email: a } : null;
+      })
+      .filter((a): a is { name: string; email: string } => Boolean(a));
+
     await startCheckout({
-      bookingId: b.id,
+      booking: {
+        service_id: b.item_id,
+        practitioner_slug: b.practitioner_slug,
+        date,
+        time,
+        mode: (b.mode as "host" | "centre" | "online") || "centre",
+        pin: b.pin,
+        group_size: b.group_size || 1,
+        attendees,
+        meeting_location: b.meeting_location || undefined,
+      },
       customerName: profile?.full_name || user?.user_metadata?.full_name || "",
       customerEmail: user?.email || "",
       customerPhone: profile?.phone || "",
       onSuccess: () => {
         setPayingBookingId(null);
         toast.success("Payment completed successfully! Your session is now confirmed.");
-        setBookings((prev) =>
-          prev.map((item) => (item.id === b.id ? { ...item, status: "confirmed" } : item))
-        );
         loadSessions();
       },
       onError: (err) => {
@@ -487,6 +530,12 @@ const Account = () => {
                 )}
               </div>
 
+              {!loadingSlots && availableSlots.length === 0 && (
+                <p className="text-xs text-muted-foreground py-2">
+                  No available slots for this date. Please choose another date.
+                </p>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {availableSlots.map((slot) => {
                   const isSelected = rescheduleTime === slot;
@@ -559,6 +608,29 @@ const Account = () => {
               Free cancellation is supported up to 24 hours prior to your scheduled session.
             </p>
           </div>
+
+          {cancelModalBooking?.amount != null && cancelModalBooking.status === "confirmed" && (() => {
+            const paidInr = cancelModalBooking.amount > 10000
+              ? Math.round(cancelModalBooking.amount / 100)
+              : cancelModalBooking.amount;
+            const { subtotal, tax } = splitTaxInclusiveTotal(paidInr);
+            return (
+              <div className="rounded-2xl border border-border bg-card p-4 text-xs space-y-1.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Session price</span>
+                  <span className="text-foreground font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Tax (non-refundable)</span>
+                  <span>−₹{tax.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-border font-medium">
+                  <span className="text-foreground">You'll be refunded</span>
+                  <span className="text-accent">₹{subtotal.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button

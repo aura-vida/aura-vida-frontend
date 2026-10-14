@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { Service } from "@/lib/servicesApi";
 
 export interface Practitioner {
   id?: string;
@@ -10,6 +11,8 @@ export interface Practitioner {
   rating: number;
   sessions?: number;
   price_inr: number;
+  mobile_number?: string | null;
+  whatsapp_number?: string | null;
   image_url: string | null;
   bookable: boolean;
   is_published?: boolean;
@@ -43,8 +46,14 @@ export const listPractitioners = (params?: { craft?: string; city?: string; book
   return api<PractitionersListResponse>(`/api/practitioners${queryString ? `?${queryString}` : ""}`);
 };
 
-export const getPractitioner = (slug: string) => 
+export const getPractitioner = (slug: string) =>
   api<{ practitioner: Practitioner }>(`/api/practitioners/${slug}`);
+
+// Services this practitioner actually offers (falls back to the full active
+// catalog server-side if none have been assigned yet). Pricing for a booking
+// is always based on the practitioner's own `price_inr`, not a service's.
+export const getPractitionerServices = (slug: string) =>
+  api<{ services: Service[] }>(`/api/practitioners/${slug}/services`);
 
 export const getMyPractitionerProfile = () => 
   api<{ practitioner: Practitioner }>("/api/practitioners/me");

@@ -128,7 +128,7 @@ const AuthPage = () => {
     e.preventDefault();
     setBusy(true);
     try {
-      const result = await signUp({ email, password, name: fullName });
+      const result = await signUp({ email, password, name: fullName, referral_code: referralCode || undefined });
       if (result.session?.access_token && result.user) {
         navigate("/account");
         return;
