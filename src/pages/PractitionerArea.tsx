@@ -84,11 +84,20 @@ import {
   HelpCircle,
   Send,
   MessageSquare,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import AuraPagination from "@/components/aura/AuraPagination";
 import { useServices } from "@/hooks/useServices";
 import { submitPractitionerSupport } from "@/lib/practitionersApi";
+import {
+  listMyServices,
+  createMyService,
+  updateMyService,
+  deleteMyService,
+  type Service,
+} from "@/lib/servicesApi";
 
 interface Booking {
   id: string;
@@ -138,6 +147,109 @@ const PractitionerArea = () => {
   const { user, profile, loading } = useAuth();
   const { services } = useServices();
   const navigate = useNavigate();
+
+  // My Services state
+  const [myServices, setMyServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [isServiceDialogOpen, setIsServiceDialogOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [serviceForm, setServiceForm] = useState({ name: "", category: "", price_inr: 1000, description: "" });
+  const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
+  const [serviceImagePreview, setServiceImagePreview] = useState<string | null>(null);
+  const [savingService, setSavingService] = useState(false);
+  const [togglingServiceId, setTogglingServiceId] = useState<string | null>(null);
+  const [serviceDeleteTarget, setServiceDeleteTarget] = useState<Service | null>(null);
+  const [isDeletingService, setIsDeletingService] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.practitioner_slug) return;
+    setLoadingServices(true);
+    listMyServices()
+      .then((res) => setMyServices(res.services ?? []))
+      .catch((err) => toast.error(err.message || "Failed to load your services"))
+      .finally(() => setLoadingServices(false));
+  }, [profile?.practitioner_slug]);
+
+  const openAddService = () => {
+    setEditingService(null);
+    setServiceForm({ name: "", category: "", price_inr: 1000, description: "" });
+    setServiceImageFile(null);
+    setServiceImagePreview(null);
+    setIsServiceDialogOpen(true);
+  };
+
+  const openEditService = (service: Service) => {
+    setEditingService(service);
+    setServiceForm({
+      name: service.name,
+      category: service.category || "",
+      price_inr: service.price_inr || 0,
+      description: service.description || "",
+    });
+    setServiceImageFile(null);
+    setServiceImagePreview(service.image_url);
+    setIsServiceDialogOpen(true);
+  };
+
+  const handleServiceImageChange = (file: File | null) => {
+    setServiceImageFile(file);
+    if (file) setServiceImagePreview(URL.createObjectURL(file));
+  };
+
+  const submitService = async () => {
+    if (!serviceForm.name.trim()) { toast.error("Name is required"); return; }
+    setSavingService(true);
+    try {
+      const fields = {
+        name: serviceForm.name.trim(),
+        category: serviceForm.category.trim() || null,
+        price_inr: Number(serviceForm.price_inr) || 0,
+        description: serviceForm.description.trim() || null,
+        ...(serviceImageFile ? { image: serviceImageFile } : {}),
+      };
+      if (editingService) {
+        const res = await updateMyService(editingService.id, fields);
+        setMyServices((curr) => curr.map((s) => (s.id === editingService.id ? res.service : s)));
+        toast.success("Service updated");
+      } else {
+        const res = await createMyService({ ...fields, is_active: true });
+        setMyServices((curr) => [res.service, ...curr]);
+        toast.success("Service created");
+      }
+      setIsServiceDialogOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save service");
+    } finally {
+      setSavingService(false);
+    }
+  };
+
+  const toggleServiceActive = async (service: Service, isActive: boolean) => {
+    setTogglingServiceId(service.id);
+    try {
+      const res = await updateMyService(service.id, { is_active: isActive });
+      setMyServices((curr) => curr.map((s) => (s.id === service.id ? res.service : s)));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update service");
+    } finally {
+      setTogglingServiceId(null);
+    }
+  };
+
+  const handleConfirmDeleteService = async () => {
+    if (!serviceDeleteTarget) return;
+    setIsDeletingService(true);
+    try {
+      await deleteMyService(serviceDeleteTarget.id);
+      setMyServices((curr) => curr.filter((s) => s.id !== serviceDeleteTarget.id));
+      toast.success(`${serviceDeleteTarget.name} deleted`);
+      setServiceDeleteTarget(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete service");
+    } finally {
+      setIsDeletingService(false);
+    }
+  };
 
   // Bookings state
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -548,7 +660,7 @@ const PractitionerArea = () => {
           <Tabs defaultValue="appointments" className="w-full">
             <TabsList
               className="
-                grid w-full max-w-[760px] grid-cols-3
+                grid w-full max-w-[920px] grid-cols-4
                 h-12 sm:h-14
                 rounded-full
                 p-1
@@ -620,6 +732,27 @@ const PractitionerArea = () => {
               >
                 <BookOpen className="size-3.5 sm:size-4 shrink-0" />
                 <span>Articles & Wisdom</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="services"
+                className="
+                  h-full rounded-full
+                  px-3 sm:px-5
+                  text-xs sm:text-sm
+                  font-medium
+                  text-muted-foreground
+                  transition-all duration-200
+                  gap-1.5 sm:gap-2
+                  data-[state=active]:bg-background
+                  data-[state=active]:text-foreground
+                  data-[state=active]:shadow-sm
+                  data-[state=active]:border
+                  data-[state=active]:border-border/60
+                "
+              >
+                <Sparkles className="size-3.5 sm:size-4 shrink-0" />
+                <span>My Services</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1396,8 +1529,194 @@ const PractitionerArea = () => {
                 </div>
               )}
             </TabsContent>
+
+            {/* TAB 4: MY SERVICES */}
+            <TabsContent value="services" className="space-y-6 mt-0">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h2 className="font-display text-2xl text-foreground">My Services</h2>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    The therapies you offer, and what clients see when booking you. Every session is 60 minutes.
+                  </p>
+                </div>
+                <Button onClick={openAddService} className="rounded-full shrink-0">
+                  <Plus className="size-4 mr-1" /> Add Service
+                </Button>
+              </div>
+
+              {loadingServices ? (
+                <div className="text-muted-foreground py-8">Loading your services...</div>
+              ) : myServices.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-border p-10 text-center">
+                  <Sparkles className="size-8 mx-auto text-muted-foreground/60 mb-3" />
+                  <h3 className="font-display text-xl text-foreground">No services yet</h3>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+                    Add a service so clients can book a session with you.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myServices.map((service) => (
+                    <section key={service.id} className="rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-soft flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border/60 shadow-sm">
+                        {service.image_url ? (
+                          <img src={service.image_url} alt={service.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
+                            No photo
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-display text-lg sm:text-xl text-foreground font-medium truncate">
+                            {service.name}
+                          </h3>
+                          {service.is_active !== false ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+                              Hidden
+                            </span>
+                          )}
+                          {service.category && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent border border-accent/20">
+                              {service.category}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                          {service.description || "No description provided"}
+                        </p>
+                        <span className="font-semibold text-foreground text-sm mt-2 inline-block">
+                          ₹{Number(service.price_inr ?? 0).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Switch
+                            checked={service.is_active !== false}
+                            disabled={togglingServiceId === service.id}
+                            onCheckedChange={(v) => toggleServiceActive(service, v)}
+                          />
+                          Show on site
+                        </label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full h-9 px-3.5 gap-1.5 text-xs"
+                          onClick={() => openEditService(service)}
+                        >
+                          <Edit3 className="size-3.5 text-accent" /> Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
+                          onClick={() => setServiceDeleteTarget(service)}
+                          aria-label={`Delete ${service.name}`}
+                        >
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
         )}
+
+        {/* DIALOG: Add/Edit Service */}
+        <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-[2rem] p-6 sm:p-8">
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl">
+                {editingService ? "Edit Service" : "Add New Service"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2 flex gap-4 items-start">
+                <div className="w-20 h-24 shrink-0 rounded-2xl bg-secondary overflow-hidden border border-border/60">
+                  {serviceImagePreview ? (
+                    <img src={serviceImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
+                      No photo
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Label>Photo</Label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleServiceImageChange(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Name</Label>
+                <Input
+                  value={serviceForm.name}
+                  onChange={(e) => setServiceForm((s) => ({ ...s, name: e.target.value }))}
+                  placeholder="e.g. Reiki Healing"
+                />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Input
+                  value={serviceForm.category}
+                  onChange={(e) => setServiceForm((s) => ({ ...s, category: e.target.value }))}
+                  placeholder="e.g. Energy Healing"
+                />
+              </div>
+              <div>
+                <Label>Price (INR)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={serviceForm.price_inr}
+                  onChange={(e) => setServiceForm((s) => ({ ...s, price_inr: parseFloat(e.target.value) || 0 }))}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={serviceForm.description}
+                  onChange={(e) => setServiceForm((s) => ({ ...s, description: e.target.value }))}
+                  className="min-h-[80px]"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsServiceDialogOpen(false)} disabled={savingService}>
+                Cancel
+              </Button>
+              <Button onClick={submitService} disabled={savingService}>
+                {savingService && <Loader2 className="size-4 mr-2 animate-spin" />}
+                {savingService ? "Saving..." : editingService ? "Save Changes" : "Create Service"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Confirmation Dialog: Delete Service */}
+        <ConfirmDialog
+          open={!!serviceDeleteTarget}
+          onOpenChange={(open) => !open && setServiceDeleteTarget(null)}
+          title={serviceDeleteTarget ? `Delete ${serviceDeleteTarget.name}?` : "Delete Service"}
+          description={`This will permanently delete "${serviceDeleteTarget?.name || "this service"}" — this can't be undone.`}
+          confirmLabel="Yes, Delete Permanently"
+          cancelLabel="Keep Service"
+          variant="destructive"
+          isLoading={isDeletingService}
+          onConfirm={handleConfirmDeleteService}
+        />
 
         {/* DIALOG: Write & Edit Article */}
         <Dialog open={isArticleDialogOpen} onOpenChange={setIsArticleDialogOpen}>

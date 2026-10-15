@@ -14,14 +14,14 @@ import {
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isValidPhoneNumber } from "@/lib/whatsapp";
-import { adminCreateService, adminUpdateService, adminDeleteService, adminListServices } from "@/lib/servicesApi";
+import { adminListServices } from "@/lib/servicesApi";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -1504,28 +1504,19 @@ const Admin = () => {
 export default Admin;
 
 
+// Read-only: services are now created and managed by practitioners
+// themselves from their own dashboard. This view exists purely for admin
+// oversight — seeing what exists and who created it.
 const ServicesManager = () => {
-  const [localServices, setLocalServices] = React.useState<any[]>([]);
+  const [services, setServices] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [busy, setBusy] = React.useState(false);
-  const [savingRowId, setSavingRowId] = React.useState<string | null>(null);
-  const [expandedServices, setExpandedServices] = React.useState<Record<string, boolean>>({});
   const [statusFilter, setStatusFilter] = React.useState<"all" | "active" | "hidden">("all");
-
-  const toggleServiceExpanded = (id: string) => {
-    setExpandedServices((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
 
   React.useEffect(() => {
     let cancelled = false;
-    // Admin-only listing — unlike the public endpoint, this includes
-    // hidden/soft-deleted services too, so none can get "lost" once hidden.
     adminListServices({ limit: 200 })
       .then((res) => {
-        if (!cancelled) setLocalServices(res.services ?? []);
+        if (!cancelled) setServices(res.services ?? []);
       })
       .catch((err) => {
         if (!cancelled) toast.error(err.message || "Failed to load services");
@@ -1538,156 +1529,11 @@ const ServicesManager = () => {
     };
   }, []);
 
-  const [isAddServiceOpen, setIsAddServiceOpen] = React.useState(false);
-  const [isCreatingService, setIsCreatingService] = React.useState(false);
-  const [newService, setNewService] = React.useState({
-    name: "",
-    category: "",
-    price_inr: 1000,
-    duration_min: 60,
-    description: "",
-  });
-  const [newServiceImage, setNewServiceImage] = React.useState<File | null>(null);
-  const [newServiceImagePreview, setNewServiceImagePreview] = React.useState<string | null>(null);
-
-  const handleNewServiceImageChange = (file: File | null) => {
-    setNewServiceImage(file);
-    setNewServiceImagePreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return file ? URL.createObjectURL(file) : null;
-    });
-  };
-
-  const update = (id: string, patch: any) => {
-    setLocalServices((curr) => curr.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  };
-
-  const addNew = async () => {
-    if (isCreatingService) return; // guard against double-click creating duplicates
-    if (!newService.name.trim()) { toast.error("Name required"); return; }
-
-    setIsCreatingService(true);
-    try {
-      const res = await adminCreateService({
-        name: newService.name.trim(),
-        category: newService.category.trim(),
-        price_inr: Number(newService.price_inr) || 0,
-        duration_min: Number(newService.duration_min) || 60,
-        description: newService.description.trim(),
-        is_active: true,
-      });
-      let service = res.service;
-
-      // The service needs an id before an image path can be built, so the
-      // image uploads right after creation rather than in the same request.
-      if (newServiceImage) {
-        const url = await uploadServiceImage(service.id, newServiceImage);
-        if (url) {
-          const updateRes = await adminUpdateService(service.id, { image_url: url });
-          service = updateRes.service;
-        }
-      }
-
-      setLocalServices((curr) => [service, ...curr]);
-      setIsAddServiceOpen(false);
-      setNewService({
-        name: "",
-        category: "",
-        price_inr: 1000,
-        duration_min: 60,
-        description: "",
-      });
-      handleNewServiceImageChange(null);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      toast.success("Service created!");
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || "Failed to create service");
-    } finally {
-      setIsCreatingService(false);
-    }
-  };
-
-  const save = async (row: any) => {
-    if (savingRowId) return; // guard against double-click while a save is in flight
-    setSavingRowId(row.id);
-    setBusy(true);
-    const { id, ...fields } = row;
-    try {
-      const res = await adminUpdateService(id, fields);
-      update(id, res.service);
-      toast.success(`${row.name || "Service"} saved`);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || "Failed to update service");
-    } finally {
-      setBusy(false);
-      setSavingRowId(null);
-    }
-  };
-
-  const [serviceDeleteTarget, setServiceDeleteTarget] = React.useState<any | null>(null);
-  const [isDeletingService, setIsDeletingService] = React.useState(false);
-
-  const remove = (row: any) => {
-    setServiceDeleteTarget(row);
-  };
-
-  const handleConfirmDeleteService = async () => {
-    if (!serviceDeleteTarget?.id) return;
-    setIsDeletingService(true);
-    try {
-      // Permanent delete — to hide a service without deleting it, use the
-      // "Show on site" switch in the edit card instead.
-      await adminDeleteService(serviceDeleteTarget.id);
-      setLocalServices((curr) => curr.filter((s) => s.id !== serviceDeleteTarget.id));
-      toast.success(`${serviceDeleteTarget.name || "Service"} deleted.`);
-      setServiceDeleteTarget(null);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || "Failed to delete service");
-    } finally {
-      setIsDeletingService(false);
-    }
-  };
-
-  // Shared by both the per-row photo uploader and the Add Service dialog —
-  // uploads to storage and returns a signed URL, without touching any state.
-  const uploadServiceImage = async (serviceId: string, file: File): Promise<string | null> => {
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `services/${serviceId}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("practitioner-photos")
-      .upload(path, file, { upsert: true });
-    if (upErr) {
-      toast.error(upErr.message);
-      return null;
-    }
-    const { data: signed, error: signErr } = await supabase.storage
-      .from("practitioner-photos")
-      .createSignedUrl(path, SIGNED_URL_TTL);
-    if (signErr || !signed) {
-      toast.error(signErr?.message ?? "Could not create photo link");
-      return null;
-    }
-    return signed.signedUrl;
-  };
-
-  const uploadPhoto = async (row: any, file: File) => {
-    setBusy(true);
-    const url = await uploadServiceImage(row.id, file);
-    setBusy(false);
-    if (!url) return;
-    update(row.id, { image_url: url });
-    await adminUpdateService(row.id, { image_url: url });
-    toast.success("Service photo updated");
-  };
-
   if (loading) return <div className="text-muted-foreground py-8">Loading services...</div>;
 
-  const activeCount = localServices.filter((s) => s.is_active !== false).length;
-  const hiddenCount = localServices.filter((s) => s.is_active === false).length;
-  const filteredServices = localServices.filter((s) => {
+  const activeCount = services.filter((s) => s.is_active !== false).length;
+  const hiddenCount = services.filter((s) => s.is_active === false).length;
+  const filteredServices = services.filter((s) => {
     if (statusFilter === "active") return s.is_active !== false;
     if (statusFilter === "hidden") return s.is_active === false;
     return true;
@@ -1697,14 +1543,13 @@ const ServicesManager = () => {
     <div>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <p className="text-muted-foreground text-sm max-w-lg">
-          Add new therapies, update descriptions, categories, and prices. Turn on "Show on site" to make active.
+          Practitioners create and manage their own services from their dashboard. This is a read-only view of everything that exists, and who created it.
         </p>
-        <Button onClick={() => setIsAddServiceOpen(true)} className="rounded-full shrink-0"><Plus className="size-4 mr-1" /> Add Service</Button>
       </div>
 
       <div className="flex items-center gap-2 mb-8">
         {([
-          { key: "all", label: `All (${localServices.length})` },
+          { key: "all", label: `All (${services.length})` },
           { key: "active", label: `Active (${activeCount})` },
           { key: "hidden", label: `Hidden (${hiddenCount})` },
         ] as const).map((opt) => (
@@ -1723,286 +1568,65 @@ const ServicesManager = () => {
         ))}
       </div>
 
-      <Dialog open={isAddServiceOpen} onOpenChange={setIsAddServiceOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Service</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2 flex gap-4 items-start">
-              <div className="w-20 h-24 shrink-0 rounded-2xl bg-secondary overflow-hidden border border-border/60">
-                {newServiceImagePreview ? (
-                  <img src={newServiceImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
-                    No photo
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <Label>Photo</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleNewServiceImageChange(e.target.files?.[0] ?? null)}
-                />
-              </div>
-            </div>
-            <div className="sm:col-span-2">
-              <Label>Name</Label>
-              <Input
-                value={newService.name}
-                onChange={(e) => setNewService(s => ({ ...s, name: e.target.value }))}
-                placeholder="e.g. Reiki Healing"
-              />
-            </div>
-            <div>
-              <Label>Category</Label>
-              <Input
-                value={newService.category}
-                onChange={(e) => setNewService(s => ({ ...s, category: e.target.value }))}
-                placeholder="e.g. Energy Healing"
-              />
-            </div>
-            <div>
-              <Label>Price (INR)</Label>
-              <Input
-                type="number"
-                min="0"
-                value={newService.price_inr}
-                onChange={(e) => setNewService(s => ({ ...s, price_inr: parseFloat(e.target.value) || 0 }))}
-              />
-            </div>
-            <div>
-              <Label>Duration (Min)</Label>
-              <Input
-                type="number"
-                min="0"
-                value={newService.duration_min}
-                onChange={(e) => setNewService(s => ({ ...s, duration_min: parseInt(e.target.value) || 0 }))}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>Description</Label>
-              <Textarea
-                value={newService.description}
-                onChange={(e) => setNewService(s => ({ ...s, description: e.target.value }))}
-                className="min-h-[80px]"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => { setIsAddServiceOpen(false); handleNewServiceImageChange(null); }}
-              disabled={isCreatingService}
-            >
-              Cancel
-            </Button>
-            <Button onClick={addNew} disabled={isCreatingService}>
-              {isCreatingService && <Loader2 className="size-4 mr-2 animate-spin" />}
-              {isCreatingService ? "Saving..." : "Save Service"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {filteredServices.length === 0 && (
         <div className="text-muted-foreground text-sm py-8 text-center">No {statusFilter !== "all" ? statusFilter : ""} services to show.</div>
       )}
 
       <div className="space-y-4">
-        {filteredServices.map((row) => {
-          const isExpanded = !!expandedServices[row.id];
-          return (
-            <section key={row.id} className="rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-soft transition-all duration-200">
-              {/* Summary Collapsed Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div
-                  className="flex items-center gap-4 min-w-0 cursor-pointer flex-1"
-                  onClick={() => toggleServiceExpanded(row.id)}
-                >
-                  <div className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border/60 shadow-sm relative group">
-                    {row.image_url ? (
-                      <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
-                        No photo
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-display text-lg sm:text-xl text-foreground font-medium truncate">
-                        {row.name || "Untitled Service"}
-                      </h3>
-                      {row.is_active !== false ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
-                          Hidden
-                        </span>
-                      )}
-                      {row.category && (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent border border-accent/20">
-                          {row.category}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
-                      {row.description || "No description provided"}
-                    </p>
-
-                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
-                      <span className="font-semibold text-foreground">
-                        ₹{Number(row.price_inr ?? 0).toLocaleString("en-IN")}
-                      </span>
-                      <span>⏱️ {row.duration_min ?? 60} mins</span>
-                      <span>Sort order: {row.sort_order ?? 0}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
-                    onClick={() => toggleServiceExpanded(row.id)}
-                  >
-                    <Pencil className="size-3.5 text-accent" />
-                    <span>{isExpanded ? "Close" : "Edit"}</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
-                    onClick={() => remove(row)}
-                    aria-label={`Remove ${row.name}`}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
-                    onClick={() => toggleServiceExpanded(row.id)}
-                    aria-label={isExpanded ? "Collapse card" : "Expand card"}
-                  >
-                    <ChevronDown className={cn("size-4.5 transition-transform duration-200", isExpanded && "rotate-180")} />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Expandable Editing Area */}
-              {isExpanded && (
-                <div className="mt-6 pt-6 border-t border-border animate-in fade-in-50 duration-200">
-                  <div className="flex flex-col sm:flex-row gap-6">
-                    <div className="sm:w-40 shrink-0">
-                      <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
-                        {row.image_url ? (
-                          <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
-                        )}
-                      </div>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="text-xs"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) uploadPhoto(row, f);
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex-1 grid sm:grid-cols-2 gap-4">
-                      <div className="sm:col-span-2">
-                        <Label>Name</Label>
-                        <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
-                      </div>
-                      <div>
-                        <Label>Category</Label>
-                        <Input value={row.category ?? ""} onChange={(e) => update(row.id, { category: e.target.value })} />
-                      </div>
-                      <div>
-                        <Label>Duration (Min)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={row.duration_min ?? 0}
-                          onChange={(e) => update(row.id, { duration_min: Number(e.target.value) })}
-                        />
-                      </div>
-                      <div>
-                        <Label>Price per session (₹)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={row.price_inr ?? 0}
-                          onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })}
-                        />
-                      </div>
-                      <div>
-                        <Label>Order on page</Label>
-                        <Input
-                          type="number"
-                          value={row.sort_order ?? 0}
-                          onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })}
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Description</Label>
-                        <Textarea
-                          rows={3}
-                          value={row.description ?? ""}
-                          onChange={(e) => update(row.id, { description: e.target.value })}
-                        />
-                      </div>
-                      <div className="sm:col-span-2 flex flex-wrap items-center gap-6 pt-1 border-t border-border mt-2">
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch
-                            checked={row.is_active !== false}
-                            onCheckedChange={(v) => update(row.id, { is_active: v })}
-                          />
-                          Show on site
-                        </label>
-                        <div className="ml-auto flex items-center gap-2">
-                          <Button variant="outline" className="rounded-full" onClick={() => toggleServiceExpanded(row.id)}>
-                            Close
-                          </Button>
-                          <Button className="rounded-full" disabled={savingRowId === row.id} onClick={() => save(row)}>
-                            {savingRowId === row.id && <Loader2 className="size-4 mr-2 animate-spin" />}
-                            {savingRowId === row.id ? "Saving..." : "Save"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+        {filteredServices.map((row) => (
+          <section key={row.id} className="rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-soft flex items-center gap-4">
+            <div className="w-16 h-20 sm:w-20 sm:h-24 rounded-2xl bg-secondary overflow-hidden shrink-0 border border-border/60 shadow-sm">
+              {row.image_url ? (
+                <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
+                  No photo
                 </div>
               )}
-            </section>
-          );
-        })}
-      </div>
+            </div>
 
-      {/* Confirmation Dialog: Delete Service */}
-      <ConfirmDialog
-        open={!!serviceDeleteTarget}
-        onOpenChange={(open) => !open && setServiceDeleteTarget(null)}
-        title={serviceDeleteTarget ? `Delete ${serviceDeleteTarget.name}?` : "Delete Service"}
-        description={`This will permanently delete "${serviceDeleteTarget?.name || "this service"}" — this can't be undone. To hide it from the site without deleting it, use the "Show on site" switch in its edit card instead.`}
-        confirmLabel="Yes, Delete Permanently"
-        cancelLabel="Keep Service"
-        variant="destructive"
-        isLoading={isDeletingService}
-        onConfirm={handleConfirmDeleteService}
-      />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-display text-lg sm:text-xl text-foreground font-medium truncate">
+                  {row.name || "Untitled Service"}
+                </h3>
+                {row.is_active !== false ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                    Active
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+                    Hidden
+                  </span>
+                )}
+                {row.category && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-accent/15 text-accent border border-accent/20">
+                    {row.category}
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                {row.description || "No description provided"}
+              </p>
+
+              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
+                <span className="font-semibold text-foreground">
+                  ₹{Number(row.price_inr ?? 0).toLocaleString("en-IN")}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Users className="size-3" />
+                  {row.practitioners?.name ? (
+                    <>Created by <span className="font-medium text-foreground">{row.practitioners.name}</span></>
+                  ) : (
+                    "No practitioner owner (legacy)"
+                  )}
+                </span>
+              </div>
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 };

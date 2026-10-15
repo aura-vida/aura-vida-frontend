@@ -10,6 +10,9 @@ export type Service = {
   image_url: string | null;
   is_active?: boolean;
   sort_order?: number;
+  practitioner_id?: string | null;
+  // Embedded owner info — only present on the admin read-only listing.
+  practitioners?: { id: string; name: string; slug: string } | null;
 };
 
 export type Pagination = {
@@ -36,8 +39,9 @@ export const listServices = (params: { category?: string; page?: number; limit?:
 export const getService = (id: string) =>
   api<{ service: Service }>(`/api/services/${id}`);
 
-// Admin only — unlike listServices (public, active only), this returns every
-// service so hidden/soft-deleted ones can still be found and managed.
+// Admin only, read-only — services are created and managed by the
+// practitioners who own them; this is purely an oversight view, and each row
+// includes the owning practitioner (see Service.practitioners above).
 export const adminListServices = (params: { category?: string; page?: number; limit?: number } = {}) => {
   const query = new URLSearchParams();
   if (params.category) query.set("category", params.category);
@@ -47,19 +51,44 @@ export const adminListServices = (params: { category?: string; page?: number; li
   return api<ServicesListResponse>(`/api/admin/services${qs ? `?${qs}` : ""}`);
 };
 
-export const adminCreateService = (data: Partial<Service>) =>
-  api<{ message: string; service: Service }>(`/api/admin/services`, {
-    method: 'POST',
-    body: data,
+// ─── Practitioner self-service ──────────────────────────────────────────────
+
+export type MyServiceFields = {
+  name?: string;
+  description?: string | null;
+  price_inr?: number;
+  category?: string | null;
+  sort_order?: number;
+  is_active?: boolean;
+  image?: File | null;
+};
+
+const buildServiceFormData = (fields: MyServiceFields) => {
+  const formData = new FormData();
+  Object.entries(fields).forEach(([key, value]) => {
+    if (key === "image" || value === undefined || value === null) return;
+    formData.append(key, String(value));
+  });
+  if (fields.image) formData.append("image", fields.image);
+  return formData;
+};
+
+export const listMyServices = () =>
+  api<{ services: Service[] }>(`/api/practitioners/me/services`);
+
+export const createMyService = (fields: MyServiceFields) =>
+  api<{ message: string; service: Service }>(`/api/practitioners/me/services`, {
+    method: "POST",
+    body: buildServiceFormData(fields),
   });
 
-export const adminUpdateService = (id: string, data: Partial<Service>) =>
-  api<{ message: string; service: Service }>(`/api/admin/services/${id}`, {
-    method: 'PATCH',
-    body: data,
+export const updateMyService = (id: string, fields: MyServiceFields) =>
+  api<{ message: string; service: Service }>(`/api/practitioners/me/services/${id}`, {
+    method: "PATCH",
+    body: buildServiceFormData(fields),
   });
 
-export const adminDeleteService = (id: string) =>
-  api<{ message: string }>(`/api/admin/services/${id}`, {
-    method: 'DELETE',
+export const deleteMyService = (id: string) =>
+  api<{ message: string }>(`/api/practitioners/me/services/${id}`, {
+    method: "DELETE",
   });

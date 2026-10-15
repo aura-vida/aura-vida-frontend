@@ -31,7 +31,7 @@ const Guides = () => {
       <h1 className="sr-only">Kuśala Guides — Vetted alternative healing practitioners</h1>
       <Practitioners />
       {!isPractitioner && !isAdmin && <ForHealers />}
-      <Testimonials />
+      {/* <Testimonials /> */}
       <Footer />
     </main>
   );

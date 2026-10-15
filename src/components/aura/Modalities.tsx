@@ -93,7 +93,7 @@ const Modalities = () => {
           <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-8 gap-y-2">
             {all.map((s, i) => (
               <li key={s} className="group flex items-baseline gap-5 py-5 border-b border-border/60 cursor-pointer">
-                <span className="font-display text-sm text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>
+                {/* <span className="font-display text-sm text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span> */}
                 <span className="font-display text-2xl md:text-3xl text-foreground group-hover:text-accent transition-colors flex-1">{s}</span>
                 <ArrowUpRight className="size-5 text-muted-foreground group-hover:text-accent transition-colors" />
               </li>

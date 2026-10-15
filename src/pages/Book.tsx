@@ -578,7 +578,7 @@ const Book = () => {
                             </span>
 
                             <span className="text-xs leading-tight text-muted-foreground">
-                              {s.duration_min} mins · {s.category || "Holistic"}
+                              Category: {s.category || "Holistic"}
                             </span>
                           </div>
                         </SelectItem>
@@ -876,9 +876,9 @@ const Book = () => {
               <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 3 · When</span>
-                  <span className="text-xs font-medium text-accent bg-accent/10 px-3 py-1 rounded-full">
+                  {/* <span className="text-xs font-medium text-accent bg-accent/10 px-3 py-1 rounded-full">
                     {duration} mins session
-                  </span>
+                  </span> */}
                 </div>
 
                 <AuraBookingCalendar
