@@ -10,6 +10,7 @@ import {
   MapPin, 
   Home, 
   Video, 
+  Building2,
   Users, 
   User, 
   XCircle, 
@@ -410,6 +411,13 @@ export default function AdminAppointments() {
                         <>
                           <Home className="size-3.5 text-accent" />
                           <span>Client's home</span>
+                        </>
+                      ) : b.mode === "studio" ? (
+                        <>
+                          <Building2 className="size-3.5 text-accent" />
+                          <span className="truncate">
+                            {b.meeting_location?.name || b.meeting_location?.address ? `Studio: ${b.meeting_location?.name || b.meeting_location?.address}` : "Practitioner's studio"}
+                          </span>
                         </>
                       ) : (
                         <>

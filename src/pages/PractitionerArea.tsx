@@ -63,6 +63,7 @@ import {
   MapPin,
   Video,
   Home,
+  Building2,
   Users,
   User,
   CheckCircle2,
@@ -122,9 +123,16 @@ const DAYS_OF_WEEK = [
   { day: 0, label: "Sunday" },
 ];
 
-const modeIcon = (mode: string) => (mode === "online" ? Video : mode === "host" ? Home : MapPin);
+const modeIcon = (mode: string) =>
+  mode === "studio" ? Building2 : mode === "online" ? Video : mode === "host" ? Home : MapPin;
 const modeLabel = (mode: string) =>
-  mode === "online" ? "Online session" : mode === "host" ? "At client's home" : "Partner centre";
+  mode === "studio"
+    ? "At your studio"
+    : mode === "online"
+    ? "Online session"
+    : mode === "host"
+    ? "At client's home"
+    : "Partner centre";
 
 const PractitionerArea = () => {
   const { user, profile, loading } = useAuth();

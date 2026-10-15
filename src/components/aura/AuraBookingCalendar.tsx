@@ -165,7 +165,10 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
 
   // Helper default formatSlot
   const defaultFormatSlot = (slot: string) => {
-    const [h, m] = slot.split(":").map(Number);
+    if (!slot) return { start: "--:--", end: "--:--" };
+    const parts = slot.split(":");
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
     const endTotalMin = h * 60 + m + durationMin;
     const endH = Math.floor(endTotalMin / 60) % 24;
     const endM = endTotalMin % 60;

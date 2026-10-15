@@ -13,12 +13,12 @@ import { useServices } from "@/hooks/useServices";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { MAX_GROUP_SIZE, formatINR, groupTotal, parsePrice } from "@/lib/pricing";
+import { MAX_GROUP_SIZE, formatINR, groupTotal, parsePrice, calculateSessionSubtotal } from "@/lib/pricing";
 import { getPractitioner, type Practitioner } from "@/lib/practitionersApi";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
 
-type Location = "host" | "centre" | "online";
+type Location = "studio" | "online" | "centre" | "host";
 
 // Helper for default booking date
 const getTomorrowDate = () => {
@@ -32,9 +32,10 @@ const LARGE_GROUP_MAILTO =
   "mailto:sahil.dhanani@kusala.in?subject=Large%20group%20session%20enquiry%20%E2%80%94%20Ku%C5%9Bala";
 
 const options: { id: Location; icon: any; title: string; body: string }[] = [
+  { id: "studio", icon: Building2, title: "At their studio", body: "Practitioner's own private studio." },
+  { id: "online", icon: Video, title: "Virtual", body: "Join from anywhere." },
   { id: "centre", icon: MapPin, title: "Partner Centre", body: "A serene, vetted space near you." },
   { id: "host", icon: Home, title: "At Home", body: "We come to your sanctuary." },
-  { id: "online", icon: Video, title: "Virtual", body: "Join from anywhere." },
 ];
 
 interface Props {
@@ -119,18 +120,30 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
 
   useEffect(() => {
     if (!practitioner) return;
+    const canStudio = practitioner.offers_studio === true;
     const canCentre = practitioner.offers_centre !== false;
     const canHost = practitioner.offers_host === true;
     const canOnline = practitioner.offers_online === true;
 
-    if (location === 'centre' && !canCentre) {
-      setLocation(canHost ? 'host' : canOnline ? 'online' : 'centre');
-    } else if (location === 'host' && !canHost) {
-      setLocation(canCentre ? 'centre' : canOnline ? 'online' : 'centre');
-    } else if (location === 'online' && !canOnline) {
-      setLocation(canCentre ? 'centre' : canHost ? 'host' : 'centre');
+    const isCurrentValid =
+      (location === 'studio' && canStudio) ||
+      (location === 'centre' && canCentre) ||
+      (location === 'host' && canHost) ||
+      (location === 'online' && canOnline);
+
+    if (!isCurrentValid) {
+      if (canStudio) setLocation('studio');
+      else if (canOnline) setLocation('online');
+      else if (canCentre) setLocation('centre');
+      else if (canHost) setLocation('host');
     }
-  }, [practitioner?.slug, practitioner?.offers_centre, practitioner?.offers_host, practitioner?.offers_online]);
+  }, [
+    practitioner?.slug,
+    practitioner?.offers_studio,
+    practitioner?.offers_centre,
+    practitioner?.offers_host,
+    practitioner?.offers_online
+  ]);
 
   // Fetch available slots dynamically when date or service changes
   useEffect(() => {
@@ -158,7 +171,9 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
   const groupSize = isGroup ? 1 + guests.length : 1;
   const selectedService = services.find(s => s.id === selectedServiceId);
   const base = selectedService?.price_inr || parsePrice(price);
-  const total = base ? groupTotal(base, groupSize) : 0;
+  const total = practitioner
+    ? calculateSessionSubtotal(practitioner, location, groupSize)
+    : (base ? groupTotal(base, groupSize) : 0);
   const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
   const creditApplied = credit > 0 && total ? Math.min(credit, Math.max(0, total - 100)) : 0;
   const payable = total - creditApplied;
@@ -188,7 +203,8 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
     (
       (location === "centre" && selectedCentre) ||
       (location === "host" && hostAddress.trim()) ||
-      location === "online"
+      location === "online" ||
+      location === "studio"
     )
   );
 
@@ -241,6 +257,12 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
       } : location === "host" ? {
         address: hostAddress.trim(),
         type: "host"
+      } : location === "studio" ? {
+        name: practitioner?.studio_name || `${practitioner?.name || "Practitioner"}'s Studio`,
+        address: practitioner?.studio_address || "",
+        city: practitioner?.studio_city || "",
+        maps_url: practitioner?.studio_maps_url || null,
+        type: "studio"
       } : undefined;
 
       // Start Razorpay checkout. The booking itself is only created once
@@ -402,9 +424,10 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
           {options.filter(o => {
             if (!practitioner) return true;
+            if (o.id === 'studio') return practitioner.offers_studio === true;
             if (o.id === 'centre') return practitioner.offers_centre !== false;
             if (o.id === 'host') return practitioner.offers_host === true;
             if (o.id === 'online') return practitioner.offers_online === true;
@@ -418,17 +441,53 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
                 className={cn(
                   "text-left rounded-2xl border p-4 transition-all",
                   active
-                    ? "border-primary bg-accent-soft shadow-soft"
+                    ? "border-primary bg-accent-soft shadow-soft ring-1 ring-primary"
                     : "border-border hover:border-foreground/30 hover:bg-secondary/50",
                 )}
               >
-                <o.icon className={cn("size-5 mb-3", active ? "text-primary" : "text-muted-foreground")} />
+                <o.icon className={cn("size-5 mb-2.5", active ? "text-primary" : "text-muted-foreground")} />
                 <div className="font-medium text-sm text-foreground">{o.title}</div>
-                <div className="text-xs text-muted-foreground mt-1 leading-snug">{o.body}</div>
+                <div className="text-xs text-muted-foreground mt-1 leading-snug">
+                  {o.id === "studio" && practitioner?.studio_city
+                    ? `Practitioner's studio · ${practitioner.studio_city}`
+                    : o.body}
+                </div>
               </button>
             );
           })}
         </div>
+
+        {location === "studio" && (
+          <div className="mt-4 rounded-2xl border border-border p-4 bg-secondary/30 space-y-2">
+            <div className="flex items-start gap-3">
+              <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <div className="font-medium text-sm text-foreground">
+                  {practitioner?.studio_name || `${practitioner?.name || "Practitioner"}'s Studio`}
+                  {practitioner?.studio_city && ` · ${practitioner.studio_city}`}
+                </div>
+                {practitioner?.studio_address && (
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {practitioner.studio_address}
+                    {practitioner.studio_city && !practitioner.studio_address.toLowerCase().includes(practitioner.studio_city.toLowerCase()) ? `, ${practitioner.studio_city}` : ""}
+                  </p>
+                )}
+                {practitioner?.studio_maps_url && (
+                  <div className="pt-1">
+                    <a
+                      href={practitioner.studio_maps_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-semibold"
+                    >
+                      Open in Maps ↗
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {location === "centre" && (
           <div className="mt-4 space-y-3">

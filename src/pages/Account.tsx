@@ -31,7 +31,8 @@ import {
   Loader2,
   CheckCircle2,
   CreditCard,
-  Settings
+  Settings,
+  Building2
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
@@ -51,9 +52,16 @@ const getTomorrowDate = () => {
   return d.toISOString().split("T")[0];
 };
 
-const modeIcon = (mode: string) => (mode === "online" ? Video : mode === "host" ? Home : MapPin);
+const modeIcon = (mode: string) =>
+  mode === "studio" ? Building2 : mode === "online" ? Video : mode === "host" ? Home : MapPin;
 const modeLabel = (mode: string) =>
-  mode === "online" ? "Online session" : mode === "host" ? "At your home" : "Partner centre";
+  mode === "studio"
+    ? "At practitioner's studio"
+    : mode === "online"
+    ? "Online session"
+    : mode === "host"
+    ? "At your home"
+    : "Partner centre";
 
 const formatPrice = (val: number | null | undefined) => {
   if (val == null) return "₹0";

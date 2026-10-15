@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -40,6 +40,7 @@ import {
 import Nav from "@/components/aura/Nav";
 import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
 import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, adminApprovePractitioner, adminListPractitioners, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
+import { getStartingPrice } from "@/lib/pricing";
 import AdminAppointments from "@/components/aura/AdminAppointments";
 import AdminOverview from "@/components/aura/AdminOverview";
 import AdminUsers from "@/components/aura/AdminUsers";
@@ -68,6 +69,19 @@ const blank = (order: number): Omit<Practitioner, "id"> => ({
   offers_centre: true,
   offers_host: false,
   offers_online: false,
+  offers_studio: false,
+  studio_name: "",
+  studio_address: "",
+  studio_city: "",
+  studio_maps_url: "",
+  price_studio_private: 0,
+  price_studio_group: 0,
+  price_online_private: 0,
+  price_online_group: 0,
+  price_centre_private: 0,
+  price_centre_group: 0,
+  price_host_private: 0,
+  price_host_group: 0,
 });
 
 const ADMIN_TABS = [
@@ -150,9 +164,11 @@ const Admin = () => {
 
   const save = async (row: Practitioner) => {
     setBusy(true);
-    const { id, ...fields } = row;
+    const { id, application_email, ...fields } = row;
+    const computedPrice = getStartingPrice(fields);
     try {
-      await adminUpdatePractitioner(id!, fields);
+      await adminUpdatePractitioner(id!, { ...fields, price_inr: computedPrice });
+      setRows((r) => r.map((p) => (p.id === id ? { ...p, ...fields, price_inr: computedPrice } : p)));
       toast.success(`${row.name || "Profile"} saved`);
     } catch (err: any) {
       toast.error(err.message);
@@ -170,8 +186,24 @@ const Admin = () => {
     city: "",
     rating: 5,
     sessions: 0,
-    price_inr: 1500,
+    price_inr: 0,
     bio: "",
+    offers_centre: true,
+    offers_host: false,
+    offers_online: true,
+    offers_studio: false,
+    studio_name: "",
+    studio_address: "",
+    studio_city: "",
+    studio_maps_url: "",
+    price_studio_private: 0,
+    price_studio_group: 0,
+    price_online_private: 0,
+    price_online_group: 0,
+    price_centre_private: 0,
+    price_centre_group: 0,
+    price_host_private: 0,
+    price_host_group: 0,
   });
   const [newPractitioner, setNewPractitioner] = useState(emptyNewPractitioner());
 
@@ -182,6 +214,7 @@ const Admin = () => {
     if (!isValidPhoneNumber(newPractitioner.whatsapp_number)) { toast.error("Please enter a valid WhatsApp number, including the country code"); return; }
 
     const draft = blank(rows.length + 1);
+    const startingPrice = getStartingPrice(newPractitioner);
 
     try {
       const data = await adminCreatePractitioner({
@@ -194,8 +227,24 @@ const Admin = () => {
         city: newPractitioner.city.trim(),
         rating: Number(newPractitioner.rating) || 5,
         sessions: Number(newPractitioner.sessions) || 0,
-        price_inr: Number(newPractitioner.price_inr) || 0,
+        price_inr: startingPrice,
         bio: newPractitioner.bio.trim(),
+        offers_centre: newPractitioner.offers_centre,
+        offers_host: newPractitioner.offers_host,
+        offers_online: newPractitioner.offers_online,
+        offers_studio: newPractitioner.offers_studio,
+        studio_name: newPractitioner.studio_name.trim() || null,
+        studio_address: newPractitioner.studio_address.trim() || null,
+        studio_city: newPractitioner.studio_city.trim() || null,
+        studio_maps_url: newPractitioner.studio_maps_url.trim() || null,
+        price_studio_private: Number(newPractitioner.price_studio_private) || 0,
+        price_studio_group: Number(newPractitioner.price_studio_group) || 0,
+        price_online_private: Number(newPractitioner.price_online_private) || 0,
+        price_online_group: Number(newPractitioner.price_online_group) || 0,
+        price_centre_private: Number(newPractitioner.price_centre_private) || 0,
+        price_centre_group: Number(newPractitioner.price_centre_group) || 0,
+        price_host_private: Number(newPractitioner.price_host_private) || 0,
+        price_host_group: Number(newPractitioner.price_host_group) || 0,
         is_published: true,
         bookable: true,
       });
@@ -586,15 +635,6 @@ const Admin = () => {
                       onChange={(e) => setNewPractitioner(p => ({ ...p, sessions: parseInt(e.target.value) || 0 }))}
                     />
                   </div>
-                  <div>
-                    <Label>Price per session (₹)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={newPractitioner.price_inr}
-                      onChange={(e) => setNewPractitioner(p => ({ ...p, price_inr: parseInt(e.target.value) || 0 }))}
-                    />
-                  </div>
                   <div className="sm:col-span-2">
                     <Label>About this practitioner</Label>
                     <Textarea
@@ -602,6 +642,288 @@ const Admin = () => {
                       onChange={(e) => setNewPractitioner(p => ({ ...p, bio: e.target.value }))}
                       className="min-h-[80px]"
                     />
+                  </div>
+
+                  {/* Delivery Formats & Format-Specific Pricing (Option 1: All-in-One Cards) */}
+                  <div className="sm:col-span-2 rounded-2xl border border-border bg-secondary/15 p-4 space-y-3.5">
+                    <div>
+                      <span className="text-[11px] font-semibold tracking-wider uppercase text-accent">
+                        Session Delivery Formats &amp; Pricing
+                      </span>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Toggle which delivery options this practitioner offers and customize their private vs group rates.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* 1. At Practitioner's Studio */}
+                      <div className={cn(
+                        "rounded-2xl border transition-all duration-200 p-3.5",
+                        newPractitioner.offers_studio ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                      )}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", newPractitioner.offers_studio ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                              <Building2 className="size-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                <span>At Practitioner's Studio</span>
+                                {newPractitioner.offers_studio ? (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                ) : (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">Practitioner's own private sanctuary or studio</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={newPractitioner.offers_studio}
+                            onCheckedChange={(v) => setNewPractitioner(p => ({ ...p, offers_studio: v }))}
+                          />
+                        </div>
+
+                        {newPractitioner.offers_studio && (
+                          <div className="mt-3 pt-3 border-t border-border/60 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_studio_private || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_studio_private: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 3000"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_studio_group || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_studio_group: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 900"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl border border-border/80 bg-secondary/30 p-3 space-y-2.5">
+                              <span className="text-[10px] font-semibold tracking-wider uppercase text-muted-foreground block">
+                                Studio Address &amp; Maps Link
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Studio Name</Label>
+                                  <Input
+                                    value={newPractitioner.studio_name}
+                                    onChange={(e) => setNewPractitioner(p => ({ ...p, studio_name: e.target.value }))}
+                                    placeholder="e.g. Anindita's Studio"
+                                    className="h-8 text-xs mt-1 bg-background"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Area / City</Label>
+                                  <Input
+                                    value={newPractitioner.studio_city}
+                                    onChange={(e) => setNewPractitioner(p => ({ ...p, studio_city: e.target.value }))}
+                                    placeholder="e.g. Santacruz, Mumbai"
+                                    className="h-8 text-xs mt-1 bg-background"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <Label className="text-[10px] text-muted-foreground">Full Address (Building, Street, Landmark, PIN)</Label>
+                                  <Input
+                                    value={newPractitioner.studio_address}
+                                    onChange={(e) => setNewPractitioner(p => ({ ...p, studio_address: e.target.value }))}
+                                    placeholder="e.g. Studio 4, 1st Floor, Juhu Tara Rd, Santacruz West, Mumbai 400054"
+                                    className="h-8 text-xs mt-1 bg-background"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <Label className="text-[10px] text-muted-foreground">Google Maps URL</Label>
+                                  <Input
+                                    value={newPractitioner.studio_maps_url}
+                                    onChange={(e) => setNewPractitioner(p => ({ ...p, studio_maps_url: e.target.value }))}
+                                    placeholder="https://maps.google.com/?q=..."
+                                    className="h-8 text-xs mt-1 bg-background"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2. Online Virtual Session */}
+                      <div className={cn(
+                        "rounded-2xl border transition-all duration-200 p-3.5",
+                        newPractitioner.offers_online ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                      )}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", newPractitioner.offers_online ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
+                              <Video className="size-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                <span>Online Virtual Session</span>
+                                {newPractitioner.offers_online ? (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                ) : (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">Live video session from anywhere</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={newPractitioner.offers_online}
+                            onCheckedChange={(v) => setNewPractitioner(p => ({ ...p, offers_online: v }))}
+                          />
+                        </div>
+
+                        {newPractitioner.offers_online && (
+                          <div className="mt-3 pt-3 border-t border-border/60">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_online_private || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_online_private: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 2500"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_online_group || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_online_group: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 800"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 3. Partner Space / Centre */}
+                      <div className={cn(
+                        "rounded-2xl border transition-all duration-200 p-3.5",
+                        newPractitioner.offers_centre ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                      )}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", newPractitioner.offers_centre ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground")}>
+                              <MapPin className="size-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                <span>Partner Space / Centre</span>
+                                {newPractitioner.offers_centre ? (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                ) : (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">Vetted partner sanctuary booked halfway for client</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={newPractitioner.offers_centre}
+                            onCheckedChange={(v) => setNewPractitioner(p => ({ ...p, offers_centre: v }))}
+                          />
+                        </div>
+
+                        {newPractitioner.offers_centre && (
+                          <div className="mt-3 pt-3 border-t border-border/60">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_centre_private || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_centre_private: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 3500"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_centre_group || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_centre_group: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 1200"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. At Client's Home */}
+                      <div className={cn(
+                        "rounded-2xl border transition-all duration-200 p-3.5",
+                        newPractitioner.offers_host ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                      )}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", newPractitioner.offers_host ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                              <Home className="size-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                <span>At Client's Home</span>
+                                {newPractitioner.offers_host ? (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                ) : (
+                                  <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">Practitioner travels to client's residence</p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={newPractitioner.offers_host}
+                            onCheckedChange={(v) => setNewPractitioner(p => ({ ...p, offers_host: v }))}
+                          />
+                        </div>
+
+                        {newPractitioner.offers_host && (
+                          <div className="mt-3 pt-3 border-t border-border/60">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_host_private || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_host_private: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 4000"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                <Input
+                                  type="number"
+                                  value={newPractitioner.price_host_group || ""}
+                                  onChange={(e) => setNewPractitioner(p => ({ ...p, price_host_group: parseInt(e.target.value) || 0 }))}
+                                  placeholder="e.g. 1500"
+                                  className="h-8 text-xs mt-1"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -661,7 +983,7 @@ const Admin = () => {
 
                           <div className="flex items-center gap-3.5 mt-2 text-xs text-muted-foreground flex-wrap">
                             <span className="font-semibold text-foreground">
-                              ₹{Number(row.price_inr || 0).toLocaleString("en-IN")}
+                              ₹{getStartingPrice(row).toLocaleString("en-IN")}
                               <span className="font-normal text-muted-foreground text-[11px]"> / session</span>
                             </span>
                             <span className="flex items-center gap-1 font-medium text-foreground">
@@ -728,9 +1050,22 @@ const Admin = () => {
                           </div>
 
                           <div className="flex-1 grid sm:grid-cols-2 gap-4">
-                            <div className="sm:col-span-2">
+                            <div>
                               <Label>Name</Label>
                               <Input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })} />
+                            </div>
+                            <div>
+                              <Label className="flex items-center justify-between">
+                                <span>Email</span>
+                                <span className="text-[10px] text-muted-foreground font-normal">Disabled (Auth Linked)</span>
+                              </Label>
+                              <Input
+                                type="email"
+                                value={row.application_email || "No email linked"}
+                                disabled
+                                className="bg-muted/50 text-muted-foreground cursor-not-allowed"
+                                title="Practitioner login email is tied to their Supabase account and cannot be modified."
+                              />
                             </div>
                             <div>
                               <Label>Modality / title</Label>
@@ -750,12 +1085,7 @@ const Admin = () => {
                               <Input type="number" min="0" value={row.sessions}
                                 onChange={(e) => update(row.id, { sessions: Number(e.target.value) })} />
                             </div>
-                            <div>
-                              <Label>Price per session (₹)</Label>
-                              <Input type="number" min="0" value={row.price_inr}
-                                onChange={(e) => update(row.id, { price_inr: Number(e.target.value) })} />
-                            </div>
-                            <div>
+                            <div className="sm:col-span-2">
                               <Label>Order on page</Label>
                               <Input type="number" value={row.sort_order}
                                 onChange={(e) => update(row.id, { sort_order: Number(e.target.value) })} />
@@ -790,77 +1120,285 @@ const Admin = () => {
                               </label>
                             </div>
 
-                            {/* Session Delivery Formats / Locations */}
-                            <div className="sm:col-span-2 rounded-2xl border border-border bg-secondary/20 p-4 space-y-3 mt-1">
+                            {/* Delivery Formats & Format-Specific Pricing (Option 1: All-in-One Cards) */}
+                            <div className="sm:col-span-2 rounded-2xl border border-border bg-secondary/15 p-4 space-y-3.5 mt-1">
                               <div>
                                 <span className="text-[11px] font-semibold tracking-wider uppercase text-accent">
-                                  Session Delivery Formats &amp; Locations
+                                  Session Delivery Formats &amp; Pricing
                                 </span>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  Select which session locations and delivery options this practitioner offers to clients during booking.
+                                  Toggle which delivery options this practitioner offers and customize their private vs group rates.
                                 </p>
                               </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                                <label className={cn(
-                                  "flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer select-none",
-                                  row.offers_centre !== false ? "bg-card border-border shadow-xs" : "bg-muted/40 border-border/50 opacity-75"
+                              <div className="space-y-3">
+                                {/* 1. At Practitioner's Studio */}
+                                <div className={cn(
+                                  "rounded-2xl border transition-all duration-200 p-3.5",
+                                  row.offers_studio === true ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
                                 )}>
-                                  <Switch
-                                    className="mt-0.5 shrink-0"
-                                    checked={row.offers_centre !== false}
-                                    onCheckedChange={(v) => update(row.id, { offers_centre: v })}
-                                  />
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                      <MapPin className="size-3.5 text-accent shrink-0" />
-                                      <span>Partner Space</span>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", row.offers_studio === true ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                                        <Building2 className="size-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                          <span>At Practitioner's Studio</span>
+                                          {row.offers_studio === true ? (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                          ) : (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">Practitioner's own private sanctuary or studio</p>
+                                      </div>
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                                      Vetted sanctuary / centre
-                                    </p>
+                                    <Switch
+                                      checked={row.offers_studio === true}
+                                      onCheckedChange={(v) => update(row.id, { offers_studio: v })}
+                                    />
                                   </div>
-                                </label>
 
-                                <label className={cn(
-                                  "flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer select-none",
-                                  row.offers_host === true ? "bg-card border-border shadow-xs" : "bg-muted/40 border-border/50 opacity-75"
-                                )}>
-                                  <Switch
-                                    className="mt-0.5 shrink-0"
-                                    checked={row.offers_host === true}
-                                    onCheckedChange={(v) => update(row.id, { offers_host: v })}
-                                  />
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                      <Home className="size-3.5 text-accent shrink-0" />
-                                      <span>At Home (Host)</span>
-                                    </div>
-                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                                      Practitioner travels to client
-                                    </p>
-                                  </div>
-                                </label>
+                                  {row.offers_studio === true && (
+                                    <div className="mt-3 pt-3 border-t border-border/60 space-y-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_studio_private ?? ""}
+                                            onChange={(e) => update(row.id, { price_studio_private: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 3000"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_studio_group ?? ""}
+                                            onChange={(e) => update(row.id, { price_studio_group: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 900"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                      </div>
 
-                                <label className={cn(
-                                  "flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer select-none",
-                                  row.offers_online === true ? "bg-card border-border shadow-xs" : "bg-muted/40 border-border/50 opacity-75"
-                                )}>
-                                  <Switch
-                                    className="mt-0.5 shrink-0"
-                                    checked={row.offers_online === true}
-                                    onCheckedChange={(v) => update(row.id, { offers_online: v })}
-                                  />
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                      <Video className="size-3.5 text-accent shrink-0" />
-                                      <span>Online Session</span>
+                                      <div className="rounded-xl border border-border/80 bg-secondary/30 p-3 space-y-2.5">
+                                        <span className="text-[10px] font-semibold tracking-wider uppercase text-muted-foreground block">
+                                          Studio Address &amp; Maps Link
+                                        </span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                          <div>
+                                            <Label className="text-[10px] text-muted-foreground">Studio Name</Label>
+                                            <Input
+                                              value={row.studio_name || ""}
+                                              onChange={(e) => update(row.id, { studio_name: e.target.value })}
+                                              placeholder="e.g. Anindita's Studio"
+                                              className="h-8 text-xs mt-1 bg-background"
+                                            />
+                                          </div>
+                                          <div>
+                                            <Label className="text-[10px] text-muted-foreground">Area / City</Label>
+                                            <Input
+                                              value={row.studio_city || ""}
+                                              onChange={(e) => update(row.id, { studio_city: e.target.value })}
+                                              placeholder="e.g. Santacruz, Mumbai"
+                                              className="h-8 text-xs mt-1 bg-background"
+                                            />
+                                          </div>
+                                          <div className="sm:col-span-2">
+                                            <Label className="text-[10px] text-muted-foreground">Full Address (Building, Street, Landmark, PIN)</Label>
+                                            <Input
+                                              value={row.studio_address || ""}
+                                              onChange={(e) => update(row.id, { studio_address: e.target.value })}
+                                              placeholder="e.g. Studio 4, 1st Floor, Juhu Tara Rd, Santacruz West, Mumbai 400054"
+                                              className="h-8 text-xs mt-1 bg-background"
+                                            />
+                                          </div>
+                                          <div className="sm:col-span-2">
+                                            <Label className="text-[10px] text-muted-foreground">Google Maps URL</Label>
+                                            <Input
+                                              value={row.studio_maps_url || ""}
+                                              onChange={(e) => update(row.id, { studio_maps_url: e.target.value })}
+                                              placeholder="https://maps.google.com/?q=..."
+                                              className="h-8 text-xs mt-1 bg-background"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                                      Virtual via private video
-                                    </p>
+                                  )}
+                                </div>
+
+                                {/* 2. Online Virtual Session */}
+                                <div className={cn(
+                                  "rounded-2xl border transition-all duration-200 p-3.5",
+                                  row.offers_online === true ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                                )}>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", row.offers_online === true ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
+                                        <Video className="size-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                          <span>Online Virtual Session</span>
+                                          {row.offers_online === true ? (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                          ) : (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">Live video session from anywhere</p>
+                                      </div>
+                                    </div>
+                                    <Switch
+                                      checked={row.offers_online === true}
+                                      onCheckedChange={(v) => update(row.id, { offers_online: v })}
+                                    />
                                   </div>
-                                </label>
+
+                                  {row.offers_online === true && (
+                                    <div className="mt-3 pt-3 border-t border-border/60">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_online_private ?? ""}
+                                            onChange={(e) => update(row.id, { price_online_private: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 2500"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_online_group ?? ""}
+                                            onChange={(e) => update(row.id, { price_online_group: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 800"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* 3. Partner Space / Centre */}
+                                <div className={cn(
+                                  "rounded-2xl border transition-all duration-200 p-3.5",
+                                  row.offers_centre !== false ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                                )}>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", row.offers_centre !== false ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground")}>
+                                        <MapPin className="size-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                          <span>Partner Space / Centre</span>
+                                          {row.offers_centre !== false ? (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                          ) : (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">Vetted partner sanctuary booked halfway for client</p>
+                                      </div>
+                                    </div>
+                                    <Switch
+                                      checked={row.offers_centre !== false}
+                                      onCheckedChange={(v) => update(row.id, { offers_centre: v })}
+                                    />
+                                  </div>
+
+                                  {row.offers_centre !== false && (
+                                    <div className="mt-3 pt-3 border-t border-border/60">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_centre_private ?? ""}
+                                            onChange={(e) => update(row.id, { price_centre_private: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 3500"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_centre_group ?? ""}
+                                            onChange={(e) => update(row.id, { price_centre_group: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 1200"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* 4. At Client's Home */}
+                                <div className={cn(
+                                  "rounded-2xl border transition-all duration-200 p-3.5",
+                                  row.offers_host === true ? "bg-card border-primary/40 shadow-xs" : "bg-muted/30 border-border/60 opacity-70"
+                                )}>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", row.offers_host === true ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                                        <Home className="size-4" />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                                          <span>At Client's Home</span>
+                                          {row.offers_host === true ? (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Active</span>
+                                          ) : (
+                                            <span className="text-[10px] px-2 py-0.2 rounded-full font-medium bg-muted text-muted-foreground">Disabled</span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">Practitioner travels to client's residence</p>
+                                      </div>
+                                    </div>
+                                    <Switch
+                                      checked={row.offers_host === true}
+                                      onCheckedChange={(v) => update(row.id, { offers_host: v })}
+                                    />
+                                  </div>
+
+                                  {row.offers_host === true && (
+                                    <div className="mt-3 pt-3 border-t border-border/60">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Solo Private Rate (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_host_private ?? ""}
+                                            onChange={(e) => update(row.id, { price_host_private: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 4000"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-[10px] font-medium text-foreground">Group Rate / Person (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            value={row.price_host_group ?? ""}
+                                            onChange={(e) => update(row.id, { price_host_group: parseInt(e.target.value) || 0 })}
+                                            placeholder="e.g. 1500"
+                                            className="h-8 text-xs mt-1"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
 

@@ -30,3 +30,60 @@ export const splitTaxInclusiveTotal = (total: number) => {
 };
 
 export const formatINR = (rupees: number) => `₹${rupees.toLocaleString("en-IN")}`;
+
+/**
+ * Calculates the exact subtotal matching the backend's dynamic mode-based pricing.
+ */
+export const calculateSessionSubtotal = (
+  practitioner: any,
+  mode: string,
+  groupSize: number = 1
+): number => {
+  if (!practitioner) return 0;
+  const size = Math.max(1, groupSize || 1);
+  const normalizedMode = (mode || "").toLowerCase();
+  let privatePrice = 0;
+  let groupPricePerPerson = 0;
+
+  if (normalizedMode === "studio") {
+    privatePrice = Number(practitioner.price_studio_private) || 0;
+    groupPricePerPerson = Number(practitioner.price_studio_group) || 0;
+  } else if (normalizedMode === "online") {
+    privatePrice = Number(practitioner.price_online_private) || 0;
+    groupPricePerPerson = Number(practitioner.price_online_group) || 0;
+  } else if (normalizedMode === "centre") {
+    privatePrice = Number(practitioner.price_centre_private) || 0;
+    groupPricePerPerson = Number(practitioner.price_centre_group) || 0;
+  } else if (normalizedMode === "host") {
+    privatePrice = Number(practitioner.price_host_private) || 0;
+    groupPricePerPerson = Number(practitioner.price_host_group) || 0;
+  }
+
+  if (size > 1 && groupPricePerPerson > 0) {
+    return groupPricePerPerson * size;
+  }
+  if (size === 1 && privatePrice > 0) {
+    return privatePrice;
+  }
+  if (size > 1 && privatePrice > 0) {
+    return privatePrice + Math.round(privatePrice * EXTRA_PERSON_RATE) * (size - 1);
+  }
+  const fallback = Number(practitioner.price_inr) || 0;
+  return groupTotal(fallback, size);
+};
+
+/**
+ * Computes the starting baseline price across a practitioner's active formats.
+ */
+export const getStartingPrice = (practitioner: any): number => {
+  if (!practitioner) return 0;
+  const rates = [
+    practitioner.offers_studio ? (Number(practitioner.price_studio_private) || Number(practitioner.price_studio_group) || 0) : 0,
+    practitioner.offers_online ? (Number(practitioner.price_online_private) || Number(practitioner.price_online_group) || 0) : 0,
+    practitioner.offers_centre ? (Number(practitioner.price_centre_private) || Number(practitioner.price_centre_group) || 0) : 0,
+    practitioner.offers_host ? (Number(practitioner.price_host_private) || Number(practitioner.price_host_group) || 0) : 0,
+  ].filter(r => r > 0);
+  if (rates.length > 0) return Math.min(...rates);
+  return Number(practitioner.price_inr) || 0;
+};
+

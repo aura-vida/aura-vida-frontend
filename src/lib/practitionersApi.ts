@@ -21,6 +21,19 @@ export interface Practitioner {
   offers_centre?: boolean;
   offers_host?: boolean;
   offers_online?: boolean;
+  offers_studio?: boolean;
+  studio_name?: string | null;
+  studio_address?: string | null;
+  studio_city?: string | null;
+  studio_maps_url?: string | null;
+  price_studio_private?: number | null;
+  price_online_private?: number | null;
+  price_centre_private?: number | null;
+  price_host_private?: number | null;
+  price_studio_group?: number | null;
+  price_online_group?: number | null;
+  price_centre_group?: number | null;
+  price_host_group?: number | null;
   application_email?: string | null;
   application_status?: 'pending' | 'approved' | 'rejected';
 }

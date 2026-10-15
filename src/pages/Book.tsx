@@ -24,7 +24,9 @@ import {
   CheckCircle2,
   Sparkles,
   Tag,
-  X
+  X,
+  Building2,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,11 +36,11 @@ import type { Service } from "@/lib/servicesApi";
 import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 import { validateCoupon } from "@/lib/couponsApi";
-import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax } from "@/lib/pricing";
+import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax, calculateSessionSubtotal } from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
 
-type Location = "host" | "centre" | "online";
+type Location = "studio" | "online" | "centre" | "host";
 
 
 
@@ -52,9 +54,10 @@ const getTomorrowDate = () => {
 const getTodayDate = () => new Date().toISOString().split("T")[0];
 
 const locationOptions: { id: Location; icon: any; title: string; body: string }[] = [
+  { id: "studio", icon: Building2, title: "At their studio", body: "Practitioner's own private studio." },
+  { id: "online", icon: Video, title: "Online session", body: "Join from anywhere via private video." },
   { id: "centre", icon: MapPin, title: "A partner space near me", body: "Book a session at a vetted partner space." },
   { id: "host", icon: Home, title: "I'll host at home", body: "A vetted practitioner travels to your space." },
-  { id: "online", icon: Video, title: "Online session", body: "Join from anywhere via private video." },
 ];
 
 const Book = () => {
@@ -190,18 +193,30 @@ const Book = () => {
 
   useEffect(() => {
     if (!selectedPractitioner) return;
+    const canStudio = selectedPractitioner.offers_studio === true;
     const canCentre = selectedPractitioner.offers_centre !== false;
     const canHost = selectedPractitioner.offers_host === true;
     const canOnline = selectedPractitioner.offers_online === true;
 
-    if (location === 'centre' && !canCentre) {
-      setLocation(canHost ? 'host' : canOnline ? 'online' : 'centre');
-    } else if (location === 'host' && !canHost) {
-      setLocation(canCentre ? 'centre' : canOnline ? 'online' : 'centre');
-    } else if (location === 'online' && !canOnline) {
-      setLocation(canCentre ? 'centre' : canHost ? 'host' : 'centre');
+    const isCurrentValid =
+      (location === 'studio' && canStudio) ||
+      (location === 'centre' && canCentre) ||
+      (location === 'host' && canHost) ||
+      (location === 'online' && canOnline);
+
+    if (!isCurrentValid) {
+      if (canStudio) setLocation('studio');
+      else if (canOnline) setLocation('online');
+      else if (canCentre) setLocation('centre');
+      else if (canHost) setLocation('host');
     }
-  }, [selectedPractitioner?.slug, selectedPractitioner?.offers_centre, selectedPractitioner?.offers_host, selectedPractitioner?.offers_online]);
+  }, [
+    selectedPractitioner?.slug,
+    selectedPractitioner?.offers_studio,
+    selectedPractitioner?.offers_centre,
+    selectedPractitioner?.offers_host,
+    selectedPractitioner?.offers_online
+  ]);
 
   // Guest actions
   const groupSize = isGroup ? 1 + guests.length : 1;
@@ -216,11 +231,52 @@ const Book = () => {
 
   // Pricing calculations
   const selectedService = services.find((s) => s.id === selectedServiceId);
-  // The amount actually charged is always the practitioner's own rate (see
-  // payment.controller.js) — services aren't priced per-practitioner, so this
-  // must mirror that, not the service's own catalog price.
-  const basePrice = selectedPractitioner?.price_inr ?? selectedService?.price_inr ?? 0;
-  const total = basePrice ? groupTotal(basePrice, groupSize) : 0;
+  // Authoritative dynamic subtotal matching the backend calculation in payment.controller.js
+  const total = selectedPractitioner
+    ? calculateSessionSubtotal(selectedPractitioner, location, groupSize)
+    : (selectedService?.price_inr ? groupTotal(selectedService.price_inr, groupSize) : 0);
+  const basePrice = selectedPractitioner
+    ? calculateSessionSubtotal(selectedPractitioner, location, 1)
+    : (selectedService?.price_inr ?? 0);
+
+  // Helper to format pricing preview on location format cards based on Who is Joining
+  const getFormatPriceLabel = (formatId: Location) => {
+    if (!selectedPractitioner) return null;
+    let priv = 0;
+    let grp = 0;
+    if (formatId === "studio") {
+      priv = Number(selectedPractitioner.price_studio_private) || 0;
+      grp = Number(selectedPractitioner.price_studio_group) || 0;
+    } else if (formatId === "online") {
+      priv = Number(selectedPractitioner.price_online_private) || 0;
+      grp = Number(selectedPractitioner.price_online_group) || 0;
+    } else if (formatId === "centre") {
+      priv = Number(selectedPractitioner.price_centre_private) || 0;
+      grp = Number(selectedPractitioner.price_centre_group) || 0;
+    } else if (formatId === "host") {
+      priv = Number(selectedPractitioner.price_host_private) || 0;
+      grp = Number(selectedPractitioner.price_host_group) || 0;
+    }
+
+    const fallback = Number(selectedPractitioner.price_inr) || 0;
+
+    // If "Just me" (Solo) is selected in Step 1
+    if (!isGroup) {
+      const price = priv || fallback;
+      return price > 0 ? formatINR(price) : null;
+    }
+
+    // If "Group circle" is selected in Step 1
+    if (grp > 0) {
+      return `${formatINR(grp)} / person`;
+    }
+    const base = priv || fallback;
+    if (base > 0) {
+      return `${formatINR(groupTotal(base, groupSize))} (${groupSize} ${groupSize === 1 ? 'person' : 'people'})`;
+    }
+    return null;
+  };
+
   // Coupon discount applies to the subtotal, before tax — mirrors the
   // backend's authoritative order in payment.controller.js.
   const couponDiscount = appliedCoupon && total ? Math.round(total * appliedCoupon.discountPercent / 100) : 0;
@@ -281,10 +337,30 @@ const Book = () => {
     }
   };
 
-  // Format Time Slot End Time
+  // Format Date and Time Slot
   const duration = selectedService?.duration_min || 60;
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const dateObj = new Date(y, m, d);
+        return dateObj.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
   const formatSlot = (slot: string) => {
-    const [h, m] = slot.split(":").map(Number);
+    if (!slot) return { start: "", end: "" };
+    const parts = slot.split(":");
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
     const endTotalMin = h * 60 + m + duration;
     const endH = Math.floor(endTotalMin / 60) % 24;
     const endM = endTotalMin % 60;
@@ -312,7 +388,8 @@ const Book = () => {
     (
       (location === "centre" && selectedCentre) ||
       (location === "host" && hostAddress.trim()) ||
-      location === "online"
+      location === "online" ||
+      location === "studio"
     )
   );
 
@@ -369,6 +446,12 @@ const Book = () => {
       } : location === "host" ? {
         address: hostAddress.trim(),
         type: "host"
+      } : location === "studio" ? {
+        name: selectedPractitioner?.studio_name || `${selectedPractitioner?.name || "Practitioner"}'s Studio`,
+        address: selectedPractitioner?.studio_address || "",
+        city: selectedPractitioner?.studio_city || "",
+        maps_url: selectedPractitioner?.studio_maps_url || null,
+        type: "studio"
       } : undefined;
 
       // Start Razorpay checkout. The booking itself is only created once
@@ -583,34 +666,85 @@ const Book = () => {
               <section className="rounded-3xl border border-border bg-card p-6 md:p-8 shadow-soft space-y-6">
                 <span className="text-[11px] tracking-widest uppercase font-semibold text-accent">Step 2 · Location &amp; Space</span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {locationOptions.filter(o => {
                     if (!selectedPractitioner) return true;
+                    if (o.id === 'studio') return selectedPractitioner.offers_studio === true;
                     if (o.id === 'centre') return selectedPractitioner.offers_centre !== false;
                     if (o.id === 'host') return selectedPractitioner.offers_host === true;
                     if (o.id === 'online') return selectedPractitioner.offers_online === true;
                     return true;
                   }).map((o) => {
                     const active = location === o.id;
+                    const priceLabel = getFormatPriceLabel(o.id);
+                    const subtitle = o.id === "studio" && selectedPractitioner?.studio_city
+                      ? `Practitioner's own studio · ${selectedPractitioner.studio_city}`
+                      : o.body;
+
                     return (
                       <button
                         key={o.id}
                         type="button"
                         onClick={() => { setLocation(o.id); setSearched(false); }}
                         className={cn(
-                          "text-left rounded-2xl border p-4 transition-all",
+                          "text-left rounded-2xl border p-4 transition-all flex flex-col justify-between",
                           active
                             ? "border-primary bg-accent-soft shadow-soft ring-1 ring-primary"
                             : "border-border bg-background hover:border-foreground/30 hover:bg-secondary/40"
                         )}
                       >
-                        <o.icon className={cn("size-5 mb-2.5", active ? "text-primary" : "text-muted-foreground")} />
-                        <div className="font-medium text-sm text-foreground">{o.title}</div>
-                        <div className="text-xs text-muted-foreground mt-1 leading-snug">{o.body}</div>
+                        <div>
+                          <o.icon className={cn("size-5 mb-2.5", active ? "text-primary" : "text-muted-foreground")} />
+                          <div className="font-medium text-sm text-foreground">{o.title}</div>
+                          <div className="text-xs text-muted-foreground mt-1 leading-snug">{subtitle}</div>
+                        </div>
+                        {priceLabel && (
+                          <div className="mt-3 pt-2 border-t border-border/50 text-[11px] font-medium text-primary">
+                            {priceLabel}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
+
+                {location === "studio" && (
+                  <div className="rounded-2xl border border-border p-5 bg-secondary/30 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="size-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <MapPin className="size-4 text-accent" />
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <div className="font-medium text-sm text-foreground">
+                          {selectedPractitioner?.studio_name || `${selectedPractitioner?.name || "Practitioner"}'s Studio`}
+                          {selectedPractitioner?.studio_city && ` · ${selectedPractitioner.studio_city}`}
+                        </div>
+                        {selectedPractitioner?.studio_address ? (
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {selectedPractitioner.studio_address}
+                            {selectedPractitioner.studio_city && !selectedPractitioner.studio_address.toLowerCase().includes(selectedPractitioner.studio_city.toLowerCase()) ? `, ${selectedPractitioner.studio_city}` : ""}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">
+                            Full studio address will be sent to your email upon booking confirmation.
+                          </p>
+                        )}
+                        {selectedPractitioner?.studio_maps_url && (
+                          <div className="pt-1.5">
+                            <a
+                              href={selectedPractitioner.studio_maps_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                            >
+                              Open in Maps <ExternalLink className="size-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {location === "centre" && (
                   <div className="space-y-4 pt-2">
@@ -807,14 +941,29 @@ const Book = () => {
                   </div>
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>Date &amp; Time</span>
-                    <span className="font-medium text-foreground">
-                      {selectedDate} · {formatSlot(selectedTime).start}
+                    <span className={cn("font-medium", selectedTime ? "text-foreground" : "text-amber-600 dark:text-amber-400")}>
+                      {formatDateDisplay(selectedDate)}
+                      {selectedTime ? (
+                        ` · ${formatSlot(selectedTime).start}`
+                      ) : loadingSlots ? (
+                        " · Checking slots…"
+                      ) : availableSlots.length === 0 ? (
+                        " · No slots available"
+                      ) : (
+                        " · Select time"
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>Location</span>
-                    <span className="font-medium text-foreground capitalize">
-                      {location === "centre" ? (selectedCentre || "Partner Centre") : location === "host" ? "At your Home" : "Virtual Video"}
+                    <span className="font-medium text-foreground">
+                      {location === "studio"
+                        ? (selectedPractitioner?.studio_name || "Practitioner's Studio")
+                        : location === "centre"
+                        ? (selectedCentre || "Partner Centre")
+                        : location === "host"
+                        ? "At your Home"
+                        : "Virtual Video"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-muted-foreground">
@@ -866,15 +1015,9 @@ const Book = () => {
                 {/* Pricing Breakdown */}
                 <div className="pt-4 border-t border-border space-y-2 text-xs">
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Session fee</span>
-                    <span>{formatINR(basePrice)}</span>
+                    <span>Session fee {isGroup ? `(${groupSize} people)` : "(Solo)"}</span>
+                    <span>{formatINR(total)}</span>
                   </div>
-                  {isGroup && guests.filter(Boolean).length > 0 && (
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Extra guests ({guests.filter(Boolean).length})</span>
-                      <span>{formatINR(total - basePrice)}</span>
-                    </div>
-                  )}
                   {couponDiscount > 0 && (
                     <div className="flex items-center justify-between text-accent font-medium">
                       <span>Coupon {appliedCoupon?.code} (−{appliedCoupon?.discountPercent}%)</span>
