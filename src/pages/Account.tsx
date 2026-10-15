@@ -52,8 +52,11 @@ const getTomorrowDate = () => {
   return d.toISOString().split("T")[0];
 };
 
-const modeIcon = (mode: string) =>
-  mode === "studio" ? Building2 : mode === "online" ? Video : mode === "host" ? Home : MapPin;
+const CUSTOMER_CANCEL_WINDOW_HOURS = 4;
+const canCustomerCancel = (createdAt: string) =>
+  Date.now() - new Date(createdAt).getTime() <= CUSTOMER_CANCEL_WINDOW_HOURS * 60 * 60 * 1000;
+
+const modeIcon = (mode: string) => (mode === "online" ? Video : mode === "host" ? Home : MapPin);
 const modeLabel = (mode: string) =>
   mode === "studio"
     ? "At practitioner's studio"
@@ -363,6 +366,7 @@ const Account = () => {
             const isCancelled = b.status === "cancelled";
             const isCompleted = b.status === "completed";
             const canModify = !isCancelled && !isCompleted;
+            const cancelEligible = canModify && canCustomerCancel(b.created_at);
 
             const scheduledDate = b.scheduled_at
               ? new Date(b.scheduled_at).toLocaleDateString("en-IN", {
@@ -480,13 +484,21 @@ const Account = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      disabled={!cancelEligible}
                       onClick={() => setCancelModalBooking(b)}
-                      className="rounded-full h-9 px-4 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      title={cancelEligible ? undefined : `Cancellation is only available within ${CUSTOMER_CANCEL_WINDOW_HOURS} hours of booking`}
+                      className="rounded-full h-9 px-4 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                     >
                       <XCircle className="size-3.5 mr-1.5" />
                       Cancel Session
                     </Button>
                   </div>
+                )}
+
+                {canModify && !cancelEligible && (
+                  <p className="text-[11px] text-muted-foreground text-right -mt-2">
+                    The {CUSTOMER_CANCEL_WINDOW_HOURS}-hour cancellation window after booking has passed — contact support if you need to cancel.
+                  </p>
                 )}
 
                 {/* Aftercare Notes */}
@@ -613,7 +625,7 @@ const Account = () => {
               <CheckCircle2 className="size-4 text-accent" /> Cancellation Policy
             </div>
             <p>
-              Free cancellation is supported up to 24 hours prior to your scheduled session.
+              Free cancellation is available within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of booking this session.
             </p>
           </div>
 
@@ -625,12 +637,16 @@ const Account = () => {
             return (
               <div className="rounded-2xl border border-border bg-card p-4 text-xs space-y-1.5">
                 <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Session price</span>
-                  <span className="text-foreground font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
+                  <span>Total paid</span>
+                  <span className="text-foreground font-medium">₹{(subtotal + tax).toLocaleString("en-IN")}</span>
                 </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Tax (non-refundable)</span>
-                  <span>−₹{tax.toLocaleString("en-IN")}</span>
+                <div className="flex items-center justify-between text-muted-foreground pl-3">
+                  <span>— Session price (refundable)</span>
+                  <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground pl-3">
+                  <span>— Tax (non-refundable)</span>
+                  <span>₹{tax.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex items-center justify-between pt-1.5 border-t border-border font-medium">
                   <span className="text-foreground">You'll be refunded</span>

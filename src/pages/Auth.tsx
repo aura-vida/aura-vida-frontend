@@ -28,12 +28,14 @@ const AuthPage = () => {
   const referralCode = (searchParams.get("ref") ?? "").trim().toUpperCase();
   const requestedView = searchParams.get("view");
   const redirectTo = searchParams.get("redirect") || "/account";
-  const [view, setView] = useState<AuthView>(requestedView === "signup" || referralCode ? "signup" : "signin");
+  const [view, setView] = useState<AuthView>(
+    requestedView === "signup" || referralCode ? "signup" : requestedView === "forgot" ? "forgot" : "signin"
+  );
   const [signMethod, setSignMethod] = useState<SignMethod>("password");
   const [codeSent, setCodeSent] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);

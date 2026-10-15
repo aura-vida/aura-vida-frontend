@@ -45,6 +45,7 @@ export type PartnerSpace = {
   space_type: string;
   amenities: string[];
   notes: string;
+  space_images?: { id: string; image_url: string; sort_order: number }[];
 };
 
 export async function getPublicSpacesByPin(pin: string): Promise<{ spaces: PartnerSpace[] }> {

@@ -43,7 +43,7 @@ const Modalities = () => {
           <div>
             <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Our Services</span>
             <h2 className="font-display text-4xl md:text-6xl mt-4 text-balance max-w-3xl">
-              {all.length === 10 ? "Ten" : all.length} paths to healing, <em className="italic text-primary font-display">honoured.</em>
+              Paths to healing, <em className="italic text-primary font-display">honoured.</em>
             </h2>
           </div>
           <p className="text-muted-foreground max-w-md text-pretty">
@@ -89,7 +89,7 @@ const Modalities = () => {
 
         {/* Full list */}
         <div className="border-t border-border pt-12">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-8">All {all.length} modalities</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-8">All modalities</div>
           <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-8 gap-y-2">
             {all.map((s, i) => (
               <li key={s} className="group flex items-baseline gap-5 py-5 border-b border-border/60 cursor-pointer">

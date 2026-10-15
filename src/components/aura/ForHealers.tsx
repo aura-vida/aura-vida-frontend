@@ -32,7 +32,6 @@ const emptyForm = () => ({
   bio: "",
   craft: "",
   city: "",
-  rating: "5",
   sessions: "0",
   price_inr: "1500",
 });
@@ -66,7 +65,6 @@ const ForHealers = () => {
         method: "POST",
         body: {
           ...form,
-          rating: parseFloat(form.rating) || 5,
           sessions: parseInt(form.sessions) || 0,
           price_inr: parseInt(form.price_inr) || 0,
         },

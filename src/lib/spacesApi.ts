@@ -1,5 +1,11 @@
 import { api } from "@/lib/api";
 
+export interface SpaceImage {
+  id: string;
+  image_url: string;
+  sort_order: number;
+}
+
 export interface Space {
   id: string;
   contact_name: string;
@@ -17,6 +23,7 @@ export interface Space {
   status: "new" | "contacted" | "approved" | "declined";
   created_at: string;
   updated_at?: string;
+  space_images?: SpaceImage[];
 }
 
 export interface AdminSpacesPagination {
@@ -86,15 +93,44 @@ export async function adminDeleteSpace(
 }
 
 export async function submitSpace(
-  data: Partial<Space>
+  data: Partial<Space>,
+  files: File[] = []
 ): Promise<{ message: string; space: Space }> {
+  const formData = new FormData();
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    formData.append(key, Array.isArray(value) ? value.join(",") : String(value));
+  });
+  files.forEach((file) => formData.append("images", file));
+
   return api<{ message: string; space: Space }>("/api/spaces", {
     method: "POST",
-    body: data,
+    body: formData,
   });
 }
 
 export async function getPublicSpaces(pin: string): Promise<{ spaces: Space[] }> {
   return api<{ spaces: Space[] }>(`/api/spaces?pin=${encodeURIComponent(pin)}`);
+}
+
+export async function adminUploadSpaceImages(
+  spaceId: string,
+  files: File[]
+): Promise<{ message: string; images: SpaceImage[] }> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images", file));
+  return api<{ message: string; images: SpaceImage[] }>(`/api/admin/spaces/${spaceId}/images`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function adminDeleteSpaceImage(
+  spaceId: string,
+  imageId: string
+): Promise<{ message: string }> {
+  return api<{ message: string }>(`/api/admin/spaces/${spaceId}/images/${imageId}`, {
+    method: "DELETE",
+  });
 }
 

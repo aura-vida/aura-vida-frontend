@@ -802,7 +802,17 @@ const Book = () => {
                               )}
                             >
                               <div className="flex items-start gap-3 w-full pr-16">
-                                <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
+                                {c.space_images && c.space_images.length > 0 ? (
+                                  <img
+                                    src={[...c.space_images].sort((a, b) => a.sort_order - b.sort_order)[0].image_url}
+                                    alt=""
+                                    className="size-11 rounded-xl object-cover border border-border shrink-0"
+                                  />
+                                ) : (
+                                  <div className="size-11 rounded-xl border border-border bg-secondary/60 grid place-items-center shrink-0">
+                                    <MapPin className="size-4 text-accent" />
+                                  </div>
+                                )}
                                 <div>
                                   <div className="text-sm font-medium text-foreground">{c.space_name}</div>
                                   <div className="text-xs text-muted-foreground mt-0.5 max-w-[200px] sm:max-w-md flex flex-wrap items-center gap-1.5">
@@ -912,7 +922,7 @@ const Book = () => {
                 <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="font-display text-xl text-foreground">Session Summary</span>
                   <span className="text-[11px] text-accent tracking-widest uppercase font-medium flex items-center gap-1">
-                    <Sparkles className="size-3" /> Aura Vida
+                    <Sparkles className="size-3" /> Kusala
                   </span>
                 </div>
 
@@ -1062,7 +1072,7 @@ const Book = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="size-4 text-accent shrink-0" />
-                    <span>Free cancellation up to 24 hours prior</span>
+                    <span>Free cancellation up to 4 hours prior</span>
                   </div>
                 </div>
 

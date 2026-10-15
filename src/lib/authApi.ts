@@ -142,6 +142,14 @@ export const verifyOtp = async (payload: { identifier: string; otp: string }) =>
   return toAuthResult(data);
 };
 
+export const verifyMagicLink = async (tokenHash: string) => {
+  const data = await api<BackendAuthResponse>("/api/auth/verify-magic-link", {
+    method: "POST",
+    body: { token_hash: tokenHash },
+  });
+  return toAuthResult(data);
+};
+
 export const requestPasswordReset = (email: string) =>
   api<{ message: string }>("/api/auth/forgot-password", {
     method: "POST",

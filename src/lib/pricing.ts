@@ -2,7 +2,7 @@
 export const EXTRA_PERSON_RATE = 0.6;
 export const MAX_GROUP_SIZE = 10;
 
-// Keep in sync with SESSION_TAX_RATE in aura-vida-backend/src/controllers/payment.controller.js —
+// Keep in sync with SESSION_TAX_RATE in Kusala-backend/src/controllers/payment.controller.js —
 // the backend is the authority on the charged amount; this is only for display here.
 export const SESSION_TAX_RATE = 0.05;
 

@@ -12,6 +12,7 @@ import {
   registerUser,
   sendOtp as sendOtpRequest,
   verifyOtp as verifyOtpRequest,
+  verifyMagicLink as verifyMagicLinkRequest,
   requestPasswordReset as requestPasswordResetRequest,
   resetPassword as resetPasswordRequest,
 } from "@/lib/authApi";
@@ -34,6 +35,7 @@ interface AuthContextValue {
   signUp: (payload: { email: string; password: string; name: string; referral_code?: string }) => Promise<AuthResult>;
   sendOtp: (identifier: string) => Promise<{ message: string }>;
   verifyOtp: (identifier: string, otp: string) => Promise<AuthResult>;
+  verifyMagicLink: (tokenHash: string) => Promise<AuthResult>;
   requestPasswordReset: (email: string) => Promise<{ message: string }>;
   resetPassword: (token: string, email: string, password: string) => Promise<{ message: string }>;
   signOut: () => Promise<void>;
@@ -48,6 +50,7 @@ const AuthContext = createContext<AuthContextValue>({
   signUp: async () => ({ user: null, profile: null, session: null }),
   sendOtp: async () => ({ message: "" }),
   verifyOtp: async () => ({ user: null, profile: null, session: null }),
+  verifyMagicLink: async () => ({ user: null, profile: null, session: null }),
   requestPasswordReset: async () => ({ message: "" }),
   resetPassword: async () => ({ message: "" }),
   signOut: async () => { },
@@ -287,6 +290,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return applyAuth(result);
   };
 
+  const verifyMagicLink = async (tokenHash: string) => {
+    const result = await verifyMagicLinkRequest(tokenHash);
+    if (!result.session?.access_token || !result.user) {
+      throw new Error(result.message ?? "This login link is invalid or has expired.");
+    }
+    return applyAuth(result);
+  };
+
   const signOut = async () => {
     try {
       await logoutUser();
@@ -310,6 +321,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signUp,
         sendOtp,
         verifyOtp,
+        verifyMagicLink,
         requestPasswordReset,
         resetPassword,
         signOut,

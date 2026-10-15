@@ -36,6 +36,17 @@ export const listServices = (params: { category?: string; page?: number; limit?:
 export const getService = (id: string) =>
   api<{ service: Service }>(`/api/services/${id}`);
 
+// Admin only — unlike listServices (public, active only), this returns every
+// service so hidden/soft-deleted ones can still be found and managed.
+export const adminListServices = (params: { category?: string; page?: number; limit?: number } = {}) => {
+  const query = new URLSearchParams();
+  if (params.category) query.set("category", params.category);
+  if (params.page != null) query.set("page", String(params.page));
+  if (params.limit != null) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return api<ServicesListResponse>(`/api/admin/services${qs ? `?${qs}` : ""}`);
+};
+
 export const adminCreateService = (data: Partial<Service>) =>
   api<{ message: string; service: Service }>(`/api/admin/services`, {
     method: 'POST',

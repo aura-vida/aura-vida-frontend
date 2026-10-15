@@ -25,6 +25,8 @@ import {
   Clock,
   Sparkles,
   Loader2,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,8 @@ import {
   adminUpdateSpace,
   adminUpdateSpaceStatus,
   adminDeleteSpace,
+  adminUploadSpaceImages,
+  adminDeleteSpaceImage,
   type Space,
 } from "@/lib/spacesApi";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
@@ -102,6 +106,72 @@ const SpaceListingsAdmin = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newSpace, setNewSpace] = useState<Partial<Space>>(blankSpace());
   const [newAmenitiesStr, setNewAmenitiesStr] = useState("");
+  const [newSpaceFiles, setNewSpaceFiles] = useState<File[]>([]);
+  const [newSpacePreviews, setNewSpacePreviews] = useState<string[]>([]);
+
+  // Photo gallery state
+  const [uploadingImagesFor, setUploadingImagesFor] = useState<Record<string, boolean>>({});
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+
+  const addNewSpaceFiles = (fileList: FileList | null) => {
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) return;
+    setNewSpaceFiles((prev) => [...prev, ...files]);
+    setNewSpacePreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
+  };
+
+  const removeNewSpaceFile = (index: number) => {
+    setNewSpacePreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+    setNewSpaceFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const resetNewSpaceFiles = () => {
+    newSpacePreviews.forEach((url) => URL.revokeObjectURL(url));
+    setNewSpaceFiles([]);
+    setNewSpacePreviews([]);
+  };
+
+  const handleUploadSpaceImages = async (spaceId: string, fileList: FileList | null) => {
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) return;
+
+    setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: true }));
+    try {
+      const res = await adminUploadSpaceImages(spaceId, files);
+      setSpaces((prev) =>
+        prev.map((s) =>
+          s.id === spaceId ? { ...s, space_images: [...(s.space_images || []), ...res.images] } : s
+        )
+      );
+      toast.success(`${files.length} photo${files.length > 1 ? "s" : ""} uploaded`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload photos");
+    } finally {
+      setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: false }));
+    }
+  };
+
+  const handleDeleteSpaceImage = async (spaceId: string, imageId: string) => {
+    setDeletingImageId(imageId);
+    try {
+      await adminDeleteSpaceImage(spaceId, imageId);
+      setSpaces((prev) =>
+        prev.map((s) =>
+          s.id === spaceId
+            ? { ...s, space_images: (s.space_images || []).filter((img) => img.id !== imageId) }
+            : s
+        )
+      );
+      toast.success("Photo removed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove photo");
+    } finally {
+      setDeletingImageId(null);
+    }
+  };
 
   const loadSpaces = useCallback(
     async (targetPage = page, searchTerm = search, status = statusFilter) => {
@@ -252,10 +322,21 @@ const SpaceListingsAdmin = () => {
         amenities: amenitiesArr,
       });
 
+      // The space needs an id before photos can be attached, so they upload
+      // right after creation rather than in the same request.
+      if (newSpaceFiles.length > 0) {
+        try {
+          await adminUploadSpaceImages(res.space.id, newSpaceFiles);
+        } catch (uploadErr: any) {
+          toast.error(uploadErr.message || "Space created, but photo upload failed");
+        }
+      }
+
       toast.success(res.message || "Partner space created!");
       setIsAddOpen(false);
       setNewSpace(blankSpace());
       setNewAmenitiesStr("");
+      resetNewSpaceFiles();
       setPage(1);
       loadSpaces(1, search, statusFilter);
     } catch (err: any) {
@@ -590,6 +671,61 @@ const SpaceListingsAdmin = () => {
                       </div>
                     </div>
 
+                    {/* Photo Gallery */}
+                    <div className="pt-4 border-t border-border">
+                      <Label className="text-xs">
+                        Photo Gallery {space.space_images?.length ? `(${space.space_images.length})` : ""}
+                      </Label>
+                      <div className="mt-2 flex flex-wrap gap-2.5">
+                        {[...(space.space_images || [])]
+                          .sort((a, b) => a.sort_order - b.sort_order)
+                          .map((img) => (
+                            <div key={img.id} className="relative size-20 rounded-xl overflow-hidden border border-border group">
+                              <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSpaceImage(space.id, img.id)}
+                                disabled={deletingImageId === img.id}
+                                className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity disabled:opacity-100"
+                                aria-label="Remove photo"
+                              >
+                                {deletingImageId === img.id ? (
+                                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                                ) : (
+                                  <X className="size-4 text-destructive" />
+                                )}
+                              </button>
+                            </div>
+                          ))}
+                        <label
+                          className={cn(
+                            "size-20 rounded-xl border border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground cursor-pointer hover:border-foreground/40 hover:text-foreground transition-smooth",
+                            uploadingImagesFor[space.id] && "opacity-50 pointer-events-none"
+                          )}
+                        >
+                          {uploadingImagesFor[space.id] ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <>
+                              <ImagePlus className="size-4" />
+                              <span className="text-[10px]">Add</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            disabled={uploadingImagesFor[space.id]}
+                            onChange={(e) => {
+                              handleUploadSpaceImages(space.id, e.target.files);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
                     {/* Card Footer: Quick Status Switcher & Save Button */}
                     <div className="pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -650,7 +786,13 @@ const SpaceListingsAdmin = () => {
       )}
 
       {/* Create New Partner Space Dialog */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog
+        open={isAddOpen}
+        onOpenChange={(open) => {
+          setIsAddOpen(open);
+          if (!open) resetNewSpaceFiles();
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl">Add New Partner Space</DialogTitle>
@@ -670,6 +812,39 @@ const SpaceListingsAdmin = () => {
                 placeholder="e.g. Zen Sanctuary Bandra"
                 className="mt-1"
               />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>Photos</Label>
+              <div className="mt-1 flex flex-wrap gap-2.5">
+                {newSpacePreviews.map((src, i) => (
+                  <div key={src} className="relative size-20 rounded-xl overflow-hidden border border-border group">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeNewSpaceFile(i)}
+                      className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                      aria-label="Remove photo"
+                    >
+                      <X className="size-4 text-destructive" />
+                    </button>
+                  </div>
+                ))}
+                <label className="size-20 rounded-xl border border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground cursor-pointer hover:border-foreground/40 hover:text-foreground transition-smooth">
+                  <ImagePlus className="size-4" />
+                  <span className="text-[10px]">Add</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addNewSpaceFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div>
@@ -778,7 +953,12 @@ const SpaceListingsAdmin = () => {
             </div>
 
             <DialogFooter className="sm:col-span-2 pt-4 border-t border-border mt-2">
-              <Button type="button" variant="outline" className="rounded-full" onClick={() => setIsAddOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => { setIsAddOpen(false); resetNewSpaceFiles(); }}
+              >
                 Cancel
               </Button>
               <Button type="submit" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={busy}>

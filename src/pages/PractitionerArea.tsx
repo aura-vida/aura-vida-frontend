@@ -1626,12 +1626,16 @@ const PractitionerArea = () => {
               return (
                 <div className="rounded-2xl border border-border bg-card p-4 text-xs space-y-1.5">
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Session price</span>
-                    <span className="text-foreground font-medium">₹{subtotal.toLocaleString("en-IN")}</span>
+                    <span>Total paid</span>
+                    <span className="text-foreground font-medium">₹{(subtotal + tax).toLocaleString("en-IN")}</span>
                   </div>
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Tax (non-refundable)</span>
-                    <span>−₹{tax.toLocaleString("en-IN")}</span>
+                  <div className="flex items-center justify-between text-muted-foreground pl-3">
+                    <span>— Session price (refundable)</span>
+                    <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground pl-3">
+                    <span>— Tax (non-refundable)</span>
+                    <span>₹{tax.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex items-center justify-between pt-1.5 border-t border-border font-medium">
                     <span className="text-foreground">Client will be refunded</span>

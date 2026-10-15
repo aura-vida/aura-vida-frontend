@@ -14,8 +14,7 @@ import {
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isValidPhoneNumber } from "@/lib/whatsapp";
-import { adminCreateService, adminUpdateService, adminDeleteService } from "@/lib/servicesApi";
-import { useServices } from "@/hooks/useServices";
+import { adminCreateService, adminUpdateService, adminDeleteService, adminListServices } from "@/lib/servicesApi";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,7 +57,7 @@ const blank = (order: number): Omit<Practitioner, "id"> => ({
   name: "",
   craft: "",
   city: "",
-  rating: 5,
+  rating: 0, // system-computed from customer reviews; never set directly
   sessions: 0,
   price_inr: 0,
   image_url: null,
@@ -184,7 +183,6 @@ const Admin = () => {
     whatsapp_number: "",
     craft: "",
     city: "",
-    rating: 5,
     sessions: 0,
     price_inr: 0,
     bio: "",
@@ -206,8 +204,10 @@ const Admin = () => {
     price_host_group: 0,
   });
   const [newPractitioner, setNewPractitioner] = useState(emptyNewPractitioner());
+  const [isCreatingPractitioner, setIsCreatingPractitioner] = useState(false);
 
   const addNew = async () => {
+    if (isCreatingPractitioner) return; // guard against double-click creating duplicates (and duplicate welcome emails)
     if (!newPractitioner.name.trim()) { toast.error("Name is required"); return; }
     if (!newPractitioner.email.trim()) { toast.error("Email is required to create their login"); return; }
     if (!isValidPhoneNumber(newPractitioner.mobile_number)) { toast.error("Please enter a valid mobile number"); return; }
@@ -216,6 +216,7 @@ const Admin = () => {
     const draft = blank(rows.length + 1);
     const startingPrice = getStartingPrice(newPractitioner);
 
+    setIsCreatingPractitioner(true);
     try {
       const data = await adminCreatePractitioner({
         ...draft,
@@ -225,7 +226,6 @@ const Admin = () => {
         whatsapp_number: newPractitioner.whatsapp_number.trim(),
         craft: newPractitioner.craft.trim(),
         city: newPractitioner.city.trim(),
-        rating: Number(newPractitioner.rating) || 5,
         sessions: Number(newPractitioner.sessions) || 0,
         price_inr: startingPrice,
         bio: newPractitioner.bio.trim(),
@@ -255,6 +255,8 @@ const Admin = () => {
       toast.success(data.message || "Practitioner created!");
     } catch (err: any) {
       toast.error(err.message || "Failed to create practitioner");
+    } finally {
+      setIsCreatingPractitioner(false);
     }
   };
 
@@ -616,17 +618,6 @@ const Admin = () => {
                     />
                   </div>
                   <div>
-                    <Label>Rating</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="1"
-                      max="5"
-                      value={newPractitioner.rating}
-                      onChange={(e) => setNewPractitioner(p => ({ ...p, rating: parseFloat(e.target.value) || 5 }))}
-                    />
-                  </div>
-                  <div>
                     <Label>Sessions completed</Label>
                     <Input
                       type="number"
@@ -927,8 +918,11 @@ const Admin = () => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddPractitionerOpen(false)}>Cancel</Button>
-                  <Button onClick={addNew}>Save Practitioner</Button>
+                  <Button variant="outline" onClick={() => setIsAddPractitionerOpen(false)} disabled={isCreatingPractitioner}>Cancel</Button>
+                  <Button onClick={addNew} disabled={isCreatingPractitioner}>
+                    {isCreatingPractitioner && <Loader2 className="size-4 mr-2 animate-spin" />}
+                    {isCreatingPractitioner ? "Saving..." : "Save Practitioner"}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -987,7 +981,7 @@ const Admin = () => {
                               <span className="font-normal text-muted-foreground text-[11px]"> / session</span>
                             </span>
                             <span className="flex items-center gap-1 font-medium text-foreground">
-                              ⭐ {row.rating ?? 5.0}
+                              ⭐ {row.rating ?? 0}
                             </span>
                             <span>{row.sessions ?? 0} sessions</span>
                           </div>
@@ -1077,8 +1071,9 @@ const Admin = () => {
                             </div>
                             <div>
                               <Label>Rating</Label>
-                              <Input type="number" step="0.01" min="0" max="5" value={row.rating}
-                                onChange={(e) => update(row.id, { rating: Number(e.target.value) })} />
+                              <p className="text-sm font-medium mt-2">
+                                ⭐ {row.rating ?? 0} <span className="text-xs font-normal text-muted-foreground">(calculated automatically from customer reviews)</span>
+                              </p>
                             </div>
                             <div>
                               <Label>Sessions completed</Label>
@@ -1416,7 +1411,8 @@ const Admin = () => {
                                 disabled={busy}
                                 onClick={() => save(row)}
                               >
-                                Save Changes
+                                {busy && <Loader2 className="size-4 mr-2 animate-spin" />}
+                                {busy ? "Saving..." : "Save Changes"}
                               </Button>
                             </div>
                           </div>
@@ -1509,10 +1505,12 @@ export default Admin;
 
 
 const ServicesManager = () => {
-  const { services, loading } = useServices();
-  const [localServices, setLocalServices] = React.useState(services);
+  const [localServices, setLocalServices] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
+  const [savingRowId, setSavingRowId] = React.useState<string | null>(null);
   const [expandedServices, setExpandedServices] = React.useState<Record<string, boolean>>({});
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "active" | "hidden">("all");
 
   const toggleServiceExpanded = (id: string) => {
     setExpandedServices((prev) => ({
@@ -1522,10 +1520,26 @@ const ServicesManager = () => {
   };
 
   React.useEffect(() => {
-    setLocalServices(services);
-  }, [services]);
+    let cancelled = false;
+    // Admin-only listing — unlike the public endpoint, this includes
+    // hidden/soft-deleted services too, so none can get "lost" once hidden.
+    adminListServices({ limit: 200 })
+      .then((res) => {
+        if (!cancelled) setLocalServices(res.services ?? []);
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(err.message || "Failed to load services");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [isAddServiceOpen, setIsAddServiceOpen] = React.useState(false);
+  const [isCreatingService, setIsCreatingService] = React.useState(false);
   const [newService, setNewService] = React.useState({
     name: "",
     category: "",
@@ -1533,14 +1547,26 @@ const ServicesManager = () => {
     duration_min: 60,
     description: "",
   });
+  const [newServiceImage, setNewServiceImage] = React.useState<File | null>(null);
+  const [newServiceImagePreview, setNewServiceImagePreview] = React.useState<string | null>(null);
+
+  const handleNewServiceImageChange = (file: File | null) => {
+    setNewServiceImage(file);
+    setNewServiceImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  };
 
   const update = (id: string, patch: any) => {
     setLocalServices((curr) => curr.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   };
 
   const addNew = async () => {
+    if (isCreatingService) return; // guard against double-click creating duplicates
     if (!newService.name.trim()) { toast.error("Name required"); return; }
 
+    setIsCreatingService(true);
     try {
       const res = await adminCreateService({
         name: newService.name.trim(),
@@ -1550,7 +1576,19 @@ const ServicesManager = () => {
         description: newService.description.trim(),
         is_active: true,
       });
-      setLocalServices([res.service, ...localServices]);
+      let service = res.service;
+
+      // The service needs an id before an image path can be built, so the
+      // image uploads right after creation rather than in the same request.
+      if (newServiceImage) {
+        const url = await uploadServiceImage(service.id, newServiceImage);
+        if (url) {
+          const updateRes = await adminUpdateService(service.id, { image_url: url });
+          service = updateRes.service;
+        }
+      }
+
+      setLocalServices((curr) => [service, ...curr]);
       setIsAddServiceOpen(false);
       setNewService({
         name: "",
@@ -1559,25 +1597,32 @@ const ServicesManager = () => {
         duration_min: 60,
         description: "",
       });
+      handleNewServiceImageChange(null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       toast.success("Service created!");
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to create service");
+    } finally {
+      setIsCreatingService(false);
     }
   };
 
   const save = async (row: any) => {
+    if (savingRowId) return; // guard against double-click while a save is in flight
+    setSavingRowId(row.id);
     setBusy(true);
     const { id, ...fields } = row;
     try {
-      await adminUpdateService(id, fields);
+      const res = await adminUpdateService(id, fields);
+      update(id, res.service);
       toast.success(`${row.name || "Service"} saved`);
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to update service");
     } finally {
       setBusy(false);
+      setSavingRowId(null);
     }
   };
 
@@ -1592,9 +1637,11 @@ const ServicesManager = () => {
     if (!serviceDeleteTarget?.id) return;
     setIsDeletingService(true);
     try {
+      // Permanent delete — to hide a service without deleting it, use the
+      // "Show on site" switch in the edit card instead.
       await adminDeleteService(serviceDeleteTarget.id);
       setLocalServices((curr) => curr.filter((s) => s.id !== serviceDeleteTarget.id));
-      toast.success(`${serviceDeleteTarget.name || "Service"} removed successfully.`);
+      toast.success(`${serviceDeleteTarget.name || "Service"} deleted.`);
       setServiceDeleteTarget(null);
     } catch (e: any) {
       console.error(e);
@@ -1604,40 +1651,76 @@ const ServicesManager = () => {
     }
   };
 
-  const uploadPhoto = async (row: any, file: File) => {
-    setBusy(true);
+  // Shared by both the per-row photo uploader and the Add Service dialog —
+  // uploads to storage and returns a signed URL, without touching any state.
+  const uploadServiceImage = async (serviceId: string, file: File): Promise<string | null> => {
     const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `services/${row.id}/${Date.now()}.${ext}`;
+    const path = `services/${serviceId}/${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("practitioner-photos")
       .upload(path, file, { upsert: true });
     if (upErr) {
-      setBusy(false);
       toast.error(upErr.message);
-      return;
+      return null;
     }
     const { data: signed, error: signErr } = await supabase.storage
       .from("practitioner-photos")
       .createSignedUrl(path, SIGNED_URL_TTL);
-    setBusy(false);
     if (signErr || !signed) {
       toast.error(signErr?.message ?? "Could not create photo link");
-      return;
+      return null;
     }
-    update(row.id, { image_url: signed.signedUrl });
-    await adminUpdateService(row.id, { image_url: signed.signedUrl });
+    return signed.signedUrl;
+  };
+
+  const uploadPhoto = async (row: any, file: File) => {
+    setBusy(true);
+    const url = await uploadServiceImage(row.id, file);
+    setBusy(false);
+    if (!url) return;
+    update(row.id, { image_url: url });
+    await adminUpdateService(row.id, { image_url: url });
     toast.success("Service photo updated");
   };
 
   if (loading) return <div className="text-muted-foreground py-8">Loading services...</div>;
 
+  const activeCount = localServices.filter((s) => s.is_active !== false).length;
+  const hiddenCount = localServices.filter((s) => s.is_active === false).length;
+  const filteredServices = localServices.filter((s) => {
+    if (statusFilter === "active") return s.is_active !== false;
+    if (statusFilter === "hidden") return s.is_active === false;
+    return true;
+  });
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <p className="text-muted-foreground text-sm max-w-lg">
           Add new therapies, update descriptions, categories, and prices. Turn on "Show on site" to make active.
         </p>
         <Button onClick={() => setIsAddServiceOpen(true)} className="rounded-full shrink-0"><Plus className="size-4 mr-1" /> Add Service</Button>
+      </div>
+
+      <div className="flex items-center gap-2 mb-8">
+        {([
+          { key: "all", label: `All (${localServices.length})` },
+          { key: "active", label: `Active (${activeCount})` },
+          { key: "hidden", label: `Hidden (${hiddenCount})` },
+        ] as const).map((opt) => (
+          <button
+            key={opt.key}
+            onClick={() => setStatusFilter(opt.key)}
+            className={cn(
+              "px-3.5 py-1.5 rounded-full text-xs font-medium border transition-smooth",
+              statusFilter === opt.key
+                ? "bg-foreground text-background border-foreground"
+                : "bg-card text-muted-foreground border-border hover:bg-secondary"
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       <Dialog open={isAddServiceOpen} onOpenChange={setIsAddServiceOpen}>
@@ -1646,6 +1729,25 @@ const ServicesManager = () => {
             <DialogTitle>Add New Service</DialogTitle>
           </DialogHeader>
           <div className="py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2 flex gap-4 items-start">
+              <div className="w-20 h-24 shrink-0 rounded-2xl bg-secondary overflow-hidden border border-border/60">
+                {newServiceImagePreview ? (
+                  <img src={newServiceImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-[10px] text-muted-foreground font-medium p-1 text-center">
+                    No photo
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <Label>Photo</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleNewServiceImageChange(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            </div>
             <div className="sm:col-span-2">
               <Label>Name</Label>
               <Input
@@ -1690,14 +1792,27 @@ const ServicesManager = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddServiceOpen(false)}>Cancel</Button>
-            <Button onClick={addNew}>Save Service</Button>
+            <Button
+              variant="outline"
+              onClick={() => { setIsAddServiceOpen(false); handleNewServiceImageChange(null); }}
+              disabled={isCreatingService}
+            >
+              Cancel
+            </Button>
+            <Button onClick={addNew} disabled={isCreatingService}>
+              {isCreatingService && <Loader2 className="size-4 mr-2 animate-spin" />}
+              {isCreatingService ? "Saving..." : "Save Service"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {filteredServices.length === 0 && (
+        <div className="text-muted-foreground text-sm py-8 text-center">No {statusFilter !== "all" ? statusFilter : ""} services to show.</div>
+      )}
+
       <div className="space-y-4">
-        {localServices.map((row) => {
+        {filteredServices.map((row) => {
           const isExpanded = !!expandedServices[row.id];
           return (
             <section key={row.id} className="rounded-3xl border border-border bg-card p-5 sm:p-6 shadow-soft transition-all duration-200">
@@ -1861,7 +1976,10 @@ const ServicesManager = () => {
                           <Button variant="outline" className="rounded-full" onClick={() => toggleServiceExpanded(row.id)}>
                             Close
                           </Button>
-                          <Button className="rounded-full" disabled={busy} onClick={() => save(row)}>Save</Button>
+                          <Button className="rounded-full" disabled={savingRowId === row.id} onClick={() => save(row)}>
+                            {savingRowId === row.id && <Loader2 className="size-4 mr-2 animate-spin" />}
+                            {savingRowId === row.id ? "Saving..." : "Save"}
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -1877,9 +1995,9 @@ const ServicesManager = () => {
       <ConfirmDialog
         open={!!serviceDeleteTarget}
         onOpenChange={(open) => !open && setServiceDeleteTarget(null)}
-        title={serviceDeleteTarget ? `Remove ${serviceDeleteTarget.name}?` : "Remove Service"}
-        description={`Are you sure you want to remove "${serviceDeleteTarget?.name || "this service"}"? Clients will no longer be able to discover or book this therapy.`}
-        confirmLabel="Yes, Remove Service"
+        title={serviceDeleteTarget ? `Delete ${serviceDeleteTarget.name}?` : "Delete Service"}
+        description={`This will permanently delete "${serviceDeleteTarget?.name || "this service"}" — this can't be undone. To hide it from the site without deleting it, use the "Show on site" switch in its edit card instead.`}
+        confirmLabel="Yes, Delete Permanently"
         cancelLabel="Keep Service"
         variant="destructive"
         isLoading={isDeletingService}

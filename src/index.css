@@ -13,7 +13,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* AuraVida design system — Editorial Stone Sanctuary, brighter palette.
+/* Kusala design system — Editorial Stone Sanctuary, brighter palette.
    All colors HSL. Tokens defined here, consumed via tailwind.config.ts. */
 
 @layer base {

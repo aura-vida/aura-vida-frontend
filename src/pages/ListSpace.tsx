@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ImagePlus, X } from "lucide-react";
 
 const schema = z.object({
   contact_name: z.string().trim().min(1, "Please add your name").max(100),
@@ -33,6 +34,24 @@ const ListSpace = () => {
   const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+
+  const addPhotos = (fileList: FileList | null) => {
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) return;
+    setPhotoFiles((prev) => [...prev, ...files]);
+    setPhotoPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotoPreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = schema.safeParse(form);
@@ -53,7 +72,7 @@ const ListSpace = () => {
         amenities: d.amenities ? d.amenities.split(",").map((s) => s.trim()).filter(Boolean) : null,
         availability: d.availability || null,
         notes: d.notes || null,
-      });
+      }, photoFiles);
       setDone(true);
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
@@ -90,6 +109,36 @@ const ListSpace = () => {
             <div><Label>How many people can it hold? *</Label><Input type="number" min={1} max={500} value={form.capacity} onChange={set("capacity")} /></div>
             <div><Label>Availability</Label><Input value={form.availability} onChange={set("availability")} maxLength={500} placeholder="Weekday evenings, weekends…" /></div>
             <div className="sm:col-span-2"><Label>Amenities</Label><Textarea value={form.amenities} onChange={set("amenities")} maxLength={1000} placeholder="Mats, sound system, parking, washroom…" /></div>
+            <div className="sm:col-span-2">
+              <Label>Photos</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-2">A few photos help us (and clients) get a feel for the space.</p>
+              <div className="flex flex-wrap gap-2.5">
+                {photoPreviews.map((src, i) => (
+                  <div key={src} className="relative size-20 rounded-xl overflow-hidden border border-border group">
+                    <img src={src} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                      aria-label="Remove photo"
+                    >
+                      <X className="size-4 text-destructive" />
+                    </button>
+                  </div>
+                ))}
+                <label className="size-20 rounded-xl border border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground cursor-pointer hover:border-foreground/40 hover:text-foreground transition-smooth">
+                  <ImagePlus className="size-4" />
+                  <span className="text-[10px]">Add</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }}
+                  />
+                </label>
+              </div>
+            </div>
             <div className="sm:col-span-2"><Label>Anything else?</Label><Textarea value={form.notes} onChange={set("notes")} maxLength={2000} /></div>
             {error && <p className="sm:col-span-2 text-sm text-destructive">{error}</p>}
             <div className="sm:col-span-2">

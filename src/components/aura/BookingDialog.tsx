@@ -544,7 +544,17 @@ const BookingDialog = ({ practitionerName, trigger, itemId = "session-priya-shah
                       )}
                     >
                       <div className="flex items-start gap-3 w-full pr-16">
-                        <MapPin className="size-4 text-accent mt-0.5 shrink-0" />
+                        {c.space_images && c.space_images.length > 0 ? (
+                          <img
+                            src={[...c.space_images].sort((a, b) => a.sort_order - b.sort_order)[0].image_url}
+                            alt=""
+                            className="size-11 rounded-xl object-cover border border-border shrink-0"
+                          />
+                        ) : (
+                          <div className="size-11 rounded-xl border border-border bg-secondary/60 grid place-items-center shrink-0">
+                            <MapPin className="size-4 text-accent" />
+                          </div>
+                        )}
                         <div>
                           <div className="text-sm font-medium text-foreground">{c.space_name}</div>
                           <div className="text-xs text-muted-foreground max-w-[200px] sm:max-w-md mt-0.5 flex flex-wrap items-center gap-1.5">
