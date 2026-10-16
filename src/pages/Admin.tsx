@@ -1,6 +1,6 @@
 import React from "react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -106,7 +106,24 @@ const Admin = () => {
   const [filterBookable, setFilterBookable] = useState<string>("");   // "" | "true" | "false"
   const [viewApplicant, setViewApplicant] = useState<Practitioner | null>(null);
   const [approving, setApproving] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTabState] = useState(() => {
+    return tabFromUrl || sessionStorage.getItem("admin_active_tab") || "overview";
+  });
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    try {
+      sessionStorage.setItem("admin_active_tab", tab);
+    } catch {}
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === "overview") next.delete("tab");
+      else next.set("tab", tab);
+      return next;
+    }, { replace: true });
+  };
   const [expandedPractitioners, setExpandedPractitioners] = useState<Record<string, boolean>>({});
   const [practitionerDeleteTarget, setPractitionerDeleteTarget] = useState<Practitioner | null>(null);
   const [rejectApplicantTarget, setRejectApplicantTarget] = useState<Practitioner | null>(null);

@@ -44,6 +44,7 @@ export type PartnerSpace = {
   capacity: number;
   space_type: string;
   amenities: string[];
+  availability?: string | null;
   notes: string;
   space_images?: { id: string; image_url: string; sort_order: number }[];
 };

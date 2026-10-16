@@ -47,9 +47,10 @@ export type TimeSlot = {
   available?: boolean;
 };
 
-export async function getAvailableSlots(slug: string, date: string, serviceId?: string) {
+export async function getAvailableSlots(slug: string, date: string, serviceId?: string, spaceId?: string) {
   const params = new URLSearchParams({ slug, date });
   if (serviceId) params.append("serviceId", serviceId);
+  if (spaceId) params.append("spaceId", spaceId);
   return api<{ date: string; slots: TimeSlot[] }>(`/api/appointments/available-slots?${params.toString()}`);
 }
 

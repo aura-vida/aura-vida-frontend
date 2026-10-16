@@ -72,6 +72,7 @@ import {
   NotebookPen,
   BookOpen,
   Plus,
+  Pencil,
   ExternalLink,
   Edit3,
   Trash2,
@@ -1486,10 +1487,11 @@ const PractitionerArea = () => {
                               asChild
                               variant="outline"
                               size="sm"
-                              className="rounded-full h-8 px-3 text-xs"
+                              className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                             >
                               <Link to={`/journal/${b.slug}`} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="size-3 mr-1" /> View Live
+                                <ExternalLink className="size-3.5 text-muted-foreground" />
+                                <span>View Live</span>
                               </Link>
                             </Button>
                           )}
@@ -1498,29 +1500,31 @@ const PractitionerArea = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleToggleArticleStatus(b)}
-                            className="rounded-full h-8 px-3 text-xs"
+                            className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                           >
-                            <Globe className="size-3 mr-1" />
-                            {isPublished ? "Move to Draft" : "Publish Live"}
+                            <Globe className="size-3.5 text-muted-foreground" />
+                            <span>{isPublished ? "Move to Draft" : "Publish Live"}</span>
                           </Button>
 
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleOpenEditArticle(b)}
-                            className="rounded-full h-8 px-3 text-xs bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
+                            className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                           >
-                            <Edit3 className="size-3 mr-1 text-accent" /> Edit
+                            <Pencil className="size-3.5 text-accent" />
+                            <span>Edit</span>
                           </Button>
 
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             disabled={deletingArticleId === b.id}
                             onClick={() => handleDeleteArticle(b)}
-                            className="rounded-full h-8 px-3 text-xs text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
+                            className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
+                            aria-label={`Delete ${b.title}`}
                           >
-                            <Trash2 className="size-3 text-destructive" />
+                            <Trash2 className="size-4 text-destructive" />
                           </Button>
                         </div>
                       </article>

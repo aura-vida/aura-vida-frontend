@@ -11,6 +11,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   Search,
   Trash2,
@@ -27,6 +34,8 @@ import {
   Loader2,
   ImagePlus,
   X,
+  Lock,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -39,9 +48,16 @@ import {
   adminDeleteSpace,
   adminUploadSpaceImages,
   adminDeleteSpaceImage,
+  adminReleaseSpaceSlot,
+  parseSpaceSchedule,
+  formatSpaceScheduleSummary,
+  formatTime12h,
   type Space,
+  type SpaceSchedule,
 } from "@/lib/spacesApi";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
+import SpaceScheduleEditor from "@/components/aura/SpaceScheduleEditor";
+import PackSpaceSlotDialog from "@/components/aura/PackSpaceSlotDialog";
 
 const STATUS_CONFIG: Record<
   Space["status"],
@@ -298,6 +314,31 @@ const SpaceListingsAdmin = () => {
     }
   };
 
+  // Pack & Release Space Slot state
+  const [packingSpace, setPackingSpace] = useState<Space | null>(null);
+  const [releaseSlotTarget, setReleaseSlotTarget] = useState<{
+    spaceId: string;
+    slotId: string;
+    spaceName: string;
+    details: string;
+  } | null>(null);
+  const [isReleasingSlot, setIsReleasingSlot] = useState(false);
+
+  const handleConfirmReleaseSlot = async () => {
+    if (!releaseSlotTarget) return;
+    try {
+      setIsReleasingSlot(true);
+      const res = await adminReleaseSpaceSlot(releaseSlotTarget.spaceId, releaseSlotTarget.slotId);
+      toast.success("Reserved slot released successfully");
+      setSpaces((prev) => prev.map((s) => (s.id === releaseSlotTarget.spaceId ? res.space : s)));
+      setReleaseSlotTarget(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to release reserved slot");
+    } finally {
+      setIsReleasingSlot(false);
+    }
+  };
+
   // Create new space
   const handleCreateSpace = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -337,8 +378,11 @@ const SpaceListingsAdmin = () => {
       setNewSpace(blankSpace());
       setNewAmenitiesStr("");
       resetNewSpaceFiles();
+      // Reset search and filters to guarantee newly created space is visible
+      setSearch("");
+      setStatusFilter("");
       setPage(1);
-      loadSpaces(1, search, statusFilter);
+      loadSpaces(1, "", "");
     } catch (err: any) {
       toast.error(err.message || "Failed to create space");
     } finally {
@@ -378,20 +422,26 @@ const SpaceListingsAdmin = () => {
             />
           </form>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
+          <Select
+            value={statusFilter || "all"}
+            onValueChange={(val) => {
+              const nextVal = val === "all" ? "" : val;
+              setStatusFilter(nextVal);
               setPage(1);
+              loadSpaces(1, search, nextVal);
             }}
-            className="rounded-full h-10 px-4 text-sm border border-input bg-card text-foreground appearance-none pr-8 cursor-pointer shadow-xs"
           >
-            <option value="">All Statuses</option>
-            <option value="approved">Approved only</option>
-            <option value="new">New only</option>
-            <option value="contacted">Contacted only</option>
-            <option value="declined">Declined only</option>
-          </select>
+            <SelectTrigger className="rounded-full h-10 px-4 text-sm border-input bg-card text-foreground w-44 shadow-xs">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent className="rounded-2xl border-border bg-card">
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="approved">Approved only</SelectItem>
+              <SelectItem value="new">New only</SelectItem>
+              <SelectItem value="contacted">Contacted only</SelectItem>
+              <SelectItem value="declined">Declined only</SelectItem>
+            </SelectContent>
+          </Select>
 
           <Button
             variant="outline"
@@ -401,6 +451,22 @@ const SpaceListingsAdmin = () => {
           >
             Filter
           </Button>
+
+          {(search || statusFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full h-10 px-3 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("");
+                setPage(1);
+                loadSpaces(1, "", "");
+              }}
+            >
+              Reset filters
+            </Button>
+          )}
         </div>
       </div>
 
@@ -441,6 +507,7 @@ const SpaceListingsAdmin = () => {
             const isExpanded = !!expandedSpaces[space.id];
             const edited = editedSpaces[space.id] || space;
             const statusMeta = STATUS_CONFIG[space.status] || STATUS_CONFIG.new;
+            const parsedSched = parseSpaceSchedule(edited.availability || space.availability);
 
             return (
               <section
@@ -476,9 +543,15 @@ const SpaceListingsAdmin = () => {
                             {space.space_type}
                           </span>
                         )}
+                        {parsedSched.packed_slots && parsedSched.packed_slots.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                            <Lock className="size-2.5" />
+                            {parsedSched.packed_slots.length} reserved
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <MapPin className="size-3 text-accent" />
                           {[space.city, space.pin].filter(Boolean).join(" · ")}
@@ -486,6 +559,10 @@ const SpaceListingsAdmin = () => {
                         <span className="flex items-center gap-1">
                           <Users className="size-3 text-accent" />
                           Capacity: {space.capacity}
+                        </span>
+                        <span className="flex items-center gap-1 text-foreground/80 font-medium">
+                          <Clock className="size-3 text-accent" />
+                          {parsedSched.summary}
                         </span>
                         {space.contact_name && (
                           <span>Contact: {space.contact_name}</span>
@@ -499,29 +576,38 @@ const SpaceListingsAdmin = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="rounded-full h-8 px-3 text-xs gap-1.5 text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
+                      className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
+                      onClick={() => setPackingSpace(space)}
+                    >
+                      <Lock className="size-3.5 text-accent" />
+                      <span>Pack Slot</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full h-9 px-3.5 gap-1.5 text-xs text-foreground bg-card hover:bg-secondary hover:text-foreground border-border/80 transition-smooth"
                       onClick={() => toggleExpand(space.id)}
                     >
-                      <Pencil className="size-3 text-accent" />
+                      <Pencil className="size-3.5 text-accent" />
                       <span>{isExpanded ? "Close" : "Edit"}</span>
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full size-8 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
+                      className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                       onClick={() => handleDeleteSpace(space.id, space.space_name)}
-                      aria-label="Delete space"
+                      aria-label={`Delete ${space.space_name}`}
                     >
-                      <Trash2 className="size-3.5 text-destructive" />
+                      <Trash2 className="size-4 text-destructive" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full size-8 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
+                      className="rounded-full size-9 text-muted-foreground hover:text-foreground hover:bg-secondary transition-smooth"
                       onClick={() => toggleExpand(space.id)}
-                      aria-label="Expand space"
+                      aria-label={isExpanded ? "Collapse space" : "Expand space"}
                     >
-                      {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                      <ChevronDown className={cn("size-4.5 transition-transform duration-200", isExpanded && "rotate-180")} />
                     </Button>
                   </div>
                 </div>
@@ -649,14 +735,89 @@ const SpaceListingsAdmin = () => {
                         />
                       </div>
 
-                      <div className="sm:col-span-2">
-                        <Label className="text-xs">Availability schedule</Label>
-                        <Input
-                          value={edited.availability || ""}
-                          onChange={(e) => updateEditField(space.id, { availability: e.target.value })}
-                          placeholder="e.g. Mon-Fri 7am - 8pm, Weekends by appointment"
-                          className="mt-1"
+                      {/* Structured Google-style Operating Schedule */}
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <SpaceScheduleEditor
+                          value={edited.availability}
+                          onChange={(sched) =>
+                            updateEditField(space.id, { availability: JSON.stringify(sched) })
+                          }
                         />
+                      </div>
+
+                      {/* Reserved / Packed Slots Section */}
+                      <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-border/80 bg-background/50 p-4 sm:p-5 space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                          <div className="flex items-center gap-2">
+                            <Lock className="size-4 text-accent" />
+                            <span className="text-xs font-semibold text-foreground">
+                              Reserved / Packed Slots ({parsedSched.packed_slots?.length || 0})
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full h-8 px-3 text-xs gap-1.5"
+                            onClick={() => setPackingSpace(space)}
+                          >
+                            <Plus className="size-3 text-accent" />
+                            <span>Pack Slot</span>
+                          </Button>
+                        </div>
+
+                        {(!parsedSched.packed_slots || parsedSched.packed_slots.length === 0) ? (
+                          <p className="text-xs text-muted-foreground py-2">
+                            No slots currently reserved for this space. Click "Pack Slot" to hold hours for platform sessions.
+                          </p>
+                        ) : (
+                          <div className="space-y-2 pt-1">
+                            {parsedSched.packed_slots.map((slot) => (
+                              <div
+                                key={slot.id}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border border-border/80 bg-secondary/30 text-xs"
+                              >
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  <span className="font-semibold text-foreground flex items-center gap-1">
+                                    <Calendar className="size-3.5 text-accent" />
+                                    {slot.date}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-full bg-accent/15 text-accent font-medium">
+                                    {formatTime12h(slot.start_time)} – {formatTime12h(slot.end_time)}
+                                  </span>
+                                  {slot.reason && (
+                                    <span className="text-muted-foreground max-w-xs truncate">
+                                      · {slot.reason}
+                                    </span>
+                                  )}
+                                  {slot.notified_email && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-background px-2 py-0.5 rounded-full border border-border">
+                                      <Mail className="size-3 text-emerald-500" />
+                                      Host notified
+                                    </span>
+                                  )}
+                                </div>
+
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setReleaseSlotTarget({
+                                      spaceId: space.id,
+                                      slotId: slot.id,
+                                      spaceName: space.space_name,
+                                      details: `${slot.date} (${formatTime12h(slot.start_time)} – ${formatTime12h(slot.end_time)})`,
+                                    })
+                                  }
+                                  className="rounded-full h-8 px-3 text-xs text-destructive hover:bg-destructive/15 hover:text-destructive self-end sm:self-center transition-smooth"
+                                >
+                                  Release Slot
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="sm:col-span-2 lg:col-span-3">
@@ -745,6 +906,15 @@ const SpaceListingsAdmin = () => {
                       </div>
 
                       <div className="flex items-center gap-2 ml-auto">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full h-9 px-3.5 text-xs text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth gap-1.5 mr-auto sm:mr-0"
+                          onClick={() => handleDeleteSpace(space.id, space.space_name)}
+                        >
+                          <Trash2 className="size-3.5 text-destructive" />
+                          Delete
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -941,6 +1111,13 @@ const SpaceListingsAdmin = () => {
             </div>
 
             <div className="sm:col-span-2">
+              <SpaceScheduleEditor
+                value={newSpace.availability}
+                onChange={(sched) => setNewSpace((p) => ({ ...p, availability: JSON.stringify(sched) }))}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
               <Label htmlFor="add-notes">Internal Notes</Label>
               <Textarea
                 id="add-notes"
@@ -980,6 +1157,29 @@ const SpaceListingsAdmin = () => {
         variant="destructive"
         isLoading={isDeletingSpace}
         onConfirm={handleConfirmDeleteSpace}
+      />
+
+      {/* Pack / Reserve Space Slot Dialog */}
+      <PackSpaceSlotDialog
+        open={!!packingSpace}
+        onOpenChange={(open) => !open && setPackingSpace(null)}
+        space={packingSpace}
+        onSuccess={(updated) => {
+          setSpaces((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+        }}
+      />
+
+      {/* Confirmation Dialog: Release Reserved Slot */}
+      <ConfirmDialog
+        open={!!releaseSlotTarget}
+        onOpenChange={(open) => !open && setReleaseSlotTarget(null)}
+        title={releaseSlotTarget ? `Release Slot at ${releaseSlotTarget.spaceName}?` : "Release Reserved Slot"}
+        description={`Are you sure you want to release the reserved slot for ${releaseSlotTarget?.details}? Releasing it will reopen this time window for client and practitioner bookings.`}
+        confirmLabel="Yes, Release Slot"
+        cancelLabel="Keep Reserved"
+        variant="destructive"
+        isLoading={isReleasingSlot}
+        onConfirm={handleConfirmReleaseSlot}
       />
     </div>
   );

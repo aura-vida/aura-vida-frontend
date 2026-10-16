@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
@@ -8,6 +8,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 const readHashParams = () => {
   if (typeof window === "undefined") return new URLSearchParams();
@@ -25,9 +27,34 @@ const ResetPassword = () => {
     searchParams.get("token") ||
     hashParams.get("token_hash") ||
     hashParams.get("token") ||
+    hashParams.get("access_token") ||
     "";
 
-  const [email, setEmail] = useState(searchParams.get("email") ?? "");
+  const [email, setEmail] = useState(() => {
+    return (
+      searchParams.get("email") ||
+      hashParams.get("email") ||
+      (() => {
+        try {
+          return sessionStorage.getItem("last_reset_email") || "";
+        } catch {
+          return "";
+        }
+      })()
+    );
+  });
+
+  useEffect(() => {
+    // If email wasn't passed in query or session storage, try extracting from active Supabase recovery session
+    if (!email) {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user?.email) {
+          setEmail(data.user.email);
+        }
+      });
+    }
+  }, [email]);
+
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,6 +79,9 @@ const ResetPassword = () => {
     setBusy(true);
     try {
       await resetPassword(token, email, password);
+      try {
+        sessionStorage.removeItem("last_reset_email");
+      } catch {}
       toast({ title: "Password updated", description: "Sign in with your new password." });
       navigate("/auth", { replace: true });
     } catch (error) {
@@ -71,7 +101,7 @@ const ResetPassword = () => {
       <section className="max-w-md mx-auto px-6 py-16 lg:py-24">
         <h1 className="font-display text-4xl text-foreground text-center">Choose a new password</h1>
         <p className="text-muted-foreground text-center mt-3">
-          Use the email from your reset link, then enter a new password.
+          {email ? `Create a secure new password for ${email}.` : "Use the email from your reset link, then enter a new password."}
         </p>
 
         {!token && (
@@ -86,17 +116,37 @@ const ResetPassword = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-8">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="email">Email</Label>
+              {email && (
+                <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  Verified Account
+                </span>
+              )}
+            </div>
             <Input
               id="email"
               name="email"
               type="email"
               autoComplete="username email"
               value={email}
+              disabled={Boolean(email)}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="rounded-full h-12"
+              className={cn(
+                "rounded-full h-12 transition-all",
+                email && "bg-muted/50 text-muted-foreground cursor-not-allowed border-border/80"
+              )}
             />
+            {email ? (
+              <p className="text-xs text-muted-foreground">
+                Your new password will apply to this verified account.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Enter the email address associated with your account.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">New password</Label>

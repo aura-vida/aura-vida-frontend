@@ -14,6 +14,13 @@ export interface AuraBookingCalendarProps {
   durationMin?: number;
   formatSlot?: (slot: string) => { start: string; end: string };
   practitionerSlug?: string;
+  spaceSchedule?: {
+    days?: number[];
+    available_from?: string | null;
+    available_to?: string | null;
+    summary?: string;
+  } | null;
+  spaceId?: string | null;
   className?: string;
 }
 
@@ -34,6 +41,8 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
   durationMin = 60,
   formatSlot,
   practitionerSlug,
+  spaceSchedule,
+  spaceId,
   className,
 }) => {
   // Current date for comparison
@@ -56,6 +65,11 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
 
   // Cache of slot availability per date (e.g. "2026-10-09": 0, "2026-10-13": 4)
   const [slotsCountCache, setSlotsCountCache] = useState<Record<string, number>>({});
+
+  // Reset cache whenever practitioner or space changes
+  useEffect(() => {
+    setSlotsCountCache({});
+  }, [practitionerSlug, spaceId]);
 
   // Sync cache with current selectedDate slots
   useEffect(() => {
@@ -252,21 +266,42 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
 
             // Check if day is an off day for this practitioner
             const dayOfWeek = dayDate.getDay();
-            const isOffDay =
+            const isPractitionerOff =
               activeDaysOfWeek !== null && !activeDaysOfWeek.includes(dayOfWeek);
+
+            // Check if partner space is active / open on this date
+            const isSpaceOffDay =
+              spaceSchedule?.days && spaceSchedule.days.length > 0
+                ? !spaceSchedule.days.includes(dayOfWeek)
+                : false;
+            const isBeforeSpaceRange = Boolean(
+              spaceSchedule?.available_from && dateStr < spaceSchedule.available_from
+            );
+            const isAfterSpaceRange = Boolean(
+              spaceSchedule?.available_to && dateStr > spaceSchedule.available_to
+            );
+            const isSpaceClosed = isSpaceOffDay || isBeforeSpaceRange || isAfterSpaceRange;
 
             // Availability status
             const cachedSlots = slotsCountCache[dateStr];
             const hasKnownSlots = typeof cachedSlots === "number" && cachedSlots > 0;
             const isKnownEmpty = typeof cachedSlots === "number" && cachedSlots === 0;
 
-            const isDisabled = isPast || isOffDay;
+            const isDisabled = isPast || isPractitionerOff || isSpaceClosed;
+
+            let tooltip = "";
+            if (isPast) tooltip = "Past date";
+            else if (isPractitionerOff) tooltip = "Practitioner not available on this day";
+            else if (isBeforeSpaceRange) tooltip = `Sanctuary opens on ${spaceSchedule?.available_from}`;
+            else if (isAfterSpaceRange) tooltip = `Sanctuary was available until ${spaceSchedule?.available_to}`;
+            else if (isSpaceOffDay) tooltip = "Sanctuary is closed on this day of the week";
 
             return (
               <button
                 key={dateStr}
                 type="button"
                 disabled={isDisabled}
+                title={tooltip || undefined}
                 onClick={() => onDateChange(dateStr)}
                 className={cn(
                   "h-11 sm:h-12 rounded-xl flex flex-col items-center justify-center relative transition-all duration-150 select-none",
@@ -328,6 +363,13 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
               <span>Past / Off</span>
             </span>
           </div>
+
+          {spaceSchedule?.summary && (
+            <div className="text-[11px] text-accent/90 font-medium flex items-center gap-1">
+              <Clock className="size-3 text-accent shrink-0" />
+              <span>Sanctuary Hours: {spaceSchedule.summary}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -360,7 +402,7 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
                 ? "Checking…"
                 : availableSlots.length > 0
                 ? `${availableSlots.length} open slot${availableSlots.length > 1 ? "s" : ""}`
-                : "Sold out"}
+                : "No open slots"}
             </span>
           </div>
 

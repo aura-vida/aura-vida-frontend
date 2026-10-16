@@ -38,6 +38,7 @@ import { startCheckout } from "@/lib/razorpay";
 import { validateCoupon } from "@/lib/couponsApi";
 import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax, calculateSessionSubtotal } from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
+import { parseSpaceSchedule } from "@/lib/spacesApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
 
 type Location = "studio" | "online" | "centre" | "host";
@@ -101,6 +102,8 @@ const Book = () => {
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState("");
+  const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
+  const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [hostAddress, setHostAddress] = useState("");
 
   // Date and Time
@@ -167,12 +170,51 @@ const Book = () => {
     if (profile?.phone && !phone) setPhone(profile.phone);
   }, [profile, user]);
 
-  // Fetch slots whenever practitioner, date, or service changes
+  // Selected partner space & schedule (when in centre mode)
+  const selectedSpace = useMemo(() => {
+    if (location !== "centre" || !selectedCentre) return null;
+    return suggestedPlaces.find((p) => p.space_name === selectedCentre) || null;
+  }, [location, selectedCentre, suggestedPlaces]);
+
+  const selectedSpaceSchedule = useMemo(() => {
+    if (!selectedSpace?.availability) return null;
+    return parseSpaceSchedule(selectedSpace.availability);
+  }, [selectedSpace]);
+
+  // Auto-adjust selectedDate if currently selected date is out of range for the chosen sanctuary
+  useEffect(() => {
+    if (!selectedSpaceSchedule) return;
+    const today = new Date().toISOString().split("T")[0];
+    const { available_from, available_to } = selectedSpaceSchedule;
+
+    let targetDate = selectedDate;
+    if (available_from && targetDate < available_from) {
+      targetDate = available_from >= today ? available_from : today;
+    }
+    if (available_to && targetDate > available_to) {
+      if (available_from && available_from <= available_to && available_from >= today) {
+        targetDate = available_from;
+      } else if (today <= available_to) {
+        targetDate = today;
+      } else {
+        targetDate = available_to;
+      }
+    }
+
+    if (targetDate && targetDate !== selectedDate) {
+      setSelectedDate(targetDate);
+    }
+  }, [selectedSpaceSchedule]);
+
+  // Fetch slots whenever practitioner, date, service, or partner space changes
   useEffect(() => {
     const slug = selectedPractitioner?.slug;
     if (!slug || !selectedDate) return;
+
+    const selectedSpaceId = selectedSpace?.id;
+
     setLoadingSlots(true);
-    getAvailableSlots(slug, selectedDate, selectedServiceId)
+    getAvailableSlots(slug, selectedDate, selectedServiceId, selectedSpaceId)
       .then((res) => {
         const active = (res.slots || [])
           .filter((s) => s.available !== false)
@@ -189,7 +231,7 @@ const Book = () => {
         setSelectedTime("");
       })
       .finally(() => setLoadingSlots(false));
-  }, [selectedPractitioner?.slug, selectedDate, selectedServiceId]);
+  }, [selectedPractitioner?.slug, selectedDate, selectedServiceId, selectedSpace?.id]);
 
   useEffect(() => {
     if (!selectedPractitioner) return;
@@ -318,9 +360,6 @@ const Book = () => {
     setCouponError("");
   };
   const extraEach = basePrice ? Math.round(basePrice * 0.6) : 0;
-
-  const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
-  const [loadingPlaces, setLoadingPlaces] = useState(false);
 
   const handleSearch = async () => {
     if (pin.length !== 6) return;
@@ -823,6 +862,12 @@ const Book = () => {
                                       </span>
                                     )}
                                   </div>
+                                  {c.availability && (
+                                    <div className="text-[11px] text-foreground/85 mt-1 flex items-center gap-1 font-medium">
+                                      <Clock className="size-3 text-accent" />
+                                      {parseSpaceSchedule(c.availability).summary}
+                                    </div>
+                                  )}
                                   <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                                     <Users className="size-3 text-primary" /> Up to {c.capacity} people
                                   </div>
@@ -881,6 +926,22 @@ const Book = () => {
                   </span> */}
                 </div>
 
+                {location === "centre" && selectedSpaceSchedule && (selectedSpaceSchedule.available_from || selectedSpaceSchedule.available_to) && (
+                  <div className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-foreground">
+                    <CalendarIcon className="size-4 text-accent shrink-0" />
+                    <span>
+                      Sanctuary operating window:{" "}
+                      <strong>{selectedSpaceSchedule.available_from || "Today"}</strong> to{" "}
+                      <strong>{selectedSpaceSchedule.available_to || "Ongoing"}</strong>
+                      {selectedSpaceSchedule.open_time && selectedSpaceSchedule.close_time && (
+                        <span className="text-muted-foreground ml-1">
+                          ({selectedSpaceSchedule.summary})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+
                 <AuraBookingCalendar
                   selectedDate={selectedDate}
                   onDateChange={setSelectedDate}
@@ -891,6 +952,8 @@ const Book = () => {
                   durationMin={duration}
                   formatSlot={formatSlot}
                   practitionerSlug={selectedPractitioner?.slug}
+                  spaceSchedule={selectedSpaceSchedule}
+                  spaceId={selectedSpace?.id}
                 />
               </section>
 

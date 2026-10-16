@@ -10,10 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { Mail } from "lucide-react";
 
 const SIGN_IN_CODE_LENGTH = 6;
 
-type AuthView = "signin" | "signup" | "forgot" | "confirm";
+type AuthView = "signin" | "signup" | "forgot" | "confirm" | "forgot_sent";
 type SignMethod = "password" | "code";
 
 const otpWaitSeconds = (message: string) => {
@@ -155,14 +156,21 @@ const AuthPage = () => {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim()) {
+      toast({ title: "Enter your email", variant: "destructive" });
+      return;
+    }
     setBusy(true);
     try {
       await requestPasswordReset(email);
+      try {
+        sessionStorage.setItem("last_reset_email", email.trim());
+      } catch {}
       toast({
         title: "Check your email",
         description: "Open the reset link we sent, then choose a new password.",
       });
-      goSignIn();
+      setView("forgot_sent");
     } catch (error) {
       toast({
         title: "Could not send reset email",
@@ -216,9 +224,11 @@ const AuthPage = () => {
       ? "Create your account"
       : view === "forgot"
         ? "Reset your password"
-        : view === "confirm"
-          ? "Confirm your email"
-          : "Welcome back";
+        : view === "forgot_sent"
+          ? "Check your email"
+          : view === "confirm"
+            ? "Confirm your email"
+            : "Welcome back";
 
   const pillTriggerClass =
     "rounded-full h-10 text-sm shadow-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none";
@@ -229,7 +239,9 @@ const AuthPage = () => {
       <section className="max-w-md mx-auto px-6 py-16 lg:py-24">
         <h1 className="font-display text-4xl text-foreground text-center">{heading}</h1>
         <p className="text-muted-foreground text-center mt-3">
-          Your sessions, aftercare notes and bookings, all in one place.
+          {view === "forgot_sent"
+            ? "We've sent recovery instructions to your email."
+            : "Your sessions, aftercare notes and bookings, all in one place."}
         </p>
 
         {referralCode && view === "signup" && (
@@ -457,6 +469,44 @@ const AuthPage = () => {
               {busy ? "Please wait…" : "Send reset link"}
             </Button>
           </form>
+        )}
+
+        {view === "forgot_sent" && (
+          <div className="space-y-5 mt-8 text-center animate-in fade-in-50 duration-200">
+            <div className="size-14 mx-auto rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <Mail className="size-7" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-foreground font-medium">
+                We sent a password reset link to:
+              </p>
+              <p className="text-sm font-semibold text-primary break-all">
+                {email}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                Open the link in that email to set a new password. If you don't see it within a couple minutes, please check your spam or promotions folder.
+              </p>
+            </div>
+            <div className="space-y-3 pt-2">
+              <Button
+                type="button"
+                onClick={goSignIn}
+                className="w-full rounded-full h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Back to sign in
+              </Button>
+              <div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleForgotPassword}
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 disabled:opacity-50"
+                >
+                  {busy ? "Sending…" : "Didn't receive the email? Resend link"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {view === "confirm" && (

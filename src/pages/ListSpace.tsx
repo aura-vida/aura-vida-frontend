@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ImagePlus, X } from "lucide-react";
+import SpaceScheduleEditor from "@/components/aura/SpaceScheduleEditor";
 
 const schema = z.object({
   contact_name: z.string().trim().min(1, "Please add your name").max(100),
@@ -106,8 +107,13 @@ const ListSpace = () => {
             <div className="sm:col-span-2"><Label>Address *</Label><Input value={form.address} onChange={set("address")} maxLength={400} /></div>
             <div><Label>City *</Label><Input value={form.city} onChange={set("city")} maxLength={100} /></div>
             <div><Label>PIN code *</Label><Input value={form.pin} maxLength={6} onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, "") }))} /></div>
-            <div><Label>How many people can it hold? *</Label><Input type="number" min={1} max={500} value={form.capacity} onChange={set("capacity")} /></div>
-            <div><Label>Availability</Label><Input value={form.availability} onChange={set("availability")} maxLength={500} placeholder="Weekday evenings, weekends…" /></div>
+            <div className="sm:col-span-2"><Label>How many people can it hold? *</Label><Input type="number" min={1} max={500} value={form.capacity} onChange={set("capacity")} /></div>
+            <div className="sm:col-span-2">
+              <SpaceScheduleEditor
+                value={form.availability}
+                onChange={(sched) => setForm((f) => ({ ...f, availability: JSON.stringify(sched) }))}
+              />
+            </div>
             <div className="sm:col-span-2"><Label>Amenities</Label><Textarea value={form.amenities} onChange={set("amenities")} maxLength={1000} placeholder="Mats, sound system, parking, washroom…" /></div>
             <div className="sm:col-span-2">
               <Label>Photos</Label>
