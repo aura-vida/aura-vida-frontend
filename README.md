@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Kuśala Web Application
 
-TODO: Document your project here
+A sanctuary for alternative healing.
