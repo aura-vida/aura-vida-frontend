@@ -841,19 +841,27 @@ const SpaceListingsAdmin = () => {
                         {[...(space.space_images || [])]
                           .sort((a, b) => a.sort_order - b.sort_order)
                           .map((img) => (
-                            <div key={img.id} className="relative size-20 rounded-xl overflow-hidden border border-border group">
-                              <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                            <div key={img.id} className="relative size-20 rounded-xl group">
+                              <a
+                                href={img.image_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block size-20 rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity"
+                                aria-label="Open photo in new tab"
+                              >
+                                <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                              </a>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteSpaceImage(space.id, img.id)}
                                 disabled={deletingImageId === img.id}
-                                className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity disabled:opacity-100"
+                                className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-destructive text-destructive-foreground border-2 border-background shadow-sm flex items-center justify-center hover:bg-destructive/90 disabled:opacity-60"
                                 aria-label="Remove photo"
                               >
                                 {deletingImageId === img.id ? (
-                                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                                  <Loader2 className="size-3 animate-spin" />
                                 ) : (
-                                  <X className="size-4 text-destructive" />
+                                  <X className="size-3" />
                                 )}
                               </button>
                             </div>
@@ -988,15 +996,23 @@ const SpaceListingsAdmin = () => {
               <Label>Photos</Label>
               <div className="mt-1 flex flex-wrap gap-2.5">
                 {newSpacePreviews.map((src, i) => (
-                  <div key={src} className="relative size-20 rounded-xl overflow-hidden border border-border group">
-                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  <div key={src} className="relative size-20 rounded-xl">
+                    <a
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block size-20 rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity"
+                      aria-label="Open photo in new tab"
+                    >
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                    </a>
                     <button
                       type="button"
                       onClick={() => removeNewSpaceFile(i)}
-                      className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                      className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-destructive text-destructive-foreground border-2 border-background shadow-sm flex items-center justify-center hover:bg-destructive/90"
                       aria-label="Remove photo"
                     >
-                      <X className="size-4 text-destructive" />
+                      <X className="size-3" />
                     </button>
                   </div>
                 ))}

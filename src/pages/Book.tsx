@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Home,
   Video,
@@ -102,6 +103,7 @@ const Book = () => {
   const [pin, setPin] = useState("");
   const [searched, setSearched] = useState(false);
   const [selectedCentre, setSelectedCentre] = useState("");
+  const [spaceDetailsTarget, setSpaceDetailsTarget] = useState<PartnerSpace | null>(null);
   const [suggestedPlaces, setSuggestedPlaces] = useState<PartnerSpace[]>([]);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [hostAddress, setHostAddress] = useState("");
@@ -868,8 +870,15 @@ const Book = () => {
                                       {parseSpaceSchedule(c.availability).summary}
                                     </div>
                                   )}
-                                  <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                                  <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 flex-wrap">
                                     <Users className="size-3 text-primary" /> Up to {c.capacity} people
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setSpaceDetailsTarget(c); }}
+                                      className="ml-1 text-accent underline underline-offset-2 hover:text-accent/80"
+                                    >
+                                      View details &amp; photos
+                                    </button>
                                   </div>
                                 </div>
                               </div>
@@ -893,6 +902,81 @@ const Book = () => {
                     )}
                   </div>
                 )}
+
+                {/* Partner Space Details & Photo Gallery */}
+                <Dialog open={!!spaceDetailsTarget} onOpenChange={(open) => !open && setSpaceDetailsTarget(null)}>
+                  <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-[2rem] p-6 sm:p-8">
+                    {spaceDetailsTarget && (
+                      <>
+                        <DialogHeader className="text-left">
+                          <DialogTitle className="font-display text-2xl text-foreground">
+                            {spaceDetailsTarget.space_name}
+                          </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="space-y-1.5 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="size-4 text-accent shrink-0" />
+                            {spaceDetailsTarget.address}, {spaceDetailsTarget.city}
+                            {spaceDetailsTarget.pin && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-secondary text-foreground border border-border/80">
+                                PIN: {spaceDetailsTarget.pin}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Users className="size-4 text-accent shrink-0" /> Up to {spaceDetailsTarget.capacity} people
+                          </div>
+                          {spaceDetailsTarget.space_type && (
+                            <div className="flex items-center gap-1.5">
+                              <Building2 className="size-4 text-accent shrink-0" /> {spaceDetailsTarget.space_type}
+                            </div>
+                          )}
+                        </div>
+
+                        {spaceDetailsTarget.amenities && spaceDetailsTarget.amenities.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {spaceDetailsTarget.amenities.map((a, i) => (
+                              <span key={i} className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent/10 text-accent border border-accent/20">
+                                {a}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {spaceDetailsTarget.notes && (
+                          <p className="text-sm text-muted-foreground leading-relaxed pt-2 border-t border-border/60 mt-2">
+                            <span className="font-medium text-foreground">Space Instructions: </span>
+                            {spaceDetailsTarget.notes}
+                          </p>
+                        )}
+
+                        {spaceDetailsTarget.space_images && spaceDetailsTarget.space_images.length > 0 ? (
+                          <div className="pt-4 mt-2 border-t border-border/60">
+                            <div className="text-[11px] uppercase tracking-[0.2em] text-accent font-medium mb-3">Photos</div>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                              {[...spaceDetailsTarget.space_images]
+                                .sort((a, b) => a.sort_order - b.sort_order)
+                                .map((img) => (
+                                  <a
+                                    key={img.id}
+                                    href={img.image_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="aspect-square rounded-xl overflow-hidden border border-border block hover:opacity-90 transition-opacity"
+                                  >
+                                    <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                                  </a>
+                                ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground pt-4 mt-2 border-t border-border/60">No photos uploaded yet.</p>
+                        )}
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
 
                 {location === "host" && (
                   <div className="rounded-2xl border border-border p-5 bg-secondary/30 space-y-3">

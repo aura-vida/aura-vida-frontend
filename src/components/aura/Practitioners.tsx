@@ -375,19 +375,72 @@ const Practitioners = () => {
                     </DialogHeader>
                   </div>
                   {p.bio && (
-                    <div className="space-y-4 text-foreground/85 leading-relaxed pt-4 border-t border-border/60">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-accent font-medium">About the guide</div>
-                      {p.bio.split(/\n+/).filter((l) => l.trim()).map((para, i) => {
-                        const t = para.trim();
-                        if (t.startsWith("- ") || t.startsWith("• ")) {
-                          return <p key={i} className="pl-4 text-muted-foreground">• {t.slice(2)}</p>;
-                        }
-                        if (t.length < 50 && !t.endsWith(".")) {
-                          return <h4 key={i} className="font-display text-lg text-foreground pt-2">{t}</h4>;
-                        }
-                        return <p key={i}>{t}</p>;
-                      })}
-                    </div>
+                    <section className="mt-6 border-t border-border/60 pt-6">
+                      <div className="rounded-2xl bg-secondary/30 p-5 sm:p-6">
+                        <div className="mb-4">
+                          <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-accent">
+                            Get to know your guide
+                          </span>
+                        </div>
+
+                        <div className="space-y-4 text-[15px] leading-7 text-muted-foreground">
+                          {p.bio
+                            .split(/\n\s*\n+/)
+                            .map((block) => block.trim())
+                            .filter(Boolean)
+                            .map((block, i) => {
+                              const lines = block
+                                .split("\n")
+                                .map((line) => line.trim())
+                                .filter(Boolean);
+
+                              const isBullet = (line: string) =>
+                                line.startsWith("- ") || line.startsWith("• ");
+
+                              if (lines.length > 1 && lines.every(isBullet)) {
+                                return (
+                                  <ul key={i} className="space-y-2">
+                                    {lines.map((line, j) => (
+                                      <li key={j} className="flex gap-3">
+                                        <span className="mt-3 size-1.5 shrink-0 rounded-full bg-accent" />
+                                        <span>{line.slice(2)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                );
+                              }
+
+                              const joined = lines.join(" ");
+
+                              if (lines.length === 1 && isBullet(lines[0])) {
+                                return (
+                                  <p key={i} className="flex gap-3">
+                                    <span className="mt-3 size-1.5 shrink-0 rounded-full bg-accent" />
+                                    <span>{lines[0].slice(2)}</span>
+                                  </p>
+                                );
+                              }
+
+                              if (
+                                lines.length === 1 &&
+                                joined.length < 50 &&
+                                !/[.,]$/.test(joined)
+                              ) {
+                                return (
+                                  <h4
+                                    key={i}
+                                    className="pt-2 font-display text-lg text-foreground"
+                                  >
+                                    {joined}
+                                  </h4>
+                                );
+                              }
+
+                              return <p key={i}>{joined}</p>;
+                            })}
+                        </div>
+                      </div>
+                    </section>
                   )}
 
                   {/* Articles & Wisdom written by practitioner */}

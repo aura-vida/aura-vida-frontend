@@ -286,11 +286,11 @@ const Admin = () => {
     setIsDeletingPractitioner(true);
     try {
       await adminDeletePractitioner(practitionerDeleteTarget.id);
-      setRows((r) => r.filter((x) => x.id !== practitionerDeleteTarget.id));
-      toast.success(`${practitionerDeleteTarget.name} removed successfully.`);
+      setRows((r) => r.map((x) => (x.id === practitionerDeleteTarget.id ? { ...x, is_published: false, bookable: false } : x)));
+      toast.success(`${practitionerDeleteTarget.name} is now hidden from the site.`);
       setPractitionerDeleteTarget(null);
     } catch (err: any) {
-      toast.error(err.message || "Failed to remove practitioner");
+      toast.error(err.message || "Failed to hide practitioner");
     } finally {
       setIsDeletingPractitioner(false);
     }
@@ -1021,7 +1021,7 @@ const Admin = () => {
                           size="icon"
                           className="rounded-full size-9 text-destructive hover:bg-destructive/15 hover:text-destructive transition-smooth"
                           onClick={() => remove(row)}
-                          aria-label={`Remove ${row.name}`}
+                          aria-label={`Hide ${row.name}`}
                         >
                           <Trash2 className="size-4 text-destructive" />
                         </Button>
@@ -1475,10 +1475,10 @@ const Admin = () => {
       <ConfirmDialog
         open={!!practitionerDeleteTarget}
         onOpenChange={(open) => !open && setPractitionerDeleteTarget(null)}
-        title={practitionerDeleteTarget ? `Remove ${practitionerDeleteTarget.name}?` : "Remove Practitioner"}
-        description={`Are you sure you want to remove ${practitionerDeleteTarget?.name || "this practitioner"}? Their listing, bookings, and profile details will be permanently affected.`}
-        confirmLabel="Yes, Remove Practitioner"
-        cancelLabel="Keep Practitioner"
+        title={practitionerDeleteTarget ? `Hide ${practitionerDeleteTarget.name}?` : "Hide Practitioner"}
+        description={`This hides ${practitionerDeleteTarget?.name || "this practitioner"} from the public directory and stops new bookings — nothing is deleted. Their existing appointments, services, and profile details are kept safe, and you can make them visible again anytime.`}
+        confirmLabel="Yes, Hide Practitioner"
+        cancelLabel="Keep Visible"
         variant="destructive"
         isLoading={isDeletingPractitioner}
         onConfirm={handleConfirmDeletePractitioner}

@@ -120,15 +120,23 @@ const ListSpace = () => {
               <p className="text-xs text-muted-foreground mt-0.5 mb-2">A few photos help us (and clients) get a feel for the space.</p>
               <div className="flex flex-wrap gap-2.5">
                 {photoPreviews.map((src, i) => (
-                  <div key={src} className="relative size-20 rounded-xl overflow-hidden border border-border group">
-                    <img src={src} alt="" className="w-full h-full object-cover" />
+                  <div key={src} className="relative size-20 rounded-xl">
+                    <a
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block size-20 rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity"
+                      aria-label="Open photo in new tab"
+                    >
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                    </a>
                     <button
                       type="button"
                       onClick={() => removePhoto(i)}
-                      className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                      className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-destructive text-destructive-foreground border-2 border-background shadow-sm flex items-center justify-center hover:bg-destructive/90"
                       aria-label="Remove photo"
                     >
-                      <X className="size-4 text-destructive" />
+                      <X className="size-3" />
                     </button>
                   </div>
                 ))}
