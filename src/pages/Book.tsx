@@ -603,7 +603,18 @@ const Book = () => {
                   <Label className="text-sm font-medium">Select Therapy / Session</Label>
                   <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
                     <SelectTrigger className="w-full h-14 rounded-2xl border-border px-5 bg-background text-left">
-                      <SelectValue placeholder="Choose a therapy..." />
+                      {/* Radix mirrors the full SelectItem content into the trigger by
+                          default — overriding with children here keeps the closed
+                          trigger to one clean truncated line, regardless of how long
+                          a service's name or category text is. */}
+                      <SelectValue placeholder="Choose a therapy...">
+                        {(() => {
+                          const selected = services.find((s) => s.id === selectedServiceId);
+                          return selected ? (
+                            <span className="block truncate font-medium text-foreground">{selected.name}</span>
+                          ) : null;
+                        })()}
+                      </SelectValue>
                     </SelectTrigger>
 
                     <SelectContent className="rounded-2xl border-border max-h-72 p-2">
@@ -614,7 +625,7 @@ const Book = () => {
                           className="relative py-3.5 pl-10 pr-4 cursor-pointer focus:bg-accent/5 focus:text-accent rounded-xl my-1"
                         >
                           <div className="flex flex-col gap-1">
-                            <span className="font-medium text-sm leading-tight text-foreground">
+                            <span className="font-medium text-sm leading-snug text-foreground line-clamp-2">
                               {s.name}
                             </span>
 
@@ -1092,10 +1103,10 @@ const Book = () => {
 
                 {/* Quick specs */}
                 <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between text-muted-foreground">
+                  {/* <div className="flex items-center justify-between text-muted-foreground">
                     <span>Therapy</span>
                     <span className="font-medium text-foreground">{selectedService?.name || "Standard Session"} ({duration}m)</span>
-                  </div>
+                  </div> */}
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>Date &amp; Time</span>
                     <span className={cn("font-medium", selectedTime ? "text-foreground" : "text-amber-600 dark:text-amber-400")}>

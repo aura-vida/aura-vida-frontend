@@ -274,7 +274,8 @@ const Practitioners = () => {
                       </div>
                       <div className="flex items-center gap-1 text-sm shrink-0">
                         <Star className="size-4 fill-accent text-accent" />
-                        <span className="font-medium text-foreground">{p.rating}</span>
+                        <span className="font-medium text-foreground">{p.rating ?? 0}</span>
+                        <span className="text-xs text-muted-foreground">({p.sessions ?? 0} sessions)</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground mt-3.5">
@@ -359,7 +360,8 @@ const Practitioners = () => {
                         </div>
                         <div className="flex items-center gap-1 text-sm shrink-0 bg-secondary px-2.5 py-1 rounded-full border border-border/40">
                           <Star className="size-4 fill-accent text-accent" />
-                          <span className="font-medium text-foreground">{p.rating}</span>
+                          <span className="font-medium text-foreground">{p.rating ?? 0}</span>
+                          <span className="text-xs text-muted-foreground">({p.sessions ?? 0})</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground pt-1">

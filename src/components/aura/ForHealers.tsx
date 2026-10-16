@@ -32,7 +32,6 @@ const emptyForm = () => ({
   bio: "",
   craft: "",
   city: "",
-  sessions: "0",
   price_inr: "1500",
 });
 
@@ -65,7 +64,6 @@ const ForHealers = () => {
         method: "POST",
         body: {
           ...form,
-          sessions: parseInt(form.sessions) || 0,
           price_inr: parseInt(form.price_inr) || 0,
         },
       });
@@ -187,11 +185,6 @@ const ForHealers = () => {
                 <div className="space-y-1.5">
                   <Label htmlFor="ap-price">Price per session (₹)</Label>
                   <Input id="ap-price" type="number" min="0" value={form.price_inr} onChange={set("price_inr")} className="rounded-xl h-11" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="ap-sessions">Sessions completed</Label>
-                  <Input id="ap-sessions" type="number" min="0" value={form.sessions} onChange={set("sessions")} className="rounded-xl h-11" />
                 </div>
 
                 <div className="sm:col-span-2 space-y-1.5">

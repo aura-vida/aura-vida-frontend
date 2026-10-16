@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,8 @@ import {
   CheckCircle2,
   CreditCard,
   Settings,
-  Building2
+  Building2,
+  Star
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
@@ -40,11 +42,12 @@ import ClickableDatePicker from "@/components/aura/ClickableDatePicker";
 import { cn } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
 
-import { listPractitioners } from "@/lib/practitionersApi";
+import { listPractitioners, getPractitioner } from "@/lib/practitionersApi";
 import { getMyAppointments, updateMe, getMe, type Appointment as Booking } from "@/lib/usersApi";
 import { cancelAppointment, rescheduleAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 import { splitTaxInclusiveTotal } from "@/lib/pricing";
+import { submitReview, listMyReviews, type Review } from "@/lib/reviewsApi";
 
 const getTomorrowDate = () => {
   const d = new Date();
@@ -107,9 +110,74 @@ const Account = () => {
   // Payment state
   const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
 
+  // Review state
+  const [myReviews, setMyReviews] = useState<Record<string, Review>>({});
+  const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
+  const [reviewPractitionerId, setReviewPractitionerId] = useState<string | null>(null);
+  const [loadingReviewTarget, setLoadingReviewTarget] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewHoverRating, setReviewHoverRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   useEffect(() => {
     if (!loading && !user) navigate("/auth", { replace: true });
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+    listMyReviews()
+      .then((res) => {
+        const byBooking: Record<string, Review> = {};
+        (res.reviews || []).forEach((r) => {
+          if (r.booking_id) byBooking[r.booking_id] = r;
+        });
+        setMyReviews(byBooking);
+      })
+      .catch((err) => console.error("Failed to load reviews:", err));
+  }, [user]);
+
+  const openReviewDialog = async (b: Booking) => {
+    setReviewBooking(b);
+    setReviewRating(0);
+    setReviewHoverRating(0);
+    setReviewComment("");
+    setReviewPractitionerId(null);
+    if (!b.practitioner_slug) {
+      toast.error("Could not identify the practitioner for this session.");
+      return;
+    }
+    setLoadingReviewTarget(true);
+    try {
+      const res = await getPractitioner(b.practitioner_slug);
+      setReviewPractitionerId(res.practitioner.id ?? null);
+    } catch (err) {
+      console.error("Failed to load practitioner for review:", err);
+      toast.error("Could not load practitioner details. Please try again.");
+    } finally {
+      setLoadingReviewTarget(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewBooking || !reviewPractitionerId || reviewRating === 0) return;
+    setSubmittingReview(true);
+    try {
+      const res = await submitReview({
+        practitioner_id: reviewPractitionerId,
+        booking_id: reviewBooking.id,
+        rating: reviewRating,
+        comment: reviewComment.trim() || undefined,
+      });
+      setMyReviews((prev) => ({ ...prev, [reviewBooking.id]: res.data }));
+      toast.success("Thanks for your feedback!");
+      setReviewBooking(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit your review. Please try again.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const loadSessions = () => {
     if (!user) return;
@@ -510,6 +578,38 @@ const Account = () => {
                     {b.aftercare_notes ?? "Your practitioner will add notes here after your session."}
                   </p>
                 </div>
+
+                {/* Review */}
+                {isCompleted && (
+                  <div className="pt-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+                    {myReviews[b.id] ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star
+                              key={n}
+                              className={cn(
+                                "size-4",
+                                n <= myReviews[b.id].rating ? "fill-accent text-accent" : "text-muted-foreground/30"
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-muted-foreground">You rated this session</span>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openReviewDialog(b)}
+                        className="rounded-full h-9 px-4 text-xs"
+                      >
+                        <Star className="size-3.5 mr-1.5 text-accent" />
+                        Leave a Review
+                      </Button>
+                    )}
+                  </div>
+                )}
               </article>
             );
           })}
@@ -671,6 +771,64 @@ const Account = () => {
               className="rounded-full h-11"
             >
               {actionBusy ? "Cancelling…" : "Yes, Cancel Session"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG: Leave a Review */}
+      <Dialog open={Boolean(reviewBooking)} onOpenChange={(open) => !open && setReviewBooking(null)}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Rate your session</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
+              with <strong>{reviewBooking?.practitioner_name}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            <div className="flex items-center justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setReviewRating(n)}
+                  onMouseEnter={() => setReviewHoverRating(n)}
+                  onMouseLeave={() => setReviewHoverRating(0)}
+                  className="p-1"
+                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                >
+                  <Star
+                    className={cn(
+                      "size-8 transition-colors",
+                      n <= (reviewHoverRating || reviewRating) ? "fill-accent text-accent" : "text-muted-foreground/30"
+                    )}
+                  />
+                </button>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="review-comment">Share your experience (optional)</Label>
+              <Textarea
+                id="review-comment"
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="What stood out about your session?"
+                className="min-h-[100px] rounded-xl"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setReviewBooking(null)} className="rounded-full h-11">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitReview}
+              disabled={reviewRating === 0 || submittingReview || loadingReviewTarget || !reviewPractitionerId}
+              className="rounded-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {submittingReview ? "Submitting…" : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>

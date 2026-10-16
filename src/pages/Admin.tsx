@@ -200,7 +200,6 @@ const Admin = () => {
     whatsapp_number: "",
     craft: "",
     city: "",
-    sessions: 0,
     price_inr: 0,
     bio: "",
     offers_centre: true,
@@ -243,7 +242,6 @@ const Admin = () => {
         whatsapp_number: newPractitioner.whatsapp_number.trim(),
         craft: newPractitioner.craft.trim(),
         city: newPractitioner.city.trim(),
-        sessions: Number(newPractitioner.sessions) || 0,
         price_inr: startingPrice,
         bio: newPractitioner.bio.trim(),
         offers_centre: newPractitioner.offers_centre,
@@ -632,15 +630,6 @@ const Admin = () => {
                       value={newPractitioner.city}
                       onChange={(e) => setNewPractitioner(p => ({ ...p, city: e.target.value }))}
                       placeholder="e.g. Mumbai"
-                    />
-                  </div>
-                  <div>
-                    <Label>Sessions completed</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={newPractitioner.sessions}
-                      onChange={(e) => setNewPractitioner(p => ({ ...p, sessions: parseInt(e.target.value) || 0 }))}
                     />
                   </div>
                   <div className="sm:col-span-2">
@@ -1094,8 +1083,9 @@ const Admin = () => {
                             </div>
                             <div>
                               <Label>Sessions completed</Label>
-                              <Input type="number" min="0" value={row.sessions}
-                                onChange={(e) => update(row.id, { sessions: Number(e.target.value) })} />
+                              <p className="text-sm font-medium mt-2">
+                                {row.sessions ?? 0} <span className="text-xs font-normal text-muted-foreground">(calculated automatically from customer reviews)</span>
+                              </p>
                             </div>
                             <div className="sm:col-span-2">
                               <Label>Order on page</Label>

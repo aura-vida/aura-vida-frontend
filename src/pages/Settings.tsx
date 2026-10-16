@@ -308,7 +308,7 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-2 pb-2">
                                     <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Your Rating</Label>
                                     <span className="text-sm font-semibold">⭐ {practitioner.rating ?? 0}</span>
-                                    <span className="text-xs text-muted-foreground">(calculated automatically from customer reviews — not editable)</span>
+                                    <span className="text-xs text-muted-foreground">(calculated automatically from customer reviews)</span>
                                 </div>
 
                                 <div className="grid sm:grid-cols-2 gap-5">
