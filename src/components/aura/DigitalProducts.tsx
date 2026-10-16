@@ -1,14 +1,15 @@
-import { useMemo } from "react";
 import programmeImg from "@/assets/digital-programme.jpg";
 import audioImg from "@/assets/digital-audio.jpg";
 import ebookImg from "@/assets/digital-ebooks.jpg";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Headphones, Layers } from "lucide-react";
-import { useServices } from "@/hooks/useServices";
-import { formatINR } from "@/lib/pricing";
-import type { Service } from "@/lib/servicesApi";
 
-const fallbackProducts = [
+// Fixed, curated content — deliberately NOT driven by the live services
+// catalog. These are pre-recorded/downloadable products (programmes, audio,
+// e-books), a different thing entirely from the live 1:1 sessions
+// practitioners list as their services, so substituting real services in
+// here (as "coming soon") was always a mismatch.
+const products = [
   {
     icon: Layers,
     tag: "Programmes",
@@ -35,32 +36,7 @@ const fallbackProducts = [
   },
 ];
 
-const fallbackImgs = [programmeImg, audioImg, ebookImg];
-const icons = [Layers, Headphones, BookOpen];
-
-const iconFor = (category: string | null, index: number) => {
-  const c = (category ?? "").toLowerCase();
-  if (c.includes("audio") || c.includes("meditat")) return Headphones;
-  if (c.includes("book") || c.includes("guide")) return BookOpen;
-  return icons[index % icons.length];
-};
-
-const toCard = (s: Service, index: number) => ({
-  icon: iconFor(s.category, index),
-  tag: s.category || "Service",
-  name: s.name,
-  body: s.description || (s.duration_min ? `${s.duration_min} minute session` : "A Kuśala wellness offering."),
-  img: s.image_url || fallbackImgs[index % fallbackImgs.length],
-  price: s.price_inr != null ? formatINR(s.price_inr) : "—",
-});
-
 const DigitalProducts = () => {
-  const { services } = useServices();
-  const products = useMemo(
-    () => (services.length ? services.slice(0, 6).map(toCard) : fallbackProducts),
-    [services],
-  );
-
   return (
   <section id="digital" className="bg-background py-24 lg:py-32">
     <div className="max-w-[1500px] mx-auto px-6 lg:px-12">
@@ -112,14 +88,14 @@ const DigitalProducts = () => {
         ))}
       </div>
 
-      <div className="flex justify-center">
+      {/* <div className="flex justify-center">
         <Button
           size="lg"
           className="rounded-full bg-foreground text-background hover:bg-foreground/90 px-10 h-14 text-base"
         >
           Explore the full library
         </Button>
-      </div>
+      </div> */}
     </div>
   </section>
   );

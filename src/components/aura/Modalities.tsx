@@ -2,40 +2,22 @@
 import sessionSound from "@/assets/session-sound.jpg";
 import sessionAcu from "@/assets/session-acupuncture.jpg";
 import { ArrowUpRight } from "lucide-react";
-import { useServices } from "@/hooks/useServices";
 
-const fallbackFeatured = [
-  { name: "Reiki & Energy Healing", count: 118, img: sessionReiki, desc: "Gentle hands-on work to restore your nervous system and energetic flow." },
+// A fixed, curated set of modalities — deliberately NOT driven by the live
+// services catalog. Each practitioner names their own services however they
+// like (e.g. "Online Session (Individual)"), which reads fine on a booking
+// page but not as a browseable "modality" here.
+const featured = [
+  { name: "Energy Healing", count: 118, img: sessionReiki, desc: "Gentle hands-on work to restore your nervous system and energetic flow." },
   { name: "Sound Healing", count: 74, img: sessionSound, desc: "Tibetan and crystal bowls tuned to bring deep coherence to body and mind." },
-  { name: "Meditation & Breathwork", count: 96, img: sessionAcu, desc: "Guided practices to settle the mind and reconnect with the breath." },
+  { name: "Yoga", count: 96, img: sessionAcu, desc: "Mindful movement and breath to build strength, flexibility, and inner calm." },
 ];
 
-const fallbackAll = [
-  "Meditation", "Yoga", "Reiki & Energy Healing", "Holistic Life Coaching",
-  "Breathwork", "Sound Healing", "Theta Healing", "Astrology", "Tarot",
-  "Craniosacral Therapy",
+const all = [
+  "Yoga", "Energy Healing", "Sound Healing", "Astrology & Tarot", "Holistic Life Coaching",
 ];
 
 const Modalities = () => {
-  const { services, loading } = useServices();
-  
-  const activeServices = services.filter(s => s.is_active !== false);
-  
-  // Create dynamic featured services (top 3)
-  const featured = activeServices.length >= 3 
-    ? activeServices.slice(0, 3).map((s, i) => ({
-        name: s.name,
-        count: Math.floor(Math.random() * 50) + 10, // Mock practitioner count for now
-        img: s.image_url || fallbackFeatured[i % 3].img,
-        desc: s.description || fallbackFeatured[i % 3].desc
-      }))
-    : fallbackFeatured;
-
-  // Create full list
-  const all = activeServices.length > 0 
-    ? activeServices.map(s => s.name)
-    : fallbackAll;
-
   return (
     <section id="modalities" className="bg-background py-24 lg:py-32">
       <div className="max-w-[1500px] mx-auto px-6 lg:px-12">
