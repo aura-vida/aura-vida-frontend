@@ -111,6 +111,18 @@ export const adminApprovePractitioner = (id: string) =>
     { method: "POST" }
   );
 
+export const adminUploadPractitionerPhoto = (id: string, file: File) => {
+  const formData = new FormData();
+  formData.append("photo", file);
+  return api<{ message: string; imageUrl: string; practitioner: Practitioner }>(
+    `/api/admin/practitioners/${id}/photo`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+};
+
 export const submitPractitionerSupport = (fields: {
   title: string;
   description: string;

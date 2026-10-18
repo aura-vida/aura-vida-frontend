@@ -1,7 +1,6 @@
 import React from "react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +37,7 @@ import {
 } from "@/components/ui/select";
 import Nav from "@/components/aura/Nav";
 import SpaceListingsAdmin from "@/components/aura/SpaceListingsAdmin";
-import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, adminApprovePractitioner, adminListPractitioners, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
+import { adminCreatePractitioner, adminUpdatePractitioner, adminDeletePractitioner, adminApprovePractitioner, adminUploadPractitionerPhoto, adminListPractitioners, listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { getStartingPrice } from "@/lib/pricing";
 import AdminAppointments from "@/components/aura/AdminAppointments";
 import AdminOverview from "@/components/aura/AdminOverview";
@@ -46,11 +45,6 @@ import AdminUsers from "@/components/aura/AdminUsers";
 import AdminCoupons from "@/components/aura/AdminCoupons";
 import AuraPagination from "@/components/aura/AuraPagination";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
-
-
-
-
-const SIGNED_URL_TTL = 60 * 60 * 24 * 365 * 5; // 5 years
 
 const blank = (order: number): Omit<Practitioner, "id"> => ({
   slug: "",
@@ -295,28 +289,17 @@ const Admin = () => {
   };
 
   const uploadPhoto = async (row: Practitioner, file: File) => {
+    if (!row.id) return;
     setBusy(true);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${row.id}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("practitioner-photos")
-      .upload(path, file, { upsert: true });
-    if (upErr) {
+    try {
+      const res = await adminUploadPractitionerPhoto(row.id, file);
+      update(row.id, { image_url: res.imageUrl });
+      toast.success("Photo updated");
+    } catch (err: any) {
+      toast.error(err.message || "Could not upload photo");
+    } finally {
       setBusy(false);
-      toast.error(upErr.message);
-      return;
     }
-    const { data: signed, error: signErr } = await supabase.storage
-      .from("practitioner-photos")
-      .createSignedUrl(path, SIGNED_URL_TTL);
-    setBusy(false);
-    if (signErr || !signed) {
-      toast.error(signErr?.message ?? "Could not create photo link");
-      return;
-    }
-    update(row.id, { image_url: signed.signedUrl });
-    await adminUpdatePractitioner(row.id, { image_url: signed.signedUrl });
-    toast.success("Photo updated");
   };
 
   if (loading) {
