@@ -290,6 +290,18 @@ const Admin = () => {
 
   const uploadPhoto = async (row: Practitioner, file: File) => {
     if (!row.id) return;
+
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (["heic", "heif"].includes(ext)) {
+      toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image file is too large. Maximum size is 10MB.");
+      return;
+    }
+
     setBusy(true);
     try {
       const res = await adminUploadPractitionerPhoto(row.id, file);
@@ -1023,7 +1035,7 @@ const Admin = () => {
                             </div>
                             <Input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp,image/jpg"
                               className="text-xs"
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
