@@ -157,11 +157,20 @@ const SpaceListingsAdmin = () => {
     setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: true }));
     try {
       const res = await adminUploadSpaceImages(spaceId, files);
+      const currentImages = spaces.find((s) => s.id === spaceId)?.space_images || [];
+      const mergedImages = [...currentImages, ...res.images];
       setSpaces((prev) =>
         prev.map((s) =>
-          s.id === spaceId ? { ...s, space_images: [...(s.space_images || []), ...res.images] } : s
+          s.id === spaceId ? { ...s, space_images: mergedImages } : s
         )
       );
+      setEditedSpaces((prev) => ({
+        ...prev,
+        [spaceId]: {
+          ...prev[spaceId],
+          space_images: mergedImages,
+        },
+      }));
       toast.success(`${files.length} photo${files.length > 1 ? "s" : ""} uploaded`);
     } catch (err: any) {
       toast.error(err.message || "Failed to upload photos");
@@ -174,13 +183,21 @@ const SpaceListingsAdmin = () => {
     setDeletingImageId(imageId);
     try {
       await adminDeleteSpaceImage(spaceId, imageId);
+      const remainingImages = (spaces.find((s) => s.id === spaceId)?.space_images || []).filter((img) => img.id !== imageId);
       setSpaces((prev) =>
         prev.map((s) =>
           s.id === spaceId
-            ? { ...s, space_images: (s.space_images || []).filter((img) => img.id !== imageId) }
+            ? { ...s, space_images: remainingImages }
             : s
         )
       );
+      setEditedSpaces((prev) => ({
+        ...prev,
+        [spaceId]: {
+          ...prev[spaceId],
+          space_images: remainingImages,
+        },
+      }));
       toast.success("Photo removed");
     } catch (err: any) {
       toast.error(err.message || "Failed to remove photo");
@@ -281,7 +298,16 @@ const SpaceListingsAdmin = () => {
       setBusy(true);
       const res = await adminUpdateSpace(id, spaceData);
       toast.success(res.message || "Space updated successfully");
-      setSpaces((prev) => prev.map((s) => (s.id === id ? res.space : s)));
+      const currentImages = spaces.find((s) => s.id === id)?.space_images || [];
+      const updatedImages = (res.space.space_images && res.space.space_images.length > 0)
+        ? res.space.space_images
+        : currentImages;
+      const mergedSpace = { ...res.space, space_images: updatedImages };
+      setSpaces((prev) => prev.map((s) => (s.id === id ? mergedSpace : s)));
+      setEditedSpaces((prev) => ({
+        ...prev,
+        [id]: { ...mergedSpace },
+      }));
     } catch (err: any) {
       toast.error(err.message || "Failed to update space");
     } finally {
