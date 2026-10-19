@@ -15,6 +15,9 @@ export interface Appointment {
   group_size: number | null;
   attendees: string[] | null;
   item_id: string;
+  // Only populated when status is 'confirmed' or 'completed' — see
+  // getUserAppointments on the backend.
+  practitioner_whatsapp_number?: string | null;
   meeting_location?: {
     address?: string;
     pincode?: string;

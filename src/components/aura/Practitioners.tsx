@@ -3,10 +3,11 @@ import { Link } from "react-router-dom";
 import { Star, MapPin, Search, ArrowUpRight, FileText, Loader2, Settings, UserCheck, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getWhatsappLink } from "@/lib/whatsapp";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
 import { listPublishedBlogs, type Blog } from "@/lib/blogsApi";
+import { getMyAppointments } from "@/lib/usersApi";
+import { getWhatsappLink } from "@/lib/whatsapp";
 import { useAuth } from "@/hooks/useAuth";
 import p1 from "@/assets/practitioner-1.jpg";
 import p2 from "@/assets/practitioner-2.jpg";
@@ -59,6 +60,7 @@ const SUGGESTIONS = ["Anxiety & stress", "Alcohol addiction", "Better sleep", "G
 const Practitioners = () => {
   const { user, profile } = useAuth();
   const isPractitioner = (profile?.role || "").toLowerCase() === "practitioner";
+  const isClient = (profile?.role || "").toLowerCase() === "client";
   const myPractitionerSlug = profile?.practitioner_slug || "";
 
   // A logged-out visitor needs an account before booking — send them to sign
@@ -78,6 +80,29 @@ const Practitioners = () => {
     () => new URLSearchParams(window.location.search).get("q") ?? ""
   );
   const [showAll, setShowAll] = useState(false);
+
+  // WhatsApp numbers aren't part of the public practitioner payload — they're
+  // only shared with a client once they have a confirmed/completed booking
+  // with that specific practitioner (see getUserAppointments on the backend).
+  const [whatsappBySlug, setWhatsappBySlug] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!user || !isClient) {
+      setWhatsappBySlug({});
+      return;
+    }
+    getMyAppointments({ limit: 100 })
+      .then((res) => {
+        const map: Record<string, string> = {};
+        for (const b of res.appointments) {
+          if (b.practitioner_slug && b.practitioner_whatsapp_number) {
+            map[b.practitioner_slug] = b.practitioner_whatsapp_number;
+          }
+        }
+        setWhatsappBySlug(map);
+      })
+      .catch((err) => console.error("Failed to load appointments for WhatsApp access:", err));
+  }, [user, isClient]);
 
   // Initial load: fetch practitioners from the server
   useEffect(() => {
@@ -298,7 +323,7 @@ const Practitioners = () => {
                       )}
                     </div>
                     {(() => {
-                      const waLink = getWhatsappLink(p.whatsapp_number);
+                      const waLink = getWhatsappLink(whatsappBySlug[p.slug]);
                       if (!waLink) return null;
                       return (
                         <a
@@ -309,7 +334,7 @@ const Practitioners = () => {
                           className="mt-3.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/5 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 transition-colors"
                         >
                           <MessageCircle className="size-3.5" />
-                          Talk on WhatsApp &middot; {p.whatsapp_number}
+                          Talk on WhatsApp &middot; {whatsappBySlug[p.slug]}
                         </a>
                       );
                     })()}
@@ -513,7 +538,22 @@ const Practitioners = () => {
                       </Button>
                     </div>
                   ) : p.bookable ? (
-                    <div className="pt-4 border-t border-border/60 flex justify-end">
+                    <div className="pt-4 border-t border-border/60 flex items-center justify-between gap-3">
+                      {(() => {
+                        const waLink = getWhatsappLink(whatsappBySlug[p.slug]);
+                        if (!waLink) return <span />;
+                        return (
+                          <a
+                            href={waLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/5 px-3.5 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 transition-colors"
+                          >
+                            <MessageCircle className="size-3.5" />
+                            Talk on WhatsApp
+                          </a>
+                        );
+                      })()}
                       <Button asChild className="rounded-full h-12 px-8 text-sm w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft">
                         <Link to={bookLink(p.slug)}>Book a session</Link>
                       </Button>

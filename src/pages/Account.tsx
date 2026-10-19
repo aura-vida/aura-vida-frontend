@@ -34,7 +34,8 @@ import {
   CreditCard,
   Settings,
   Building2,
-  Star
+  Star,
+  MessageCircle
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
@@ -43,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
 
 import { listPractitioners, getPractitioner } from "@/lib/practitionersApi";
+import { getWhatsappLink } from "@/lib/whatsapp";
 import { getMyAppointments, updateMe, getMe, type Appointment as Booking } from "@/lib/usersApi";
 import { cancelAppointment, rescheduleAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
@@ -496,6 +498,22 @@ const Account = () => {
                     <div className="text-xs text-muted-foreground mt-1">
                       Booked {new Date(b.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
                     </div>
+
+                    {b.practitioner_whatsapp_number && (() => {
+                      const waLink = getWhatsappLink(b.practitioner_whatsapp_number);
+                      if (!waLink) return null;
+                      return (
+                        <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-600/5 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-600/10 transition-colors"
+                        >
+                          <MessageCircle className="size-3.5" />
+                          Talk on WhatsApp &middot; {b.practitioner_whatsapp_number}
+                        </a>
+                      );
+                    })()}
                   </div>
 
                   <div className="text-right">
