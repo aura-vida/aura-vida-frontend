@@ -158,6 +158,7 @@ const PractitionerArea = () => {
   const [serviceForm, setServiceForm] = useState({ name: "", category: "", price_inr: 1000, description: "" });
   const [serviceImageFile, setServiceImageFile] = useState<File | null>(null);
   const [serviceImagePreview, setServiceImagePreview] = useState<string | null>(null);
+  const [serviceImageError, setServiceImageError] = useState(false);
   const [savingService, setSavingService] = useState(false);
   const [togglingServiceId, setTogglingServiceId] = useState<string | null>(null);
   const [serviceDeleteTarget, setServiceDeleteTarget] = useState<Service | null>(null);
@@ -177,6 +178,7 @@ const PractitionerArea = () => {
     setServiceForm({ name: "", category: "", price_inr: 1000, description: "" });
     setServiceImageFile(null);
     setServiceImagePreview(null);
+    setServiceImageError(false);
     setIsServiceDialogOpen(true);
   };
 
@@ -190,14 +192,17 @@ const PractitionerArea = () => {
     });
     setServiceImageFile(null);
     setServiceImagePreview(service.image_url);
+    setServiceImageError(false);
     setIsServiceDialogOpen(true);
   };
 
   const handleServiceImageChange = (file: File | null) => {
     if (file && isImageTooLarge(file)) {
       toast.error(IMAGE_TOO_LARGE_MESSAGE);
+      setServiceImageError(true);
       return;
     }
+    setServiceImageError(false);
     setServiceImageFile(file);
     if (file) setServiceImagePreview(URL.createObjectURL(file));
   };
@@ -1706,7 +1711,7 @@ const PractitionerArea = () => {
               <Button variant="outline" onClick={() => setIsServiceDialogOpen(false)} disabled={savingService}>
                 Cancel
               </Button>
-              <Button onClick={submitService} disabled={savingService}>
+              <Button onClick={submitService} disabled={savingService || serviceImageError}>
                 {savingService && <Loader2 className="size-4 mr-2 animate-spin" />}
                 {savingService ? "Saving..." : editingService ? "Save Changes" : "Create Service"}
               </Button>

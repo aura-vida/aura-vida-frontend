@@ -125,6 +125,7 @@ const SpaceListingsAdmin = () => {
   const [newAmenitiesStr, setNewAmenitiesStr] = useState("");
   const [newSpaceFiles, setNewSpaceFiles] = useState<File[]>([]);
   const [newSpacePreviews, setNewSpacePreviews] = useState<string[]>([]);
+  const [newSpaceImageError, setNewSpaceImageError] = useState(false);
 
   // Photo gallery state
   const [uploadingImagesFor, setUploadingImagesFor] = useState<Record<string, boolean>>({});
@@ -134,7 +135,9 @@ const SpaceListingsAdmin = () => {
     const allFiles = fileList ? Array.from(fileList) : [];
     if (allFiles.length === 0) return;
     const files = allFiles.filter((f) => !isImageTooLarge(f));
-    if (files.length < allFiles.length) toast.error(IMAGE_TOO_LARGE_MESSAGE);
+    const tooLarge = files.length < allFiles.length;
+    setNewSpaceImageError(tooLarge);
+    if (tooLarge) toast.error(IMAGE_TOO_LARGE_MESSAGE);
     if (files.length === 0) return;
     setNewSpaceFiles((prev) => [...prev, ...files]);
     setNewSpacePreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
@@ -152,6 +155,7 @@ const SpaceListingsAdmin = () => {
     newSpacePreviews.forEach((url) => URL.revokeObjectURL(url));
     setNewSpaceFiles([]);
     setNewSpacePreviews([]);
+    setNewSpaceImageError(false);
   };
 
   const handleUploadSpaceImages = async (spaceId: string, fileList: FileList | null) => {
@@ -1187,7 +1191,7 @@ const SpaceListingsAdmin = () => {
               >
                 Cancel
               </Button>
-              <Button type="submit" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={busy}>
+              <Button type="submit" className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={busy || newSpaceImageError}>
                 {busy ? "Saving…" : "Create Partner Space"}
               </Button>
             </DialogFooter>

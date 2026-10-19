@@ -29,6 +29,7 @@ export default function SettingsPage() {
     const [savingPrac, setSavingPrac] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageSizeError, setImageSizeError] = useState(false);
 
     const [pracFields, setPracFields] = useState({
         name: "",
@@ -96,9 +97,11 @@ export default function SettingsPage() {
             const file = e.target.files[0];
             if (isImageTooLarge(file)) {
                 toast.error(IMAGE_TOO_LARGE_MESSAGE);
+                setImageSizeError(true);
                 e.target.value = "";
                 return;
             }
+            setImageSizeError(false);
             setImageFile(file);
             setImagePreview(URL.createObjectURL(file));
         }
@@ -403,7 +406,7 @@ export default function SettingsPage() {
                                 </div>
 
                                 <div className="pt-2 flex justify-end">
-                                    <Button type="submit" disabled={savingPrac} className="h-11 px-8 rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                                    <Button type="submit" disabled={savingPrac || imageSizeError} className="h-11 px-8 rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
                                         {savingPrac ? "Saving Profile…" : "Update Public Profile"}
                                     </Button>
                                 </div>

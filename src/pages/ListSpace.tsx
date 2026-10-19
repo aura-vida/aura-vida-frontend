@@ -38,12 +38,15 @@ const ListSpace = () => {
 
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [imageError, setImageError] = useState(false);
 
   const addPhotos = (fileList: FileList | null) => {
     const allFiles = fileList ? Array.from(fileList) : [];
     if (allFiles.length === 0) return;
     const files = allFiles.filter((f) => !isImageTooLarge(f));
-    if (files.length < allFiles.length) setError(IMAGE_TOO_LARGE_MESSAGE);
+    const tooLarge = files.length < allFiles.length;
+    setImageError(tooLarge);
+    if (tooLarge) setError(IMAGE_TOO_LARGE_MESSAGE);
     if (files.length === 0) return;
     setPhotoFiles((prev) => [...prev, ...files]);
     setPhotoPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
@@ -160,7 +163,7 @@ const ListSpace = () => {
             <div className="sm:col-span-2"><Label>Anything else?</Label><Textarea value={form.notes} onChange={set("notes")} maxLength={2000} /></div>
             {error && <p className="sm:col-span-2 text-sm text-destructive">{error}</p>}
             <div className="sm:col-span-2">
-              <Button type="submit" disabled={busy} className="rounded-full h-12 px-8">{busy ? "Sending…" : "Submit my space"}</Button>
+              <Button type="submit" disabled={busy || imageError} className="rounded-full h-12 px-8">{busy ? "Sending…" : "Submit my space"}</Button>
             </div>
           </form>
         )}
