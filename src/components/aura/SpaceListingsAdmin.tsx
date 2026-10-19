@@ -38,6 +38,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 import { cn } from "@/lib/utils";
 import AuraPagination from "@/components/aura/AuraPagination";
 import {
@@ -130,7 +131,10 @@ const SpaceListingsAdmin = () => {
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
   const addNewSpaceFiles = (fileList: FileList | null) => {
-    const files = fileList ? Array.from(fileList) : [];
+    const allFiles = fileList ? Array.from(fileList) : [];
+    if (allFiles.length === 0) return;
+    const files = allFiles.filter((f) => !isImageTooLarge(f));
+    if (files.length < allFiles.length) toast.error(IMAGE_TOO_LARGE_MESSAGE);
     if (files.length === 0) return;
     setNewSpaceFiles((prev) => [...prev, ...files]);
     setNewSpacePreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
@@ -151,7 +155,10 @@ const SpaceListingsAdmin = () => {
   };
 
   const handleUploadSpaceImages = async (spaceId: string, fileList: FileList | null) => {
-    const files = fileList ? Array.from(fileList) : [];
+    const allFiles = fileList ? Array.from(fileList) : [];
+    if (allFiles.length === 0) return;
+    const files = allFiles.filter((f) => !isImageTooLarge(f));
+    if (files.length < allFiles.length) toast.error(IMAGE_TOO_LARGE_MESSAGE);
     if (files.length === 0) return;
 
     setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: true }));

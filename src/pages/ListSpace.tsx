@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ImagePlus, X } from "lucide-react";
 import SpaceScheduleEditor from "@/components/aura/SpaceScheduleEditor";
+import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 
 const schema = z.object({
   contact_name: z.string().trim().min(1, "Please add your name").max(100),
@@ -39,7 +40,10 @@ const ListSpace = () => {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
   const addPhotos = (fileList: FileList | null) => {
-    const files = fileList ? Array.from(fileList) : [];
+    const allFiles = fileList ? Array.from(fileList) : [];
+    if (allFiles.length === 0) return;
+    const files = allFiles.filter((f) => !isImageTooLarge(f));
+    if (files.length < allFiles.length) setError(IMAGE_TOO_LARGE_MESSAGE);
     if (files.length === 0) return;
     setPhotoFiles((prev) => [...prev, ...files]);
     setPhotoPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);

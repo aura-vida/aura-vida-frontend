@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { updateMe } from "@/lib/usersApi";
 import { getMyPractitionerProfile, updateMyPractitionerProfile, type Practitioner } from "@/lib/practitionersApi";
 import { isValidPhoneNumber } from "@/lib/whatsapp";
+import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck } from "lucide-react";
 
 export default function SettingsPage() {
@@ -93,6 +94,11 @@ export default function SettingsPage() {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+            if (isImageTooLarge(file)) {
+                toast.error(IMAGE_TOO_LARGE_MESSAGE);
+                e.target.value = "";
+                return;
+            }
             setImageFile(file);
             setImagePreview(URL.createObjectURL(file));
         }

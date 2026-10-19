@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 import {
   listPractitionerAppointments,
   updatePractitionerAppointmentStatus,
@@ -193,6 +194,10 @@ const PractitionerArea = () => {
   };
 
   const handleServiceImageChange = (file: File | null) => {
+    if (file && isImageTooLarge(file)) {
+      toast.error(IMAGE_TOO_LARGE_MESSAGE);
+      return;
+    }
     setServiceImageFile(file);
     if (file) setServiceImagePreview(URL.createObjectURL(file));
   };

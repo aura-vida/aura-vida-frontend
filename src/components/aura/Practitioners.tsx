@@ -275,7 +275,7 @@ const Practitioners = () => {
                       <div className="flex items-center gap-1 text-sm shrink-0">
                         <Star className="size-4 fill-accent text-accent" />
                         <span className="font-medium text-foreground">{p.rating ?? 0}</span>
-                        <span className="text-xs text-muted-foreground">({p.sessions ?? 0} sessions)</span>
+                        {/* <span className="text-xs text-muted-foreground">({p.sessions ?? 0} sessions)</span> */}
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground mt-3.5">

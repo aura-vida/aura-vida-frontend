@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -1039,7 +1040,13 @@ const Admin = () => {
                               className="text-xs"
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
-                                if (f) uploadPhoto(row, f);
+                                if (!f) return;
+                                if (isImageTooLarge(f)) {
+                                  toast.error(IMAGE_TOO_LARGE_MESSAGE);
+                                  e.target.value = "";
+                                  return;
+                                }
+                                uploadPhoto(row, f);
                               }}
                             />
                           </div>
