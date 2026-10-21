@@ -58,7 +58,10 @@ import {
 } from "@/lib/spacesApi";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
 import SpaceScheduleEditor from "@/components/aura/SpaceScheduleEditor";
+import ImageCropDialog from "@/components/aura/ImageCropDialog";
 import PackSpaceSlotDialog from "@/components/aura/PackSpaceSlotDialog";
+import { useDebounce } from "@/hooks/useDebounce";
+import { compressImageFile } from "@/lib/cropImage";
 
 const STATUS_CONFIG: Record<
   Space["status"],
@@ -113,6 +116,7 @@ const SpaceListingsAdmin = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 350);
   const [statusFilter, setStatusFilter] = useState("");
 
   // UI Expand / Edit states
@@ -131,16 +135,131 @@ const SpaceListingsAdmin = () => {
   const [uploadingImagesFor, setUploadingImagesFor] = useState<Record<string, boolean>>({});
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
-  const addNewSpaceFiles = (fileList: FileList | null) => {
+  interface CropQueueItem {
+    file: File;
+    previewUrl: string;
+  }
+
+  const [cropQueue, setCropQueue] = useState<{
+    items: CropQueueItem[];
+    currentIndex: number;
+    processedFiles: File[];
+    target: { type: "existing"; spaceId: string } | { type: "new" };
+  } | null>(null);
+
+  const startCropForExistingSpace = (spaceId: string, fileList: FileList | null) => {
     const allFiles = fileList ? Array.from(fileList) : [];
     if (allFiles.length === 0) return;
-    const files = allFiles.filter((f) => !isImageTooLarge(f));
-    const tooLarge = files.length < allFiles.length;
+    const validFiles = allFiles.filter(
+      (f) => !["heic", "heif"].includes(f.name.split(".").pop()?.toLowerCase() || "")
+    );
+    if (validFiles.length < allFiles.length) {
+      toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
+    }
+    if (validFiles.length === 0) return;
+
+    const items = validFiles.map((f) => ({
+      file: f,
+      previewUrl: URL.createObjectURL(f),
+    }));
+
+    setCropQueue({
+      items,
+      currentIndex: 0,
+      processedFiles: [],
+      target: { type: "existing", spaceId },
+    });
+  };
+
+  const startCropForNewSpace = (fileList: FileList | null) => {
+    const allFiles = fileList ? Array.from(fileList) : [];
+    if (allFiles.length === 0) return;
+    const validFiles = allFiles.filter(
+      (f) => !["heic", "heif"].includes(f.name.split(".").pop()?.toLowerCase() || "")
+    );
+    if (validFiles.length < allFiles.length) {
+      toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
+    }
+    if (validFiles.length === 0) return;
+
+    const items = validFiles.map((f) => ({
+      file: f,
+      previewUrl: URL.createObjectURL(f),
+    }));
+
+    setCropQueue({
+      items,
+      currentIndex: 0,
+      processedFiles: [],
+      target: { type: "new" },
+    });
+  };
+
+  const handleQueueCropSave = async (croppedFile: File) => {
+    if (!cropQueue) return;
+    const updatedProcessed = [...cropQueue.processedFiles, croppedFile];
+    const nextIndex = cropQueue.currentIndex + 1;
+
+    if (nextIndex < cropQueue.items.length) {
+      setCropQueue({
+        ...cropQueue,
+        currentIndex: nextIndex,
+        processedFiles: updatedProcessed,
+      });
+    } else {
+      const target = cropQueue.target;
+      cropQueue.items.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setCropQueue(null);
+
+      if (target.type === "existing") {
+        await executeUploadSpaceImages(target.spaceId, updatedProcessed);
+      } else {
+        await addNewSpaceFilesDirectly(updatedProcessed);
+      }
+    }
+  };
+
+  const handleQueueSkip = async () => {
+    if (!cropQueue) return;
+    const currentOriginalFile = cropQueue.items[cropQueue.currentIndex].file;
+    const optimizedFile = await compressImageFile(currentOriginalFile);
+    const updatedProcessed = [...cropQueue.processedFiles, optimizedFile];
+    const nextIndex = cropQueue.currentIndex + 1;
+
+    if (nextIndex < cropQueue.items.length) {
+      setCropQueue({
+        ...cropQueue,
+        currentIndex: nextIndex,
+        processedFiles: updatedProcessed,
+      });
+    } else {
+      const target = cropQueue.target;
+      cropQueue.items.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setCropQueue(null);
+
+      if (target.type === "existing") {
+        await executeUploadSpaceImages(target.spaceId, updatedProcessed);
+      } else {
+        await addNewSpaceFilesDirectly(updatedProcessed);
+      }
+    }
+  };
+
+  const handleQueueCancel = () => {
+    if (!cropQueue) return;
+    cropQueue.items.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    setCropQueue(null);
+  };
+
+  const addNewSpaceFilesDirectly = async (files: File[]) => {
+    const optimized = await Promise.all(files.map((f) => compressImageFile(f)));
+    const valid = optimized.filter((f) => !isImageTooLarge(f));
+    const tooLarge = valid.length < optimized.length;
     setNewSpaceImageError(tooLarge);
     if (tooLarge) toast.error(IMAGE_TOO_LARGE_MESSAGE);
-    if (files.length === 0) return;
-    setNewSpaceFiles((prev) => [...prev, ...files]);
-    setNewSpacePreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
+    if (valid.length === 0) return;
+    setNewSpaceFiles((prev) => [...prev, ...valid]);
+    setNewSpacePreviews((prev) => [...prev, ...valid.map((f) => URL.createObjectURL(f))]);
   };
 
   const removeNewSpaceFile = (index: number) => {
@@ -158,13 +277,7 @@ const SpaceListingsAdmin = () => {
     setNewSpaceImageError(false);
   };
 
-  const handleUploadSpaceImages = async (spaceId: string, fileList: FileList | null) => {
-    const allFiles = fileList ? Array.from(fileList) : [];
-    if (allFiles.length === 0) return;
-    const files = allFiles.filter((f) => !isImageTooLarge(f));
-    if (files.length < allFiles.length) toast.error(IMAGE_TOO_LARGE_MESSAGE);
-    if (files.length === 0) return;
-
+  const executeUploadSpaceImages = async (spaceId: string, files: File[]) => {
     setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: true }));
     try {
       const res = await adminUploadSpaceImages(spaceId, files);
@@ -248,8 +361,13 @@ const SpaceListingsAdmin = () => {
   );
 
   useEffect(() => {
-    loadSpaces(page, search, statusFilter);
-  }, [page, statusFilter]);
+    setPage(1);
+    loadSpaces(1, debouncedSearch, statusFilter);
+  }, [debouncedSearch, statusFilter]);
+
+  useEffect(() => {
+    loadSpaces(page, debouncedSearch, statusFilter);
+  }, [page]);
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -455,8 +573,22 @@ const SpaceListingsAdmin = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search space name, city, PIN…"
-              className="rounded-full h-10 pl-9 pr-4 text-sm w-64 bg-card border-border"
+              className="rounded-full h-10 pl-9 pr-8 text-sm w-64 bg-card border-border"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                  loadSpaces(1, "", statusFilter);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </form>
 
           <Select
@@ -924,7 +1056,7 @@ const SpaceListingsAdmin = () => {
                             className="hidden"
                             disabled={uploadingImagesFor[space.id]}
                             onChange={(e) => {
-                              handleUploadSpaceImages(space.id, e.target.files);
+                              startCropForExistingSpace(space.id, e.target.files);
                               e.target.value = "";
                             }}
                           />
@@ -1062,7 +1194,7 @@ const SpaceListingsAdmin = () => {
                     multiple
                     className="hidden"
                     onChange={(e) => {
-                      addNewSpaceFiles(e.target.files);
+                      startCropForNewSpace(e.target.files);
                       e.target.value = "";
                     }}
                   />
@@ -1233,6 +1365,30 @@ const SpaceListingsAdmin = () => {
         variant="destructive"
         isLoading={isReleasingSlot}
         onConfirm={handleConfirmReleaseSlot}
+      />
+
+      <ImageCropDialog
+        open={!!cropQueue}
+        onOpenChange={(open) => {
+          if (!open) handleQueueCancel();
+        }}
+        imageSrc={cropQueue ? cropQueue.items[cropQueue.currentIndex]?.previewUrl : null}
+        originalFileName={cropQueue ? cropQueue.items[cropQueue.currentIndex]?.file.name : "space.jpg"}
+        title="Crop Space Photo"
+        aspectRatio={16 / 9}
+        allowedAspectRatios={[
+          { label: "16:9 Landscape", value: 16 / 9 },
+          { label: "4:3 Standard", value: 4 / 3 },
+          { label: "1:1 Square", value: 1 },
+          { label: "3:2 Photo", value: 3 / 2 },
+        ]}
+        stepInfo={
+          cropQueue && cropQueue.items.length > 1
+            ? { current: cropQueue.currentIndex + 1, total: cropQueue.items.length }
+            : undefined
+        }
+        onSkip={handleQueueSkip}
+        onCropSave={(croppedFile) => handleQueueCropSave(croppedFile)}
       />
     </div>
   );

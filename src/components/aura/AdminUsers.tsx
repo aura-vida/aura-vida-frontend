@@ -17,8 +17,10 @@ import {
   ChevronRight,
   RefreshCw,
   Wallet,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +32,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 350);
   const [statusFilter, setStatusFilter] = useState<string>(""); // "" | "active" | "inactive"
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -58,8 +61,8 @@ export default function AdminUsers() {
   };
 
   useEffect(() => {
-    fetchUsers(1, searchTerm, statusFilter);
-  }, [statusFilter]);
+    fetchUsers(1, debouncedSearchTerm, statusFilter);
+  }, [debouncedSearchTerm, statusFilter]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,8 +150,21 @@ export default function AdminUsers() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name…"
-              className="rounded-full h-10 pl-9 pr-4 text-xs w-48 sm:w-60 bg-secondary/50 border-border"
+              className="rounded-full h-10 pl-9 pr-8 text-xs w-48 sm:w-60 bg-secondary/50 border-border"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm("");
+                  fetchUsers(1, "", statusFilter);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
           </form>
 
           <select

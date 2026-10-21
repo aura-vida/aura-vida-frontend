@@ -88,7 +88,9 @@ import {
   MessageSquare,
   ImagePlus,
   X,
+  Crop,
 } from "lucide-react";
+import ImageCropDialog from "@/components/aura/ImageCropDialog";
 import { supabase } from "@/integrations/supabase/client";
 import AuraPagination from "@/components/aura/AuraPagination";
 import { useServices } from "@/hooks/useServices";
@@ -163,6 +165,15 @@ const PractitionerArea = () => {
   const [togglingServiceId, setTogglingServiceId] = useState<string | null>(null);
   const [serviceDeleteTarget, setServiceDeleteTarget] = useState<Service | null>(null);
   const [isDeletingService, setIsDeletingService] = useState(false);
+  const [cropModal, setCropModal] = useState<{
+    open: boolean;
+    src: string | null;
+    fileName: string;
+  }>({
+    open: false,
+    src: null,
+    fileName: "service.jpg",
+  });
 
   useEffect(() => {
     if (!profile?.practitioner_slug) return;
@@ -197,14 +208,18 @@ const PractitionerArea = () => {
   };
 
   const handleServiceImageChange = (file: File | null) => {
-    if (file && isImageTooLarge(file)) {
-      toast.error(IMAGE_TOO_LARGE_MESSAGE);
-      setServiceImageError(true);
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (["heic", "heif"].includes(ext)) {
+      toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
       return;
     }
-    setServiceImageError(false);
-    setServiceImageFile(file);
-    if (file) setServiceImagePreview(URL.createObjectURL(file));
+    const preview = URL.createObjectURL(file);
+    setCropModal({
+      open: true,
+      src: preview,
+      fileName: file.name,
+    });
   };
 
   const submitService = async () => {
@@ -1664,13 +1679,33 @@ const PractitionerArea = () => {
                     </div>
                   )}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 space-y-2">
                   <Label>Photo</Label>
                   <Input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => handleServiceImageChange(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      handleServiceImageChange(e.target.files?.[0] ?? null);
+                      e.target.value = "";
+                    }}
                   />
+                  {serviceImagePreview && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCropModal({
+                          open: true,
+                          src: serviceImagePreview,
+                          fileName: serviceImageFile?.name || "service.jpg",
+                        })
+                      }
+                      className="rounded-full text-xs h-7 gap-1"
+                    >
+                      <Crop className="size-3" /> Adjust Crop
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="sm:col-span-2">
@@ -2131,6 +2166,28 @@ const PractitionerArea = () => {
           variant="destructive"
           isLoading={deletingArticleId === articleDeleteTarget?.id}
           onConfirm={handleConfirmDeleteArticle}
+        />
+
+        <ImageCropDialog
+          open={cropModal.open}
+          onOpenChange={(open) => {
+            setCropModal((prev) => ({ ...prev, open }));
+          }}
+          imageSrc={cropModal.src}
+          originalFileName={cropModal.fileName}
+          title="Crop Service Photo"
+          aspectRatio={4 / 3}
+          allowedAspectRatios={[
+            { label: "4:3 Standard", value: 4 / 3 },
+            { label: "1:1 Square", value: 1 },
+            { label: "16:9 Landscape", value: 16 / 9 },
+            { label: "4:5 Portrait", value: 4 / 5 },
+          ]}
+          onCropSave={(croppedFile, previewUrl) => {
+            setServiceImageError(false);
+            setServiceImageFile(croppedFile);
+            setServiceImagePreview(previewUrl);
+          }}
         />
       </section>
       <Footer />

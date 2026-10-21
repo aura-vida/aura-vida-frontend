@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ImagePlus, X } from "lucide-react";
 import SpaceScheduleEditor from "@/components/aura/SpaceScheduleEditor";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
+import { toast } from "sonner";
 
 const schema = z.object({
   contact_name: z.string().trim().min(1, "Please add your name").max(100),
@@ -43,8 +44,14 @@ const ListSpace = () => {
   const addPhotos = (fileList: FileList | null) => {
     const allFiles = fileList ? Array.from(fileList) : [];
     if (allFiles.length === 0) return;
-    const files = allFiles.filter((f) => !isImageTooLarge(f));
-    const tooLarge = files.length < allFiles.length;
+    const validFiles = allFiles.filter(
+      (f) => !["heic", "heif"].includes(f.name.split(".").pop()?.toLowerCase() || "")
+    );
+    if (validFiles.length < allFiles.length) {
+      toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
+    }
+    const files = validFiles.filter((f) => !isImageTooLarge(f));
+    const tooLarge = files.length < validFiles.length;
     setImageError(tooLarge);
     if (tooLarge) setError(IMAGE_TOO_LARGE_MESSAGE);
     if (files.length === 0) return;

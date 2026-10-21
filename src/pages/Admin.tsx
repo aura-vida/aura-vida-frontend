@@ -21,7 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
-import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles, Users } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles, Users, X } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -46,6 +47,7 @@ import AdminUsers from "@/components/aura/AdminUsers";
 import AdminCoupons from "@/components/aura/AdminCoupons";
 import AuraPagination from "@/components/aura/AuraPagination";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
+import ImageCropDialog from "@/components/aura/ImageCropDialog";
 
 const blank = (order: number): Omit<Practitioner, "id"> => ({
   slug: "",
@@ -97,6 +99,7 @@ const Admin = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 350);
   const [filterPublished, setFilterPublished] = useState<string>(""); // "" | "true" | "false"
   const [filterBookable, setFilterBookable] = useState<string>("");   // "" | "true" | "false"
   const [viewApplicant, setViewApplicant] = useState<Practitioner | null>(null);
@@ -123,6 +126,17 @@ const Admin = () => {
   const [practitionerDeleteTarget, setPractitionerDeleteTarget] = useState<Practitioner | null>(null);
   const [rejectApplicantTarget, setRejectApplicantTarget] = useState<Practitioner | null>(null);
   const [isDeletingPractitioner, setIsDeletingPractitioner] = useState(false);
+  const [cropModal, setCropModal] = useState<{
+    open: boolean;
+    row: Practitioner | null;
+    src: string | null;
+    fileName: string;
+  }>({
+    open: false,
+    row: null,
+    src: null,
+    fileName: "practitioner.jpg",
+  });
 
   const togglePractitionerExpanded = (id?: string) => {
     if (!id) return;
@@ -162,9 +176,10 @@ const Admin = () => {
 
   useEffect(() => {
     if (isAdmin) {
-      load(page, searchTerm);
+      setPage(1);
+      load(1, debouncedSearchTerm, filterPublished, filterBookable);
     }
-  }, [isAdmin]);
+  }, [isAdmin, debouncedSearchTerm]);
 
 
 
@@ -446,8 +461,22 @@ const Admin = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); load(1, searchTerm, filterPublished, filterBookable); } }}
                     placeholder="Search by name…"
-                    className="rounded-full h-10 pl-9 pr-4 text-sm w-52"
+                    className="rounded-full h-10 pl-9 pr-8 text-sm w-52 sm:w-60"
                   />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm("");
+                        setPage(1);
+                        load(1, "", filterPublished, filterBookable);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                      aria-label="Clear search"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
                 </div>
                 <Select
                   value={filterPublished || "all"}
@@ -1041,12 +1070,20 @@ const Admin = () => {
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
                                 if (!f) return;
-                                if (isImageTooLarge(f)) {
-                                  toast.error(IMAGE_TOO_LARGE_MESSAGE);
+                                const ext = f.name.split(".").pop()?.toLowerCase() || "";
+                                if (["heic", "heif"].includes(ext)) {
+                                  toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
                                   e.target.value = "";
                                   return;
                                 }
-                                uploadPhoto(row, f);
+                                const previewUrl = URL.createObjectURL(f);
+                                setCropModal({
+                                  open: true,
+                                  row,
+                                  src: previewUrl,
+                                  fileName: f.name,
+                                });
+                                e.target.value = "";
                               }}
                             />
                           </div>
@@ -1506,6 +1543,29 @@ const Admin = () => {
           }
         }}
       />
+
+      <ImageCropDialog
+        open={cropModal.open}
+        onOpenChange={(open) => {
+          if (!open && cropModal.src) {
+            URL.revokeObjectURL(cropModal.src);
+          }
+          setCropModal((prev) => ({ ...prev, open }));
+        }}
+        imageSrc={cropModal.src}
+        originalFileName={cropModal.fileName}
+        title={`Crop photo for ${cropModal.row?.name || "Practitioner"}`}
+        aspectRatio={4 / 5}
+        allowedAspectRatios={[
+          { label: "4:5 Portrait", value: 4 / 5 },
+          { label: "1:1 Square", value: 1 },
+        ]}
+        onCropSave={(croppedFile) => {
+          if (cropModal.row) {
+            uploadPhoto(cropModal.row, croppedFile);
+          }
+        }}
+      />
     </div>
   );
 };
@@ -1520,6 +1580,7 @@ const ServicesManager = () => {
   const [services, setServices] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [statusFilter, setStatusFilter] = React.useState<"all" | "active" | "hidden">("all");
+  const [serviceSearch, setServiceSearch] = React.useState("");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1543,8 +1604,15 @@ const ServicesManager = () => {
   const activeCount = services.filter((s) => s.is_active !== false).length;
   const hiddenCount = services.filter((s) => s.is_active === false).length;
   const filteredServices = services.filter((s) => {
-    if (statusFilter === "active") return s.is_active !== false;
-    if (statusFilter === "hidden") return s.is_active === false;
+    if (statusFilter === "active" && s.is_active === false) return false;
+    if (statusFilter === "hidden" && s.is_active !== false) return false;
+    if (serviceSearch.trim()) {
+      const q = serviceSearch.toLowerCase().trim();
+      const nameMatch = s.name?.toLowerCase().includes(q);
+      const catMatch = s.category?.toLowerCase().includes(q);
+      const pracMatch = s.practitioners?.name?.toLowerCase().includes(q);
+      return nameMatch || catMatch || pracMatch;
+    }
     return true;
   });
 
@@ -1556,25 +1624,47 @@ const ServicesManager = () => {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 mb-8">
-        {([
-          { key: "all", label: `All (${services.length})` },
-          { key: "active", label: `Active (${activeCount})` },
-          { key: "hidden", label: `Hidden (${hiddenCount})` },
-        ] as const).map((opt) => (
-          <button
-            key={opt.key}
-            onClick={() => setStatusFilter(opt.key)}
-            className={cn(
-              "px-3.5 py-1.5 rounded-full text-xs font-medium border transition-smooth",
-              statusFilter === opt.key
-                ? "bg-foreground text-background border-foreground"
-                : "bg-card text-muted-foreground border-border hover:bg-secondary"
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+        <div className="flex items-center gap-2">
+          {([
+            { key: "all", label: `All (${services.length})` },
+            { key: "active", label: `Active (${activeCount})` },
+            { key: "hidden", label: `Hidden (${hiddenCount})` },
+          ] as const).map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setStatusFilter(opt.key)}
+              className={cn(
+                "px-3.5 py-1.5 rounded-full text-xs font-medium border transition-smooth",
+                statusFilter === opt.key
+                  ? "bg-foreground text-background border-foreground"
+                  : "bg-card text-muted-foreground border-border hover:bg-secondary"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={serviceSearch}
+            onChange={(e) => setServiceSearch(e.target.value)}
+            placeholder="Search service or guide…"
+            className="rounded-full h-10 pl-9 pr-8 text-xs w-56 sm:w-64 bg-card border-border"
+          />
+          {serviceSearch && (
+            <button
+              type="button"
+              onClick={() => setServiceSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {filteredServices.length === 0 && (

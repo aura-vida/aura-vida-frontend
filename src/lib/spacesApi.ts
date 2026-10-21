@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { compressImageFile } from "@/lib/cropImage";
 
 export interface SpaceImage {
   id: string;
@@ -201,7 +202,11 @@ export async function submitSpace(
     if (value === undefined || value === null) return;
     formData.append(key, Array.isArray(value) ? value.join(",") : String(value));
   });
-  files.forEach((file) => formData.append("images", file));
+
+  for (const rawFile of files) {
+    const optimized = await compressImageFile(rawFile);
+    formData.append("images", optimized);
+  }
 
   return api<{ message: string; space: Space }>("/api/spaces", {
     method: "POST",
@@ -217,12 +222,30 @@ export async function adminUploadSpaceImages(
   spaceId: string,
   files: File[]
 ): Promise<{ message: string; images: SpaceImage[] }> {
-  const formData = new FormData();
-  files.forEach((file) => formData.append("images", file));
-  return api<{ message: string; images: SpaceImage[] }>(`/api/admin/spaces/${spaceId}/images`, {
-    method: "POST",
-    body: formData,
-  });
+  // Upload each file individually to guarantee payload is always < 800KB,
+  // bypassing reverse proxy body size limits (e.g. Nginx 1M default)
+  const allImages: SpaceImage[] = [];
+
+  for (const rawFile of files) {
+    const file = await compressImageFile(rawFile);
+    const formData = new FormData();
+    formData.append("images", file);
+    const res = await api<{ message: string; images: SpaceImage[] }>(
+      `/api/admin/spaces/${spaceId}/images`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+    if (res.images && Array.isArray(res.images)) {
+      allImages.push(...res.images);
+    }
+  }
+
+  return {
+    message: "Images uploaded successfully",
+    images: allImages,
+  };
 }
 
 export async function adminDeleteSpaceImage(

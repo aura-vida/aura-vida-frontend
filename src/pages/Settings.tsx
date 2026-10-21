@@ -12,7 +12,8 @@ import { updateMe } from "@/lib/usersApi";
 import { getMyPractitionerProfile, updateMyPractitionerProfile, type Practitioner } from "@/lib/practitionersApi";
 import { isValidPhoneNumber } from "@/lib/whatsapp";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
-import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck } from "lucide-react";
+import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck, Crop } from "lucide-react";
+import ImageCropDialog from "@/components/aura/ImageCropDialog";
 
 export default function SettingsPage() {
     const { user, profile, loading } = useAuth();
@@ -30,6 +31,15 @@ export default function SettingsPage() {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [imageSizeError, setImageSizeError] = useState(false);
+    const [cropModal, setCropModal] = useState<{
+        open: boolean;
+        src: string | null;
+        fileName: string;
+    }>({
+        open: false,
+        src: null,
+        fileName: "profile.jpg",
+    });
 
     const [pracFields, setPracFields] = useState({
         name: "",
@@ -95,15 +105,19 @@ export default function SettingsPage() {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            if (isImageTooLarge(file)) {
-                toast.error(IMAGE_TOO_LARGE_MESSAGE);
-                setImageSizeError(true);
+            const ext = file.name.split(".").pop()?.toLowerCase() || "";
+            if (["heic", "heif"].includes(ext)) {
+                toast.error("iPhone HEIC photos cannot be displayed by web browsers. Please select a JPG, PNG, or WEBP photo.");
                 e.target.value = "";
                 return;
             }
-            setImageSizeError(false);
-            setImageFile(file);
-            setImagePreview(URL.createObjectURL(file));
+            const preview = URL.createObjectURL(file);
+            setCropModal({
+                open: true,
+                src: preview,
+                fileName: file.name,
+            });
+            e.target.value = "";
         }
     };
 
@@ -308,9 +322,22 @@ export default function SettingsPage() {
                                         <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed mb-3">
                                             High resolution, professional portrait. Recommended size 600x600 px. Try capturing yourself in natural lighting.
                                         </p>
-                                        <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="rounded-full">
-                                            <ImagePlus className="size-4 mr-2" /> Upload New Photo
-                                        </Button>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="rounded-full">
+                                                <ImagePlus className="size-4 mr-2" /> Upload New Photo
+                                            </Button>
+                                            {imagePreview && (
+                                                <Button
+                                                    type="button"
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => setCropModal({ open: true, src: imagePreview, fileName: imageFile?.name || "profile.jpg" })}
+                                                    className="rounded-full gap-1.5 text-xs"
+                                                >
+                                                    <Crop className="size-3.5" /> Adjust Crop
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -421,6 +448,27 @@ export default function SettingsPage() {
 
             </section>
             <Footer />
+
+            <ImageCropDialog
+                open={cropModal.open}
+                onOpenChange={(open) => {
+                    setCropModal((prev) => ({ ...prev, open }));
+                }}
+                imageSrc={cropModal.src}
+                originalFileName={cropModal.fileName}
+                title="Crop Profile Photo"
+                aspectRatio={1}
+                allowedAspectRatios={[
+                    { label: "1:1 Square", value: 1 },
+                    { label: "4:5 Portrait", value: 4 / 5 },
+                ]}
+                cropShape="round"
+                onCropSave={(croppedFile, previewUrl) => {
+                    setImageSizeError(false);
+                    setImageFile(croppedFile);
+                    setImagePreview(previewUrl);
+                }}
+            />
         </main>
     );
 }
