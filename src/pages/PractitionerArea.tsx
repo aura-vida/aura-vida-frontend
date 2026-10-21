@@ -47,7 +47,9 @@ import {
   getMyTimeOff,
   type DayScheduleUpdate,
   type AvailabilityException,
+  type AvailabilitySlotRow,
 } from "@/lib/availabilityApi";
+
 import {
   listMyBlogs,
   createBlog,
@@ -297,18 +299,29 @@ const PractitionerArea = () => {
   const [appointmentsTotalPages, setAppointmentsTotalPages] = useState(1);
   const [appointmentsTotal, setAppointmentsTotal] = useState(0);
 
+  interface TimeWindow {
+    id?: string;
+    start: string;
+    end: string;
+    duration: number;
+  }
+
+  interface DayScheduleState {
+    active: boolean;
+    windows: TimeWindow[];
+  }
+
   // Weekly availability state
-  const [scheduleState, setScheduleState] = useState<
-    Record<number, { active: boolean; start: string; end: string; duration: number }>
-  >({
-    1: { active: false, start: "09:00", end: "17:00", duration: 60 },
-    2: { active: false, start: "09:00", end: "17:00", duration: 60 },
-    3: { active: false, start: "09:00", end: "17:00", duration: 60 },
-    4: { active: false, start: "09:00", end: "17:00", duration: 60 },
-    5: { active: false, start: "09:00", end: "17:00", duration: 60 },
-    6: { active: false, start: "10:00", end: "16:00", duration: 60 },
-    0: { active: false, start: "10:00", end: "16:00", duration: 60 },
+  const [scheduleState, setScheduleState] = useState<Record<number, DayScheduleState>>({
+    1: { active: false, windows: [{ start: "09:00", end: "17:00", duration: 60 }] },
+    2: { active: false, windows: [{ start: "09:00", end: "17:00", duration: 60 }] },
+    3: { active: false, windows: [{ start: "09:00", end: "17:00", duration: 60 }] },
+    4: { active: false, windows: [{ start: "09:00", end: "17:00", duration: 60 }] },
+    5: { active: false, windows: [{ start: "09:00", end: "17:00", duration: 60 }] },
+    6: { active: false, windows: [{ start: "10:00", end: "16:00", duration: 60 }] },
+    0: { active: false, windows: [{ start: "10:00", end: "16:00", duration: 60 }] },
   });
+
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
 
@@ -376,25 +389,42 @@ const PractitionerArea = () => {
     setLoadingSchedule(true);
     getPractitionerSchedule(profile.practitioner_slug)
       .then((res) => {
-        const nextState: typeof scheduleState = {};
-        // reset all days to inactive first
+        const nextState: Record<number, DayScheduleState> = {};
         DAYS_OF_WEEK.forEach((d) => {
-          nextState[d.day] = { active: false, start: "09:00", end: "17:00", duration: 60 };
+          nextState[d.day] = {
+            active: false,
+            windows: [{ start: d.day === 0 || d.day === 6 ? "10:00" : "09:00", end: d.day === 0 || d.day === 6 ? "16:00" : "17:00", duration: 60 }],
+          };
         });
+
+        // Group rows by day_of_week
+        const rowsByDay: Record<number, AvailabilitySlotRow[]> = {};
         (res.schedule || []).forEach((row) => {
-          if (row.day_of_week in nextState) {
-            nextState[row.day_of_week] = {
-              active: row.is_active !== false,
-              start: row.start_time.slice(0, 5),
-              end: row.end_time.slice(0, 5),
-              duration: row.duration_min || 60,
+          if (!rowsByDay[row.day_of_week]) rowsByDay[row.day_of_week] = [];
+          rowsByDay[row.day_of_week].push(row);
+        });
+
+        Object.entries(rowsByDay).forEach(([dayKey, rows]) => {
+          const dayNum = Number(dayKey);
+          if (nextState[dayNum] && rows.length > 0) {
+            rows.sort((a, b) => a.start_time.localeCompare(b.start_time));
+            nextState[dayNum] = {
+              active: rows.some((r) => r.is_active !== false),
+              windows: rows.map((r) => ({
+                id: r.id,
+                start: r.start_time.slice(0, 5),
+                end: r.end_time.slice(0, 5),
+                duration: r.duration_min || 60,
+              })),
             };
           }
         });
+
         setScheduleState(nextState);
       })
       .catch((err) => console.error("Failed to load practitioner schedule:", err))
       .finally(() => setLoadingSchedule(false));
+
 
     // Also fetch all time-off / exceptions
     setLoadingExceptions(true);
@@ -504,34 +534,133 @@ const PractitionerArea = () => {
     }
   };
 
+  const handleAddTimeWindow = (day: number) => {
+    setScheduleState((prev) => {
+      const current = prev[day] || {
+        active: true,
+        windows: [{ start: "09:00", end: "17:00", duration: 60 }],
+      };
+      const lastWindow = current.windows[current.windows.length - 1];
+      let newStart = "14:00";
+      let newEnd = "18:00";
+      if (lastWindow) {
+        const [lastH, lastM] = (lastWindow.end || "12:00").split(":").map(Number);
+        const nextH = Math.min(21, (lastH || 12) + 2);
+        const nextEndH = Math.min(22, nextH + 2);
+        newStart = `${String(nextH).padStart(2, "0")}:${String(lastM || 0).padStart(2, "0")}`;
+        newEnd = `${String(nextEndH).padStart(2, "0")}:${String(lastM || 0).padStart(2, "0")}`;
+        if (newStart >= newEnd) {
+          newStart = "17:00";
+          newEnd = "19:00";
+        }
+      }
+      return {
+        ...prev,
+        [day]: {
+          ...current,
+          active: true,
+          windows: [...current.windows, { start: newStart, end: newEnd, duration: 60 }],
+        },
+      };
+    });
+  };
+
+  const handleRemoveTimeWindow = (day: number, windowIndex: number) => {
+    setScheduleState((prev) => {
+      const current = prev[day];
+      if (!current) return prev;
+      const newWindows = current.windows.filter((_, idx) => idx !== windowIndex);
+      return {
+        ...prev,
+        [day]: {
+          ...current,
+          active: newWindows.length > 0 ? current.active : false,
+          windows: newWindows.length > 0 ? newWindows : [{ start: "09:00", end: "17:00", duration: 60 }],
+        },
+      };
+    });
+  };
+
+  const handleUpdateTimeWindow = (day: number, windowIndex: number, field: "start" | "end", value: string) => {
+    setScheduleState((prev) => {
+      const current = prev[day];
+      if (!current) return prev;
+      const updatedWindows = current.windows.map((win, idx) =>
+        idx === windowIndex ? { ...win, [field]: value } : win
+      );
+      return {
+        ...prev,
+        [day]: {
+          ...current,
+          windows: updatedWindows,
+        },
+      };
+    });
+  };
+
   // Save Weekly Schedule
   const handleSaveSchedule = async () => {
+    const toMinutes = (time: string) => {
+      const [h, m] = (time || "00:00").split(":").map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+
+    // Validation
+    for (const d of DAYS_OF_WEEK) {
+      const item = scheduleState[d.day];
+      if (!item || !item.active) continue;
+
+      if (!item.windows || item.windows.length === 0) {
+        toast.error(`${d.label}: Please add at least one time window or toggle the day off.`);
+        return;
+      }
+
+      // Check end > start for every window
+      for (let i = 0; i < item.windows.length; i++) {
+        const win = item.windows[i];
+        if (toMinutes(win.end) <= toMinutes(win.start)) {
+          toast.error(`${d.label} (Window ${i + 1}): End time must be after start time (${win.start} to ${win.end}).`);
+          return;
+        }
+      }
+
+      // Check overlapping windows on the same day
+      const sortedWindows = [...item.windows].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+      for (let i = 0; i < sortedWindows.length - 1; i++) {
+        const cur = sortedWindows[i];
+        const next = sortedWindows[i + 1];
+        if (toMinutes(next.start) < toMinutes(cur.end)) {
+          toast.error(`${d.label}: Time windows cannot overlap (${cur.start}–${cur.end} overlaps with ${next.start}–${next.end}).`);
+          return;
+        }
+      }
+    }
+
     setSavingSchedule(true);
     try {
       const updates: DayScheduleUpdate[] = DAYS_OF_WEEK.map((d) => {
         const item = scheduleState[d.day];
         return {
           day_of_week: d.day,
-          slots: item.active
-            ? [
-              {
-                start_time: item.start,
-                end_time: item.end,
-                duration_min: item.duration || 60,
-              },
-            ]
+          slots: item && item.active
+            ? item.windows.map((win) => ({
+                start_time: win.start,
+                end_time: win.end,
+                duration_min: win.duration || 60,
+              }))
             : [],
         };
       });
 
       await updateMySchedule(updates);
-      toast.success("Weekly availability saved! Clients can now book these slots.");
+      toast.success("Weekly availability saved! Clients can now book these time windows.");
     } catch (err: any) {
       toast.error(err.message || "Failed to update weekly schedule");
     } finally {
       setSavingSchedule(false);
     }
   };
+
 
   // Fetch articles written by practitioner
   const fetchMyArticles = () => {
@@ -1087,9 +1216,7 @@ const PractitionerArea = () => {
                   {DAYS_OF_WEEK.map((d) => {
                     const current = scheduleState[d.day] || {
                       active: false,
-                      start: "09:00",
-                      end: "17:00",
-                      duration: 60,
+                      windows: [{ start: "09:00", end: "17:00", duration: 60 }],
                     };
 
                     return (
@@ -1100,61 +1227,36 @@ const PractitionerArea = () => {
                           : "border-border/50 bg-secondary/20 opacity-70"
                           }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex items-center gap-4">
-                            <Switch
-                              checked={current.active}
-                              onCheckedChange={(active) =>
-                                setScheduleState((prev) => ({
-                                  ...prev,
-                                  [d.day]: { ...current, active },
-                                }))
-                              }
-                            />
-                            <div>
-                              <h3 className="font-medium text-sm text-foreground">{d.label}</h3>
-                              <p className="text-xs text-muted-foreground">
-                                {current.active ? "Available for bookings" : "Unavailable / Day off"}
-                              </p>
+                        <div className="flex flex-col gap-4">
+                          {/* Day switch header */}
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <Switch
+                                checked={current.active}
+                                onCheckedChange={(active) =>
+                                  setScheduleState((prev) => ({
+                                    ...prev,
+                                    [d.day]: { ...current, active },
+                                  }))
+                                }
+                              />
+                              <div>
+                                <h3 className="font-medium text-sm text-foreground">{d.label}</h3>
+                                <p className="text-xs text-muted-foreground">
+                                  {current.active
+                                    ? `${current.windows.length} time window${current.windows.length > 1 ? "s" : ""} configured`
+                                    : "Unavailable / Day off"}
+                                </p>
+                              </div>
                             </div>
-                          </div>
 
-                          {current.active && (
-                            <div className="flex flex-wrap items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">From</span>
-                                <CircularTimePicker
-                                  value={current.start}
-                                  onChange={(time) =>
-                                    setScheduleState((prev) => ({
-                                      ...prev,
-                                      [d.day]: { ...current, start: time },
-                                    }))
-                                  }
-                                  className="h-10 w-44 rounded-xl bg-background text-xs"
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">to</span>
-                                <CircularTimePicker
-                                  value={current.end}
-                                  onChange={(time) =>
-                                    setScheduleState((prev) => ({
-                                      ...prev,
-                                      [d.day]: { ...current, end: time },
-                                    }))
-                                  }
-                                  className="h-10 w-44 rounded-xl bg-background text-xs"
-                                />
-                              </div>
-
-                              {/* Three-dot exceptions menu */}
+                            {current.active && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <button
                                     type="button"
-                                    className="size-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary/60 transition-colors"
-                                    title="Manage this day"
+                                    className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary/60 transition-colors"
+                                    title="Manage day exceptions"
                                   >
                                     <MoreVertical className="size-4" />
                                   </button>
@@ -1164,11 +1266,10 @@ const PractitionerArea = () => {
                                     onClick={() => {
                                       setExceptionDay(d);
                                       setExceptionDate("");
-                                      setExceptionStart(current.start);
-                                      setExceptionEnd(current.end);
+                                      setExceptionStart(current.windows[0]?.start || "09:00");
+                                      setExceptionEnd(current.windows[0]?.end || "17:00");
                                       setExceptionType("leave");
                                       setExceptionReason("");
-                                      // pre-filter existing exceptions for this specific day using Day-Of-Week to show in modal?
                                       setPendingExceptions([]);
                                     }}
                                     className="gap-2"
@@ -1178,12 +1279,74 @@ const PractitionerArea = () => {
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                            )}
+                          </div>
+
+                          {/* Multiple Time Windows */}
+                          {current.active && (
+                            <div className="space-y-2.5 pt-2 border-t border-border/50">
+                              {current.windows.map((win, winIdx) => (
+                                <div
+                                  key={winIdx}
+                                  className="flex flex-wrap items-center justify-between gap-3 bg-secondary/30 rounded-xl px-3.5 py-2.5 border border-border/40"
+                                >
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <span className="text-xs font-medium text-foreground/80 min-w-16">
+                                      Window {winIdx + 1}
+                                    </span>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">From</span>
+                                      <CircularTimePicker
+                                        value={win.start}
+                                        onChange={(time) => handleUpdateTimeWindow(d.day, winIdx, "start", time)}
+                                        className="h-9 w-40 rounded-lg bg-background text-xs"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">to</span>
+                                      <CircularTimePicker
+                                        value={win.end}
+                                        onChange={(time) => handleUpdateTimeWindow(d.day, winIdx, "end", time)}
+                                        className="h-9 w-40 rounded-lg bg-background text-xs"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {current.windows.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveTimeWindow(d.day, winIdx)}
+                                      className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex items-center justify-center transition-colors"
+                                      title={`Remove Window ${winIdx + 1}`}
+                                      aria-label={`Remove Window ${winIdx + 1}`}
+                                    >
+                                      <Trash2 className="size-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+
+                              <div className="pt-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleAddTimeWindow(d.day)}
+                                  className="h-8 px-3 rounded-full text-xs font-medium text-primary hover:text-primary hover:bg-primary/10 gap-1.5"
+                                >
+                                  <Plus className="size-3.5" />
+                                  Add Time Window
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
                     );
                   })}
+
                 </div>
               )}
 

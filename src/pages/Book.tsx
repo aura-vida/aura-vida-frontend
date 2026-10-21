@@ -220,7 +220,8 @@ const Book = () => {
       .then((res) => {
         const active = (res.slots || [])
           .filter((s) => s.available !== false)
-          .map((s) => s.start.slice(0, 5));
+          .map((s) => s.start.slice(0, 5))
+          .sort((a, b) => a.localeCompare(b));
         setAvailableSlots(active);
         if (active.length > 0 && !active.includes(selectedTime)) {
           setSelectedTime(active[0]);
