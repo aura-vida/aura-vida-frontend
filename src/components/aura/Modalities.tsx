@@ -54,7 +54,7 @@ const Modalities = () => {
               <div className="absolute inset-x-0 bottom-0 p-7 text-background">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-background/70 mb-2">{m.count} guides</div>
+                    {/* <div className="text-[10px] uppercase tracking-[0.2em] text-background/70 mb-2">{m.count} guides</div> */}
                     <h3 className="font-display text-2xl lg:text-3xl text-background">{m.name}</h3>
                   </div>
                   <div className="size-11 rounded-full bg-background/15 backdrop-blur-md border border-background/30 grid place-items-center group-hover:bg-accent group-hover:border-accent transition-smooth shrink-0">
