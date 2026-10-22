@@ -2,6 +2,7 @@
 import sessionSound from "@/assets/session-sound.jpg";
 import sessionAcu from "@/assets/session-acupuncture.jpg";
 import { ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 // A fixed, curated set of modalities — deliberately NOT driven by the live
 // services catalog. Each practitioner names their own services however they
@@ -35,9 +36,10 @@ const Modalities = () => {
 
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8 mb-20">
           {featured.map((m, i) => (
-            <article
+            <Link
+              to={`/guides?craft=${encodeURIComponent(m.name)}`}
               key={m.name}
-              className="group relative rounded-[2rem] overflow-hidden bg-card border border-border shadow-soft hover:shadow-elegant transition-smooth cursor-pointer"
+              className="group relative rounded-[2rem] overflow-hidden bg-card border border-border shadow-soft hover:shadow-elegant transition-smooth cursor-pointer block"
               style={{ animationDelay: `${i * 120}ms` }}
             >
               <div className="aspect-[4/5] overflow-hidden">
@@ -65,7 +67,7 @@ const Modalities = () => {
                   {m.desc}
                 </p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
 
@@ -74,10 +76,15 @@ const Modalities = () => {
           <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-medium mb-8">All modalities</div>
           <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-8 gap-y-2">
             {all.map((s, i) => (
-              <li key={s} className="group flex items-baseline gap-5 py-5 border-b border-border/60 cursor-pointer">
-                {/* <span className="font-display text-sm text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span> */}
-                <span className="font-display text-2xl md:text-3xl text-foreground group-hover:text-accent transition-colors flex-1">{s}</span>
-                <ArrowUpRight className="size-5 text-muted-foreground group-hover:text-accent transition-colors" />
+              <li key={s} className="border-b border-border/60">
+                <Link
+                  to={`/guides?craft=${encodeURIComponent(s)}`}
+                  className="group flex items-baseline gap-5 py-5"
+                >
+                  {/* <span className="font-display text-sm text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span> */}
+                  <span className="font-display text-2xl md:text-3xl text-foreground group-hover:text-accent transition-colors flex-1">{s}</span>
+                  <ArrowUpRight className="size-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                </Link>
               </li>
             ))}
           </ul>

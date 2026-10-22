@@ -18,6 +18,7 @@ import ArticleDetail from "./pages/ArticleDetail.tsx";
 import Journal from "./pages/Journal.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import ProtectedRoute from "./components/aura/ProtectedRoute.tsx";
+import ScrollToTop from "./components/aura/ScrollToTop.tsx";
 
 import NotFound from "./pages/NotFound.tsx";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/guides" element={<Guides />} />

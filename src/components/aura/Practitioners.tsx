@@ -76,8 +76,15 @@ const Practitioners = () => {
   const [isLoadingInitial, setIsLoadingInitial] = useState<boolean>(true);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [publishedBlogs, setPublishedBlogs] = useState<Blog[]>([]);
+  // Set when arriving from a Modalities card/list click (?craft=) rather than
+  // typed into the search box — triggers a strict craft match instead of the
+  // fuzzy word search below, so e.g. "Holistic Life Coaching" doesn't match
+  // every bio that happens to contain the word "life".
+  const [craftFilter] = useState(
+    () => new URLSearchParams(window.location.search).get("craft")
+  );
   const [query, setQuery] = useState(
-    () => new URLSearchParams(window.location.search).get("q") ?? ""
+    () => new URLSearchParams(window.location.search).get("q") ?? craftFilter ?? ""
   );
   const [showAll, setShowAll] = useState(false);
 
@@ -165,6 +172,29 @@ const Practitioners = () => {
 
     const q = query.trim().toLowerCase();
     if (!q) return people;
+
+    // Still showing exactly what the clicked modality pre-filled — match the
+    // craft field directly instead of scoring loose word overlap. As soon as
+    // the visitor edits the box, it no longer equals craftFilter and falls
+    // through to the fuzzy symptom search below.
+    if (craftFilter && query === craftFilter) {
+      // Normalizes away spelling variance that isn't a real difference in
+      // meaning — "Astrology & Tarot" vs "Astrology and Tarot", "Theta
+      // Healing" vs "ThetaHealing" — so the curated modality list still
+      // matches real craft text without falling back to the loose
+      // word-overlap search above.
+      const normalize = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+      const squash = (s: string) => s.replace(/\s+/g, "");
+      const target = normalize(craftFilter);
+      const targetSquashed = squash(target);
+      return people.filter((p) => {
+        const craft = normalize(p.craft ?? "");
+        if (craft === target || craft.includes(target) || target.includes(craft)) return true;
+        const craftSquashed = squash(craft);
+        return craftSquashed === targetSquashed || craftSquashed.includes(targetSquashed) || targetSquashed.includes(craftSquashed);
+      });
+    }
+
     const words = q.split(/\s+/).filter(Boolean);
     return people
       .map((p) => {
@@ -180,7 +210,7 @@ const Practitioners = () => {
       .filter((s) => s.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((s) => s.p);
-  }, [people, query, isPractitioner, myPractitionerSlug]);
+  }, [people, query, isPractitioner, myPractitionerSlug, craftFilter]);
 
   const displayedPeople = useMemo(() => {
     if (isPractitioner) {

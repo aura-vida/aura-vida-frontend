@@ -313,11 +313,6 @@ const Admin = () => {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image file is too large. Maximum size is 10MB.");
-      return;
-    }
-
     setBusy(true);
     try {
       const res = await adminUploadPractitionerPhoto(row.id, file);
