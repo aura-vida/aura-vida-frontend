@@ -14,7 +14,7 @@ const featured = [
 ];
 
 const all = [
-  "Yoga", "Energy Healing", "Sound Healing", "Astrology & Tarot", "Holistic Life Coaching", "Meditation", "Breathwork", "Craniosacral therapy",
+  "Yoga", "Energy Healing", "Sound Healing", "Astrology & Tarot", "Holistic Life Coaching", "Meditation", "Breathwork", "Craniosacral therapy", "Theta Healing",
 ];
 
 const Modalities = () => {
