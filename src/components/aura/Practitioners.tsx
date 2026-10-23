@@ -129,14 +129,17 @@ const Practitioners = () => {
   }, [isPractitioner]);
 
   // When searching, fetch full catalog from the server if not already loaded so search covers all practitioners
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   useEffect(() => {
     if (!isPractitioner && query.trim() !== "" && people.length < totalCount) {
+      setIsSearchLoading(true);
       listPractitioners({ limit: 100, page: 1 })
         .then((data) => {
           setPeople(data.practitioners);
           setTotalCount(data.pagination?.total ?? data.practitioners.length);
         })
-        .catch((err) => console.error("Failed to load full practitioners for search:", err));
+        .catch((err) => console.error("Failed to load full practitioners for search:", err))
+        .finally(() => setIsSearchLoading(false));
     }
   }, [query, people.length, totalCount, isPractitioner]);
 
@@ -276,7 +279,7 @@ const Practitioners = () => {
         </div>
       )}
 
-      {isLoadingInitial ? (
+      {isLoadingInitial || isSearchLoading ? (
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
           {[1, 2, 3].map((i) => (
             <div key={i} className="bg-card rounded-[2rem] overflow-hidden border border-border p-7 animate-pulse">
