@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Star, MapPin, Search, ArrowUpRight, FileText, Loader2, Settings, UserCheck, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,17 +76,19 @@ const Practitioners = () => {
   const [isLoadingInitial, setIsLoadingInitial] = useState<boolean>(true);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [publishedBlogs, setPublishedBlogs] = useState<Blog[]>([]);
-  // Set when arriving from a Modalities card/list click (?craft=) rather than
-  // typed into the search box — triggers a strict craft match instead of the
-  // fuzzy word search below, so e.g. "Holistic Life Coaching" doesn't match
-  // every bio that happens to contain the word "life".
-  const [craftFilter] = useState(
-    () => new URLSearchParams(window.location.search).get("craft")
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const cityFilter = searchParams.get("city") || "";
+  const craftFilter = searchParams.get("craft") || "";
   const [query, setQuery] = useState(
-    () => new URLSearchParams(window.location.search).get("q") ?? craftFilter ?? ""
+    () => searchParams.get("q") ?? craftFilter ?? ""
   );
   const [showAll, setShowAll] = useState(false);
+
+  // Sync query when searchParams change
+  useEffect(() => {
+    const qFromParams = searchParams.get("q") ?? searchParams.get("craft") ?? "";
+    setQuery(qFromParams);
+  }, [searchParams]);
 
   // WhatsApp numbers aren't part of the public practitioner payload — they're
   // only shared with a client once they have a confirmed/completed booking
@@ -114,7 +116,8 @@ const Practitioners = () => {
   // Initial load: fetch practitioners from the server
   useEffect(() => {
     setIsLoadingInitial(true);
-    const fetchLimit = isPractitioner ? 100 : 3;
+    const hasFilter = Boolean(cityFilter.trim() || craftFilter.trim() || query.trim());
+    const fetchLimit = isPractitioner || hasFilter ? 100 : 3;
     listPractitioners({ limit: fetchLimit, page: 1 })
       .then((data) => {
         setPeople(data.practitioners);
@@ -126,12 +129,13 @@ const Practitioners = () => {
     listPublishedBlogs({ limit: 100 })
       .then((res) => setPublishedBlogs(res.data ?? []))
       .catch((err) => console.error("Failed to load published blogs:", err));
-  }, [isPractitioner]);
+  }, [isPractitioner, cityFilter, craftFilter]);
 
-  // When searching, fetch full catalog from the server if not already loaded so search covers all practitioners
+  // When searching or filtering by city, fetch full catalog from the server if not already loaded so search covers all practitioners
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   useEffect(() => {
-    if (!isPractitioner && query.trim() !== "" && people.length < totalCount) {
+    const hasFilter = Boolean(query.trim() !== "" || cityFilter.trim() !== "");
+    if (!isPractitioner && hasFilter && people.length < totalCount) {
       setIsSearchLoading(true);
       listPractitioners({ limit: 100, page: 1 })
         .then((data) => {
@@ -141,7 +145,7 @@ const Practitioners = () => {
         .catch((err) => console.error("Failed to load full practitioners for search:", err))
         .finally(() => setIsSearchLoading(false));
     }
-  }, [query, people.length, totalCount, isPractitioner]);
+  }, [query, cityFilter, people.length, totalCount, isPractitioner]);
 
   const handleToggleShowAll = async () => {
     if (!showAll) {
@@ -173,8 +177,16 @@ const Practitioners = () => {
       return people.filter((p) => p.slug === myPractitionerSlug);
     }
 
+    let list = people;
+
+    // Apply strict city filter if present in URL
+    if (cityFilter.trim()) {
+      const targetCity = cityFilter.trim().toLowerCase();
+      list = list.filter((p) => (p.city || "").trim().toLowerCase() === targetCity);
+    }
+
     const q = query.trim().toLowerCase();
-    if (!q) return people;
+    if (!q) return list;
 
     // Still showing exactly what the clicked modality pre-filled — match the
     // craft field directly instead of scoring loose word overlap. As soon as
@@ -190,7 +202,7 @@ const Practitioners = () => {
       const squash = (s: string) => s.replace(/\s+/g, "");
       const target = normalize(craftFilter);
       const targetSquashed = squash(target);
-      return people.filter((p) => {
+      return list.filter((p) => {
         const craft = normalize(p.craft ?? "");
         if (craft === target || craft.includes(target) || target.includes(craft)) return true;
         const craftSquashed = squash(craft);
@@ -199,7 +211,7 @@ const Practitioners = () => {
     }
 
     const words = q.split(/\s+/).filter(Boolean);
-    return people
+    return list
       .map((p) => {
         const hay = [p.name, p.craft, p.city, p.bio ?? "", ...(p.keywords ?? [])]
           .join(" ")
@@ -213,17 +225,17 @@ const Practitioners = () => {
       .filter((s) => s.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((s) => s.p);
-  }, [people, query, isPractitioner, myPractitionerSlug, craftFilter]);
+  }, [people, query, isPractitioner, myPractitionerSlug, craftFilter, cityFilter]);
 
   const displayedPeople = useMemo(() => {
     if (isPractitioner) {
       return visible;
     }
-    if (showAll || query.trim() !== "") {
+    if (showAll || query.trim() !== "" || cityFilter.trim() !== "") {
       return visible;
     }
     return visible.slice(0, 3);
-  }, [visible, showAll, query, isPractitioner]);
+  }, [visible, showAll, query, isPractitioner, cityFilter]);
 
   return (
   <section id="practitioners" className="bg-background py-24 lg:py-32">
@@ -290,19 +302,84 @@ const Practitioners = () => {
             </div>
           ))}
         </div>
-      ) : query.trim() !== "" && visible.length === 0 ? (
-        <div className="rounded-[2rem] border border-border bg-card p-12 text-center">
-          <p className="font-display text-2xl text-foreground">No practitioners match that yet.</p>
-          <p className="text-muted-foreground mt-2">
-            Try a different word, or write to us and we'll connect you with the right guide.
+      ) : (query.trim() !== "" || cityFilter.trim() !== "") && visible.length === 0 ? (
+        <div className="rounded-[2.5rem] border border-border bg-card p-12 text-center max-w-xl mx-auto shadow-soft">
+          <div className="size-14 rounded-full bg-secondary grid place-items-center mx-auto mb-4 text-muted-foreground">
+            <MapPin className="size-6 text-accent" />
+          </div>
+          <p className="font-display text-2xl text-foreground">
+            {cityFilter ? `No guides in ${cityFilter} yet` : "No practitioners match that yet."}
           </p>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+            {cityFilter
+              ? `We are currently onboarding conscious practitioners in ${cityFilter}. In the meantime, browse guides offering online sessions or in other cities.`
+              : "Try a different concern or search term, or write to us and we'll connect you with the right guide."}
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Button
+              variant="outline"
+              className="rounded-full text-xs"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete("city");
+                next.delete("q");
+                next.delete("craft");
+                setSearchParams(next);
+                setQuery("");
+              }}
+            >
+              View All Guides
+            </Button>
+            {cityFilter && (
+              <Button asChild className="rounded-full text-xs">
+                <Link to="/for-healers">Join as a Guide in {cityFilter}</Link>
+              </Button>
+            )}
+          </div>
         </div>
       ) : (
         <>
-          {query.trim() !== "" && (
-            <p className="text-sm text-muted-foreground mb-6">
-              {visible.length} {visible.length === 1 ? "practitioner" : "practitioners"} matching "{query.trim()}"
-            </p>
+          {(query.trim() !== "" || cityFilter.trim() !== "") && (
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+              <div className="flex flex-wrap items-center gap-2">
+                {cityFilter && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/15 text-accent text-xs sm:text-sm font-medium border border-accent/20">
+                    <MapPin className="size-3.5 text-accent" />
+                    City: {cityFilter}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("city");
+                        setSearchParams(next);
+                      }}
+                      className="ml-1 size-4 rounded-full inline-flex items-center justify-center hover:bg-accent/20 text-accent transition-colors"
+                      aria-label="Remove city filter"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {visible.length} {visible.length === 1 ? "guide" : "guides"} found
+                  {query.trim() ? ` matching "${query.trim()}"` : ""}
+                </span>
+              </div>
+
+              {cityFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("city");
+                    setSearchParams(next);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
+                >
+                  Clear city filter
+                </button>
+              )}
+            </div>
           )}
           <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
             {displayedPeople.map((p) => (
@@ -602,7 +679,7 @@ const Practitioners = () => {
         </>
       )}
 
-      {!isPractitioner && (totalCount > 3 || people.length > 3) && query.trim() === "" && (
+      {!isPractitioner && (totalCount > 3 || people.length > 3) && query.trim() === "" && cityFilter.trim() === "" && (
         <div className="mt-12 text-center">
           <Button
             type="button"

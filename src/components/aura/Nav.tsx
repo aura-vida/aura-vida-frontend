@@ -17,12 +17,13 @@ const Nav = () => {
       <Link to="/" className="font-display text-2xl md:text-3xl font-medium tracking-tight text-foreground" aria-label="Kuśala home">
         Kuśala
       </Link>
-      <div className="hidden md:flex gap-8 text-[12px] tracking-widest uppercase text-muted-foreground font-medium">
+      <div className="hidden md:flex flex-wrap lg:flex-nowrap gap-5 xl:gap-7 text-[12px] tracking-widest uppercase text-muted-foreground font-medium items-center">
         <a href="/#about" className="hover:text-foreground transition-colors">About</a>
         <Link to="/values" className="hover:text-foreground transition-colors">Values</Link>
         <a href="/#modalities" className="hover:text-foreground transition-colors">Services</a>
         <a href="/#digital" className="hover:text-foreground transition-colors">Library</a>
         <Link to="/guides" className="hover:text-foreground transition-colors">Guides</Link>
+        <Link to="/spaces" className="hover:text-foreground transition-colors">The Spaces</Link>
         <Link to="/journal" className="hover:text-foreground transition-colors">Journal</Link>
         {!isPractitioner && !isAdmin && (
           <a href="/guides#healers" className="hover:text-foreground transition-colors">For Healers</a>
@@ -106,6 +107,9 @@ const Nav = () => {
           <a onClick={close} href="/#digital" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Library</a>
           <Link onClick={close} to="/guides" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">
             {isPractitioner ? "Guides · My Profile" : "Guides · Book"}
+          </Link>
+          <Link onClick={close} to="/spaces" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">
+            The Spaces
           </Link>
           <Link onClick={close} to="/journal" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Journal</Link>
           {!isPractitioner && !isAdmin && (

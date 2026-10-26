@@ -6,7 +6,7 @@ const Footer = () => (
           { h: "Discover", l: [
             { label: "All modalities", href: "/#modalities" },
             { label: "Practitioners", href: "/book" },
-            { label: "Partner centers", href: "/book" },
+            { label: "The Spaces", href: "/spaces" },
             { label: "Refer a friend", href: "/account" },
           ]},
           { h: "For Healers", l: [

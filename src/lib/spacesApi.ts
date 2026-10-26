@@ -288,3 +288,17 @@ export async function adminReleaseSpaceSlot(
   );
 }
 
+/**
+ * Public: Fetch approved partner spaces with optional city or PIN filtering
+ */
+export async function listPublicSpaces(params?: {
+  pin?: string;
+  city?: string;
+}): Promise<{ spaces: Space[] }> {
+  const qs = new URLSearchParams();
+  if (params?.pin) qs.append("pin", params.pin);
+  if (params?.city && params.city !== "All") qs.append("city", params.city);
+  const query = qs.toString();
+  return api<{ spaces: Space[] }>(`/api/spaces${query ? `?${query}` : ""}`);
+}
+
