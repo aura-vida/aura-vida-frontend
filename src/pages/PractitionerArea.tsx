@@ -93,6 +93,7 @@ import {
   Crop,
 } from "lucide-react";
 import ImageCropDialog from "@/components/aura/ImageCropDialog";
+import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 import { supabase } from "@/integrations/supabase/client";
 import AuraPagination from "@/components/aura/AuraPagination";
 import { useServices } from "@/hooks/useServices";
@@ -1857,13 +1858,18 @@ const PractitionerArea = () => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setCropModal({
-                          open: true,
-                          src: serviceImagePreview,
-                          fileName: serviceImageFile?.name || "service.jpg",
-                        })
-                      }
+                      onClick={async () => {
+                        try {
+                          const blobUrl = await fetchSafeImageBlobUrl(serviceImagePreview);
+                          setCropModal({
+                            open: true,
+                            src: blobUrl,
+                            fileName: serviceImageFile?.name || "service.jpg",
+                          });
+                        } catch (err: any) {
+                          toast.error(err?.message || "Failed to load image for framing");
+                        }
+                      }}
                       className="rounded-full text-xs h-7 gap-1"
                     >
                       <Crop className="size-3" /> Adjust Crop

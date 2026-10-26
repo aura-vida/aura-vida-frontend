@@ -50,6 +50,10 @@ const AuthPage = () => {
   }, [user, loading, navigate, redirectTo]);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
+  useEffect(() => {
     if (resendIn <= 0) return;
     const id = window.setTimeout(() => setResendIn((s) => Math.max(0, s - 1)), 1000);
     return () => window.clearTimeout(id);

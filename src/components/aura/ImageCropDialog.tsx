@@ -4,6 +4,7 @@ import ReactCrop, {
   type PixelCrop,
   centerCrop,
   makeAspectCrop,
+  convertToPixelCrop,
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import {
@@ -15,7 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getCroppedImgFromElement } from "@/lib/cropImage";
-import { Loader2, RotateCw, Check, Crop as CropIcon, Maximize2 } from "lucide-react";
+import { Loader2, RotateCw, Check, Crop as CropIcon, Maximize2, AlertCircle } from "lucide-react";
+import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 
 export interface AspectRatioOption {
   label: string;
@@ -88,6 +90,9 @@ export default function ImageCropDialog({
     cropShape === "round" ? 1 : aspectRatio
   );
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const [isLoadingSrc, setIsLoadingSrc] = useState<boolean>(false);
+  const [hasError, setHasError] = useState<boolean>(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   // Sync aspect when default prop changes
@@ -95,14 +100,58 @@ export default function ImageCropDialog({
     setCurrentAspect(cropShape === "round" ? 1 : aspectRatio);
   }, [aspectRatio, cropShape]);
 
-  // Reset when modal opens
+  // Safely resolve imageSrc (handles blob:, data:, and remote http(s): with proxy fallback)
   useEffect(() => {
-    if (open) {
-      setCrop(undefined);
-      setCompletedCrop(undefined);
-      setRotation(0);
-      setIsProcessing(false);
+    let active = true;
+    let localBlobToRevoke: string | null = null;
+
+    if (!open || !imageSrc) {
+      setResolvedSrc(null);
+      setIsLoadingSrc(false);
+      setHasError(false);
+      return;
     }
+
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+    setRotation(0);
+    setIsProcessing(false);
+    setHasError(false);
+
+    if (imageSrc.startsWith("blob:") || imageSrc.startsWith("data:")) {
+      setResolvedSrc(imageSrc);
+      setIsLoadingSrc(false);
+      return;
+    }
+
+    // Remote URL: convert via safe fetch with backend proxy fallback
+    setIsLoadingSrc(true);
+    fetchSafeImageBlobUrl(imageSrc)
+      .then((blobUrl) => {
+        if (!active) {
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+        localBlobToRevoke = blobUrl;
+        setResolvedSrc(blobUrl);
+      })
+      .catch((err) => {
+        console.error("ImageCropDialog: Failed to fetch image via proxy fallback:", err);
+        if (active) {
+          // As a fallback, try passing the raw imageSrc
+          setResolvedSrc(imageSrc);
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingSrc(false);
+      });
+
+    return () => {
+      active = false;
+      if (localBlobToRevoke) {
+        URL.revokeObjectURL(localBlobToRevoke);
+      }
+    };
   }, [open, imageSrc]);
 
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -111,13 +160,16 @@ export default function ImageCropDialog({
     const initialAspect = cropShape === "round" ? 1 : currentAspect;
     const initialCrop = centerAspectCrop(width, height, initialAspect);
     setCrop(initialCrop);
+    setCompletedCrop(convertToPixelCrop(initialCrop, width, height));
   };
 
   const handleAspectChange = (newAspect: number | undefined) => {
     setCurrentAspect(newAspect);
     if (imgRef.current) {
       const { width, height } = imgRef.current;
-      setCrop(centerAspectCrop(width, height, newAspect));
+      const nextCrop = centerAspectCrop(width, height, newAspect);
+      setCrop(nextCrop);
+      setCompletedCrop(convertToPixelCrop(nextCrop, width, height));
     }
   };
 
@@ -126,13 +178,17 @@ export default function ImageCropDialog({
   };
 
   const handleConfirm = async () => {
-    if (!imgRef.current || !completedCrop) return;
+    if (!imgRef.current) return;
+    const targetCrop =
+      completedCrop ||
+      (crop ? convertToPixelCrop(crop, imgRef.current.width, imgRef.current.height) : undefined);
+    if (!targetCrop) return;
 
     try {
       setIsProcessing(true);
       const { file, previewUrl } = await getCroppedImgFromElement(
         imgRef.current,
-        completedCrop,
+        targetCrop,
         rotation,
         originalFileName
       );
@@ -190,7 +246,20 @@ export default function ImageCropDialog({
 
         {/* Interactive Cropper Area */}
         <div className="relative w-full max-h-[55vh] min-h-[260px] bg-black/95 flex items-center justify-center p-3 select-none overflow-hidden">
-          {imageSrc && (
+          {isLoadingSrc ? (
+            <div className="flex flex-col items-center justify-center gap-2.5 text-white/80 py-12">
+              <Loader2 className="size-8 animate-spin text-primary" />
+              <p className="text-xs font-medium">Preparing photo for framing...</p>
+            </div>
+          ) : hasError ? (
+            <div className="flex flex-col items-center justify-center gap-2 text-destructive py-12 text-center p-4">
+              <AlertCircle className="size-8" />
+              <p className="text-xs font-medium text-white">Failed to load photo preview.</p>
+              <p className="text-[11px] text-white/60 max-w-xs">
+                The photo source could not be loaded. Please try uploading the image directly.
+              </p>
+            </div>
+          ) : resolvedSrc ? (
             <ReactCrop
               crop={crop}
               onChange={(_, percentCrop) => setCrop(percentCrop)}
@@ -201,9 +270,10 @@ export default function ImageCropDialog({
             >
               <img
                 ref={imgRef}
-                src={imageSrc}
+                src={resolvedSrc}
                 alt="Crop preview"
                 onLoad={onImageLoad}
+                onError={() => setHasError(true)}
                 style={{
                   maxHeight: "50vh",
                   maxWidth: "100%",
@@ -213,7 +283,7 @@ export default function ImageCropDialog({
                 }}
               />
             </ReactCrop>
-          )}
+          ) : null}
         </div>
 
         {/* Controls Bar */}

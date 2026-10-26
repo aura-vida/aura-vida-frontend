@@ -36,6 +36,9 @@ import {
   X,
   Lock,
   Calendar,
+  Eye,
+  Crop,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
@@ -54,6 +57,7 @@ import {
   formatSpaceScheduleSummary,
   formatTime12h,
   type Space,
+  type SpaceImage,
   type SpaceSchedule,
 } from "@/lib/spacesApi";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
@@ -62,6 +66,7 @@ import ImageCropDialog from "@/components/aura/ImageCropDialog";
 import PackSpaceSlotDialog from "@/components/aura/PackSpaceSlotDialog";
 import { useDebounce } from "@/hooks/useDebounce";
 import { compressImageFile } from "@/lib/cropImage";
+import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 
 const STATUS_CONFIG: Record<
   Space["status"],
@@ -249,6 +254,79 @@ const SpaceListingsAdmin = () => {
     if (!cropQueue) return;
     cropQueue.items.forEach((item) => URL.revokeObjectURL(item.previewUrl));
     setCropQueue(null);
+  };
+
+  // Full-photo preview modal state
+  const [previewTarget, setPreviewTarget] = useState<{
+    open: boolean;
+    space: Space;
+    image: SpaceImage;
+  } | null>(null);
+
+  // Single-photo adjust/crop modal state for already saved photos
+  const [adjustTarget, setAdjustTarget] = useState<{
+    open: boolean;
+    spaceId: string;
+    imageId: string;
+    spaceName: string;
+    src: string;
+    fileName: string;
+  } | null>(null);
+  const [isPreparingAdjust, setIsPreparingAdjust] = useState<string | null>(null);
+
+  const startAdjustSavedPhoto = async (space: Space, img: SpaceImage) => {
+    setIsPreparingAdjust(img.id);
+    try {
+      const blobUrl = await fetchSafeImageBlobUrl(img.image_url);
+      setAdjustTarget({
+        open: true,
+        spaceId: space.id,
+        imageId: img.id,
+        spaceName: space.space_name,
+        src: blobUrl,
+        fileName: "adjusted-photo.jpg",
+      });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to load image for framing");
+    } finally {
+      setIsPreparingAdjust(null);
+    }
+  };
+
+  const handleSaveAdjustedPhoto = async (croppedFile: File) => {
+    if (!adjustTarget) return;
+    const { spaceId, imageId, src } = adjustTarget;
+    if (src.startsWith("blob:")) {
+      URL.revokeObjectURL(src);
+    }
+    setAdjustTarget(null);
+    setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: true }));
+    try {
+      const res = await adminUploadSpaceImages(spaceId, [croppedFile]);
+      const newImage = res.images?.[0];
+      if (newImage) {
+        await adminDeleteSpaceImage(spaceId, imageId);
+        const updateImageList = (list: SpaceImage[] = []) =>
+          list.map((item) => (item.id === imageId ? newImage : item));
+
+        setSpaces((prev) =>
+          prev.map((s) => (s.id === spaceId ? { ...s, space_images: updateImageList(s.space_images) } : s))
+        );
+        setEditedSpaces((prev) => ({
+          ...prev,
+          [spaceId]: {
+            ...prev[spaceId],
+            space_images: updateImageList(prev[spaceId]?.space_images),
+          },
+        }));
+        toast.success("Photo framing updated successfully");
+      }
+    } catch (err: any) {
+      console.error("Failed to update photo framing:", err);
+      toast.error(err.message || "Failed to update photo framing");
+    } finally {
+      setUploadingImagesFor((prev) => ({ ...prev, [spaceId]: false }));
+    }
   };
 
   const addNewSpaceFilesDirectly = async (files: File[]) => {
@@ -1010,29 +1088,49 @@ const SpaceListingsAdmin = () => {
                         {[...(space.space_images || [])]
                           .sort((a, b) => a.sort_order - b.sort_order)
                           .map((img) => (
-                            <div key={img.id} className="relative size-20 rounded-xl group">
-                              <a
-                                href={img.image_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block size-20 rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity"
-                                aria-label="Open photo in new tab"
-                              >
-                                <img src={img.image_url} alt="" className="w-full h-full object-cover" />
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteSpaceImage(space.id, img.id)}
-                                disabled={deletingImageId === img.id}
-                                className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-destructive text-destructive-foreground border-2 border-background shadow-sm flex items-center justify-center hover:bg-destructive/90 disabled:opacity-60"
-                                aria-label="Remove photo"
-                              >
-                                {deletingImageId === img.id ? (
-                                  <Loader2 className="size-3 animate-spin" />
-                                ) : (
-                                  <X className="size-3" />
-                                )}
-                              </button>
+                            <div key={img.id} className="relative size-20 rounded-xl group overflow-hidden border border-border bg-secondary shadow-sm">
+                              <img src={img.image_url} alt="" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+
+                              {/* Hover overlay with Eye (preview), Crop (adjust), and Delete actions */}
+                              <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 backdrop-blur-[2px]">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewTarget({ open: true, space, image: img })}
+                                  className="size-6 rounded-md bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-all hover:scale-110"
+                                  title="Preview Photo"
+                                  aria-label="Preview Photo"
+                                >
+                                  <Eye className="size-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => startAdjustSavedPhoto(space, img)}
+                                  disabled={isPreparingAdjust === img.id}
+                                  className="size-6 rounded-md bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
+                                  title="Adjust / Re-crop"
+                                  aria-label="Adjust / Re-crop"
+                                >
+                                  {isPreparingAdjust === img.id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <Crop className="size-3.5" />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSpaceImage(space.id, img.id)}
+                                  disabled={deletingImageId === img.id}
+                                  className="size-6 rounded-md bg-destructive/80 hover:bg-destructive text-white flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
+                                  title="Remove Photo"
+                                  aria-label="Remove Photo"
+                                >
+                                  {deletingImageId === img.id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="size-3.5" />
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           ))}
                         <label
@@ -1390,6 +1488,113 @@ const SpaceListingsAdmin = () => {
         onSkip={handleQueueSkip}
         onCropSave={(croppedFile) => handleQueueCropSave(croppedFile)}
       />
+
+      {/* Full Photo Preview Dialog with Adjust Action */}
+      <Dialog open={!!previewTarget} onOpenChange={(open) => !open && setPreviewTarget(null)}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-2xl bg-card border-border">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border/60">
+            <div className="flex items-center justify-between pr-6">
+              <div>
+                <DialogTitle className="font-display text-lg">
+                  Photo Preview — {previewTarget?.space.space_name}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  High-resolution photo as displayed on public sanctuary profile.
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="relative w-full max-h-[60vh] bg-black/95 flex items-center justify-center p-3 select-none overflow-hidden">
+            {previewTarget && (
+              <img
+                src={previewTarget.image.image_url}
+                alt="Space photo"
+                className="max-h-[55vh] max-w-full object-contain rounded-lg"
+              />
+            )}
+          </div>
+
+          <DialogFooter className="p-4 bg-secondary/30 border-t border-border/60 flex flex-wrap items-center justify-between gap-2 sm:gap-0">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full text-xs gap-1.5"
+                asChild
+              >
+                <a
+                  href={previewTarget?.image.image_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="size-3.5" /> Open Original
+                </a>
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="rounded-full text-xs gap-1.5"
+                disabled={deletingImageId === previewTarget?.image.id}
+                onClick={() => {
+                  if (previewTarget) {
+                    handleDeleteSpaceImage(previewTarget.space.id, previewTarget.image.id);
+                    setPreviewTarget(null);
+                  }
+                }}
+              >
+                <Trash2 className="size-3.5" /> Delete
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                className="rounded-full text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => {
+                  if (previewTarget) {
+                    const { space, image } = previewTarget;
+                    setPreviewTarget(null);
+                    startAdjustSavedPhoto(space, image);
+                  }
+                }}
+              >
+                <Crop className="size-3.5" /> Adjust / Re-crop Photo
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adjust Framing / Crop Dialog for Saved Photo */}
+      {adjustTarget && (
+        <ImageCropDialog
+          open={adjustTarget.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              if (adjustTarget.src.startsWith("blob:")) {
+                URL.revokeObjectURL(adjustTarget.src);
+              }
+              setAdjustTarget(null);
+            }
+          }}
+          imageSrc={adjustTarget.src}
+          originalFileName={adjustTarget.fileName}
+          title={`Adjust Framing — ${adjustTarget.spaceName}`}
+          aspectRatio={16 / 9}
+          allowedAspectRatios={[
+            { label: "16:9 Landscape", value: 16 / 9 },
+            { label: "4:3 Standard", value: 4 / 3 },
+            { label: "1:1 Square", value: 1 },
+            { label: "3:2 Photo", value: 3 / 2 },
+          ]}
+          onCropSave={handleSaveAdjustedPhoto}
+        />
+      )}
     </div>
   );
 };

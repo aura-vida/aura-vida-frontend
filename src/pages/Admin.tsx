@@ -21,9 +21,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
-import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles, Users, X } from "lucide-react";
+import { Loader2, Plus, Search, Trash2, ChevronLeft, ChevronRight, MoreHorizontal, Check, Pencil, ChevronDown, ChevronUp, XCircle, MapPin, Home, Video, Building2, Sparkles, Users, X, Crop, Camera } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
+import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -1051,14 +1052,58 @@ const Admin = () => {
                       <div className="mt-6 pt-6 border-t border-border animate-in fade-in-50 duration-200">
                         <div className="flex flex-col sm:flex-row gap-6">
                           <div className="sm:w-40 shrink-0">
-                            <div className="aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3">
+                            <div className="relative group aspect-[4/5] rounded-2xl bg-secondary overflow-hidden mb-3 border border-border shadow-sm">
                               {row.image_url ? (
-                                <img src={row.image_url} alt={row.name} className="w-full h-full object-cover" />
+                                <>
+                                  <img src={row.image_url} alt={row.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
+                                    <button
+                                      type="button"
+                                      onClick={() => document.getElementById(`prac-file-${row.id}`)?.click()}
+                                      className="size-9 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-all hover:scale-110 shadow-md"
+                                      title="Upload / Change Photo"
+                                      aria-label="Upload / Change Photo"
+                                    >
+                                      <Camera className="size-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const blobUrl = await fetchSafeImageBlobUrl(row.image_url!);
+                                          setCropModal({
+                                            open: true,
+                                            row,
+                                            src: blobUrl,
+                                            fileName: "practitioner.jpg",
+                                          });
+                                        } catch (err: any) {
+                                          toast.error(err?.message || "Failed to load photo for editing");
+                                        }
+                                      }}
+                                      className="size-9 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center transition-all hover:scale-110 shadow-md"
+                                      title="Adjust / Re-crop Photo"
+                                      aria-label="Adjust / Re-crop Photo"
+                                    >
+                                      <Crop className="size-4" />
+                                    </button>
+                                  </div>
+                                </>
                               ) : (
-                                <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">No photo</div>
+                                <button
+                                  type="button"
+                                  onClick={() => document.getElementById(`prac-file-${row.id}`)?.click()}
+                                  className="w-full h-full grid place-items-center text-xs text-muted-foreground hover:bg-muted/70 transition-colors p-2 text-center"
+                                >
+                                  <div className="flex flex-col items-center gap-1.5">
+                                    <Camera className="size-6 text-muted-foreground/60" />
+                                    <span>Add photo</span>
+                                  </div>
+                                </button>
                               )}
                             </div>
                             <Input
+                              id={`prac-file-${row.id}`}
                               type="file"
                               accept="image/jpeg,image/png,image/webp,image/jpg"
                               className="text-xs"

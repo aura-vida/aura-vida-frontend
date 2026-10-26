@@ -90,6 +90,10 @@ const Book = () => {
     }
   }, [authLoading, user, practitionerSlug, navigate]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [practitionerSlug]);
+
   // Data fetching states
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);

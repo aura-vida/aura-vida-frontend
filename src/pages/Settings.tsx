@@ -14,6 +14,7 @@ import { isValidPhoneNumber } from "@/lib/whatsapp";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck, Crop } from "lucide-react";
 import ImageCropDialog from "@/components/aura/ImageCropDialog";
+import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 
 export default function SettingsPage() {
     const { user, profile, loading } = useAuth();
@@ -331,7 +332,14 @@ export default function SettingsPage() {
                                                     type="button"
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={() => setCropModal({ open: true, src: imagePreview, fileName: imageFile?.name || "profile.jpg" })}
+                                                    onClick={async () => {
+                                                        try {
+                                                            const blobUrl = await fetchSafeImageBlobUrl(imagePreview);
+                                                            setCropModal({ open: true, src: blobUrl, fileName: imageFile?.name || "profile.jpg" });
+                                                        } catch (err: any) {
+                                                            toast.error(err?.message || "Failed to load image for framing");
+                                                        }
+                                                    }}
                                                     className="rounded-full gap-1.5 text-xs"
                                                 >
                                                     <Crop className="size-3.5" /> Adjust Crop
