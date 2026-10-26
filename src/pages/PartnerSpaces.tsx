@@ -322,15 +322,10 @@ export default function PartnerSpaces() {
                     />
 
                     {/* Top Overlays */}
-                    <div className="absolute top-3.5 inset-x-3.5 flex items-center justify-between pointer-events-none">
+                    <div className="absolute top-3.5 left-3.5 pointer-events-none">
                       <span className="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-black/60 text-white backdrop-blur-md border border-white/10 shadow-sm">
                         {space.space_type || "Sanctuary"}
                       </span>
-                      {photoCount > 0 && (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-black/60 text-white backdrop-blur-md border border-white/10 shadow-sm">
-                          📷 {photoCount} {photoCount === 1 ? "photo" : "photos"}
-                        </span>
-                      )}
                     </div>
                   </div>
 
