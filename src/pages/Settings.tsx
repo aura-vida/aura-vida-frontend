@@ -54,6 +54,23 @@ export default function SettingsPage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const isBaseChanged =
+        fullName.trim() !== (profile?.full_name || "").trim() ||
+        phone.trim() !== (profile?.phone || "").trim();
+
+    const isPracChanged = Boolean(
+        imageFile !== null ||
+        (practitioner && (
+            pracFields.name.trim() !== (practitioner.name || "").trim() ||
+            pracFields.bio.trim() !== (practitioner.bio || "").trim() ||
+            pracFields.city.trim() !== (practitioner.city || "").trim() ||
+            pracFields.craft.trim() !== (practitioner.craft || "").trim() ||
+            Number(pracFields.price_inr) !== Number(practitioner.price_inr || 0) ||
+            pracFields.mobile_number.trim() !== (practitioner.mobile_number || "").trim() ||
+            pracFields.whatsapp_number.trim() !== (practitioner.whatsapp_number || "").trim()
+        ))
+    );
+
     useEffect(() => {
         if (!loading && !user) {
             navigate("/auth", { replace: true });
@@ -242,7 +259,7 @@ export default function SettingsPage() {
 
                         <div className="grid sm:grid-cols-2 gap-5">
                             <div className="space-y-2">
-                                <Label htmlFor="fullName" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full Name</Label>
+                                <Label htmlFor="fullName" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Full Name <span className="text-destructive">*</span></Label>
                                 <Input
                                     id="fullName"
                                     value={fullName}
@@ -265,7 +282,7 @@ export default function SettingsPage() {
                         </div>
 
                         <div className="pt-2 flex justify-end">
-                            <Button type="submit" disabled={savingBase} className="h-11 px-8 rounded-full">
+                            <Button type="submit" disabled={!isBaseChanged || savingBase} className="h-11 px-8 rounded-full">
                                 {savingBase ? "Saving…" : "Update Personal Details"}
                             </Button>
                         </div>
@@ -359,7 +376,7 @@ export default function SettingsPage() {
 
                                 <div className="grid sm:grid-cols-2 gap-5">
                                     <div className="space-y-2">
-                                        <Label htmlFor="pracName" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Display Name</Label>
+                                        <Label htmlFor="pracName" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Display Name <span className="text-destructive">*</span></Label>
                                         <Input
                                             id="pracName"
                                             value={pracFields.name}
@@ -370,7 +387,7 @@ export default function SettingsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="pracCraft" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Title / Modality</Label>
+                                        <Label htmlFor="pracCraft" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Title / Modality <span className="text-destructive">*</span></Label>
                                         <Input
                                             id="pracCraft"
                                             value={pracFields.craft}
@@ -381,7 +398,7 @@ export default function SettingsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="pracCity" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">City</Label>
+                                        <Label htmlFor="pracCity" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">City <span className="text-destructive">*</span></Label>
                                         <Input
                                             id="pracCity"
                                             value={pracFields.city}
@@ -392,7 +409,7 @@ export default function SettingsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="pracPrice" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Base Session Price (₹)</Label>
+                                        <Label htmlFor="pracPrice" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Base Session Price (₹) <span className="text-destructive">*</span></Label>
                                         <Input
                                             id="pracPrice"
                                             type="number"
@@ -404,7 +421,7 @@ export default function SettingsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="pracMobile" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Mobile Number</Label>
+                                        <Label htmlFor="pracMobile" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Mobile Number <span className="text-destructive">*</span></Label>
                                         <Input
                                             id="pracMobile"
                                             type="tel"
@@ -416,7 +433,7 @@ export default function SettingsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="pracWhatsapp" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">WhatsApp Number</Label>
+                                        <Label htmlFor="pracWhatsapp" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">WhatsApp Number <span className="text-destructive">*</span></Label>
                                         <Input
                                             id="pracWhatsapp"
                                             type="tel"
@@ -431,7 +448,7 @@ export default function SettingsPage() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="pracBio" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">About You (Bio)</Label>
+                                    <Label htmlFor="pracBio" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">About You (Bio) <span className="text-destructive">*</span></Label>
                                     <Textarea
                                         id="pracBio"
                                         value={pracFields.bio}
@@ -443,7 +460,7 @@ export default function SettingsPage() {
                                 </div>
 
                                 <div className="pt-2 flex justify-end">
-                                    <Button type="submit" disabled={savingPrac || imageSizeError} className="h-11 px-8 rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                                    <Button type="submit" disabled={!isPracChanged || savingPrac || imageSizeError} className="h-11 px-8 rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
                                         {savingPrac ? "Saving Profile…" : "Update Public Profile"}
                                     </Button>
                                 </div>
