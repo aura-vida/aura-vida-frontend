@@ -222,32 +222,6 @@ export default function PartnerSpaces() {
 
       {/* Main Spaces Directory */}
       <section className="px-6 lg:px-12 pb-20 max-w-[1500px] mx-auto w-full flex-1">
-        {/* Host Callout Banner (Option 4) */}
-        <div className="mb-8 rounded-2xl sm:rounded-[2rem] bg-secondary/50 border border-border/80 p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-soft">
-          <div className="flex items-center gap-3.5 text-center sm:text-left">
-            <span className="size-11 rounded-full bg-accent/15 text-accent grid place-items-center shrink-0">
-              <Sparkles className="size-5" />
-            </span>
-            <div>
-              <p className="text-sm sm:text-base font-medium text-foreground">
-                Do you host a healing space, yoga studio, or quiet wellness room?
-              </p>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                Partner with Kuśala to open your doors to verified conscious practitioners and mindful clients.
-              </p>
-            </div>
-          </div>
-          <Button
-            asChild
-            size="sm"
-            className="rounded-full shrink-0 h-10 px-6 text-xs sm:text-sm bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft"
-          >
-            <Link to="/list-your-space" className="inline-flex items-center gap-1.5">
-              <span>List Your Space</span>
-              <ArrowUpRight className="size-3.5" />
-            </Link>
-          </Button>
-        </div>
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {[1, 2, 3].map((i) => (
@@ -709,20 +683,6 @@ export default function PartnerSpaces() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Floating Action Pill */}
-      <div className="fixed bottom-6 right-6 z-40 hidden sm:block">
-        <Button
-          asChild
-          className="rounded-full shadow-2xl bg-foreground text-background hover:bg-foreground/90 h-11 px-5 text-xs font-medium tracking-wide border border-border/40 backdrop-blur-md flex items-center gap-2 group cursor-pointer"
-        >
-          <Link to="/list-your-space">
-            <Building2 className="size-3.5 text-accent" />
-            <span>List Your Space</span>
-            <ArrowUpRight className="size-3 text-muted-foreground group-hover:text-background transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
-        </Button>
-      </div>
 
       <Footer />
     </main>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Search, ShieldCheck } from "lucide-react";
-import logo from "@/assets/kusala-logo.png";
+import logo from "@/assets/Kusala logo with background.svg";
 
 const Hero = () => {
   const [term, setTerm] = useState("");
