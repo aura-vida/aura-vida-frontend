@@ -58,6 +58,14 @@ const ForHealers = () => {
       toast.error("Please enter a valid WhatsApp number, including the country code");
       return;
     }
+    if (!form.craft.trim()) {
+      toast.error("Please enter your modality or title (e.g. Yoga Therapist)");
+      return;
+    }
+    if (!form.city.trim()) {
+      toast.error("Please enter your location or city (e.g. Mumbai)");
+      return;
+    }
     setSubmitting(true);
     try {
       await api("/api/practitioners/apply", {
@@ -173,13 +181,13 @@ const ForHealers = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="ap-craft">Modality / Title</Label>
-                  <Input id="ap-craft" value={form.craft} onChange={set("craft")} placeholder="e.g. Yoga Therapist" className="rounded-xl h-11" />
+                  <Label htmlFor="ap-craft">Modality / Title <span className="text-destructive">*</span></Label>
+                  <Input id="ap-craft" required value={form.craft} onChange={set("craft")} placeholder="e.g. Yoga Therapist" className="rounded-xl h-11" />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="ap-city">Location / City</Label>
-                  <Input id="ap-city" value={form.city} onChange={set("city")} placeholder="e.g. Mumbai" className="rounded-xl h-11" />
+                  <Label htmlFor="ap-city">Location / City <span className="text-destructive">*</span></Label>
+                  <Input id="ap-city" required value={form.city} onChange={set("city")} placeholder="e.g. Mumbai" className="rounded-xl h-11" />
                 </div>
 
                 <div className="space-y-1.5">
