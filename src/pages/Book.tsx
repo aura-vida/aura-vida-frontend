@@ -27,12 +27,13 @@ import {
   Tag,
   X,
   Building2,
-  ExternalLink
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { listPractitioners, getPractitionerServices, type Practitioner } from "@/lib/practitionersApi";
+import { listPractitioners, getPractitioner, getPractitionerServices, type Practitioner } from "@/lib/practitionersApi";
 import type { Service } from "@/lib/servicesApi";
 import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
@@ -97,6 +98,7 @@ const Book = () => {
   // Data fetching states
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [selectedPractitioner, setSelectedPractitioner] = useState<Practitioner | null>(null);
+  const [loadingPractitioner, setLoadingPractitioner] = useState<boolean>(Boolean(practitionerSlug));
   const [services, setServices] = useState<Service[]>([]);
 
   // Form selections
@@ -132,18 +134,27 @@ const Book = () => {
 
   // Load practitioners
   useEffect(() => {
-    listPractitioners({ limit: 10 })
-      .then((data) => {
-        setPractitioners(data.practitioners);
-        if (practitionerSlug) {
-          const match = data.practitioners.find((p) => p.slug === practitionerSlug);
-          if (match) setSelectedPractitioner(match);
-          else setSelectedPractitioner(null);
-        } else {
+    if (practitionerSlug) {
+      setLoadingPractitioner(true);
+      getPractitioner(practitionerSlug)
+        .then((res) => {
+          setSelectedPractitioner(res.practitioner || null);
+        })
+        .catch((err) => {
+          console.error("Failed to load practitioner by slug:", err);
           setSelectedPractitioner(null);
-        }
+        })
+        .finally(() => setLoadingPractitioner(false));
+    } else {
+      setSelectedPractitioner(null);
+      setLoadingPractitioner(false);
+    }
+
+    listPractitioners({ limit: 100 })
+      .then((data) => {
+        setPractitioners(data.practitioners || []);
       })
-      .catch((err) => console.error("Failed to load practitioners:", err));
+      .catch((err) => console.error("Failed to load practitioners list:", err));
   }, [practitionerSlug]);
 
   // Load services this practitioner offers (resets selection on practitioner change)
@@ -154,7 +165,26 @@ const Book = () => {
       return;
     }
     getPractitionerServices(selectedPractitioner.slug)
-      .then((res) => setServices(res.services || []))
+      .then((res) => {
+        const sList = res.services || [];
+        if (sList.length === 0 && selectedPractitioner) {
+          // Fallback service so booking is never blocked even if practitioner hasn't created custom services yet
+          const fallbackService: Service = {
+            id: `default-${selectedPractitioner.id || selectedPractitioner.slug}`,
+            practitioner_id: selectedPractitioner.id || "",
+            name: `${selectedPractitioner.craft || "1:1 Holistic"} Session`,
+            description: `Private 1-on-1 session with ${selectedPractitioner.name}`,
+            duration_min: 60,
+            price_inr: selectedPractitioner.price_inr || 1500,
+            category: selectedPractitioner.craft || "Holistic Healing",
+            is_active: true,
+          };
+          setServices([fallbackService]);
+          setSelectedServiceId(fallbackService.id);
+        } else {
+          setServices(sList);
+        }
+      })
       .catch((err) => {
         console.error("Failed to load practitioner services:", err);
         setServices([]);
@@ -542,13 +572,21 @@ const Book = () => {
     <main className="min-h-screen bg-background">
       <Nav />
 
+      {/* Loading state when direct practitioner URL is accessed or being fetched */}
+      {practitionerSlug && loadingPractitioner && (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+          <Loader2 className="size-8 animate-spin text-accent" />
+          <p className="text-sm text-muted-foreground">Preparing booking session...</p>
+        </div>
+      )}
+
       {/* STATE A: Browse Guides First (When user clicked 'Book a session' without selecting a guide yet) */}
-      {!isCheckingOut && (
+      {!loadingPractitioner && !isCheckingOut && (
         <Practitioners />
       )}
 
       {/* STATE B: Final Checkout Screen (When user clicked 'Book' on a specific guide) */}
-      {isCheckingOut && (
+      {!loadingPractitioner && isCheckingOut && (
         <div className="max-w-[1300px] mx-auto px-6 lg:px-12 py-12 lg:py-20">
 
           {/* Back button to browse all guides */}
