@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { submitSpace } from "@/lib/spacesApi";
 import Nav from "@/components/aura/Nav";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ImagePlus, X } from "lucide-react";
+import { ImagePlus, X, Home, ArrowRight, CheckCircle2, RotateCcw } from "lucide-react";
 import SpaceScheduleEditor from "@/components/aura/SpaceScheduleEditor";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
 import { toast } from "sonner";
@@ -34,6 +35,32 @@ const ListSpace = () => {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const navigate = useNavigate();
+  const [countdown, setCountdown] = useState(10);
+
+  useEffect(() => {
+    if (!done) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate("/spaces");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [done, navigate]);
+
+  const handleReset = () => {
+    setDone(false);
+    setForm(empty);
+    setPhotoFiles([]);
+    setPhotoPreviews([]);
+    setCountdown(10);
+  };
+
   const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -107,9 +134,47 @@ const ListSpace = () => {
         </p>
 
         {done ? (
-          <div className="mt-10 rounded-3xl border border-border bg-card p-8">
-            <p className="font-display text-2xl text-foreground">Thank you — we've received your space.</p>
-            <p className="mt-2 text-muted-foreground">We'll review the details and contact you within a few days.</p>
+          <div className="mt-10 rounded-3xl border border-border bg-card p-8 sm:p-12 text-center animate-in fade-in-50 duration-500">
+            <div className="mx-auto size-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-5">
+              <CheckCircle2 className="size-8" />
+            </div>
+            <h2 className="font-display text-2xl sm:text-3xl text-foreground">
+              Thank you — we've received your space!
+            </h2>
+            <p className="mt-3 text-muted-foreground text-sm sm:text-base max-w-md mx-auto leading-relaxed">
+              We'll review your sanctuary's details and reach out to you within a few days to complete onboarding.
+            </p>
+
+            <div className="mt-6 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary text-xs text-muted-foreground font-medium">
+              <span>Redirecting to The Spaces in</span>
+              <span className="font-bold text-foreground text-sm">{countdown}s</span>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Button asChild size="lg" className="rounded-full px-7 gap-2">
+                <Link to="/spaces">
+                  Explore The Spaces
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="rounded-full px-6 gap-2">
+                <Link to="/">
+                  <Home className="size-4" />
+                  Go to Home
+                </Link>
+              </Button>
+            </div>
+
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors underline underline-offset-4"
+              >
+                <RotateCcw className="size-3" />
+                List another space
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={submit} className="mt-10 rounded-3xl border border-border bg-card p-6 md:p-8 grid sm:grid-cols-2 gap-5">

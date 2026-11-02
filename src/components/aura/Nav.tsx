@@ -1,16 +1,25 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import NotificationBell from "@/components/aura/NotificationBell";
 
 const Nav = () => {
   const [open, setOpen] = useState(false);
+  const location = useLocation();
   const { user, profile } = useAuth();
   const isPractitioner = (profile?.role || "").toLowerCase() === "practitioner";
   const isAdmin = (profile?.role || "").toLowerCase() === "admin";
   const close = () => setOpen(false);
+
+  const searchParams = new URLSearchParams(location.search);
+  const currentRedirect =
+    searchParams.get("redirect") ||
+    (location.pathname.startsWith("/book") ? `${location.pathname}${location.search}` : null);
+  const signInTarget = currentRedirect
+    ? `/auth?view=signin&redirect=${encodeURIComponent(currentRedirect)}`
+    : `/auth?view=signin`;
 
   return (
     <nav className="w-full px-6 lg:px-12 py-6 flex items-center justify-between max-w-[1500px] mx-auto relative">
@@ -28,7 +37,6 @@ const Nav = () => {
         {!isPractitioner && !isAdmin && (
           <a href="/guides#healers" className="hover:text-foreground transition-colors">For Healers</a>
         )}
-        <Link to="/list-your-space" className="hover:text-foreground transition-colors">List your space</Link>
       </div>
       <div className="flex items-center gap-2">
         {user && <NotificationBell />}
@@ -81,7 +89,7 @@ const Nav = () => {
             </Link>
           </>
         )}
-        <Link to={user ? "/account" : "/auth"} className="hidden md:inline-flex">
+        <Link to={user ? "/account" : signInTarget} className="hidden md:inline-flex">
           <Button
             variant="outline"
             size="lg"
@@ -115,7 +123,6 @@ const Nav = () => {
           {!isPractitioner && !isAdmin && (
             <a onClick={close} href="/guides#healers" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">For Healers</a>
           )}
-          <Link onClick={close} to="/list-your-space" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">List your space</Link>
           {user && (
             <Link onClick={close} to={isPractitioner ? "/practitioner" : isAdmin ? "/admin" : "/account"}>
               <Button className="w-full mt-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 tracking-widest uppercase text-xs">
@@ -123,7 +130,7 @@ const Nav = () => {
               </Button>
             </Link>
           )}
-          <Link onClick={close} to={user ? "/account" : "/auth"}>
+          <Link onClick={close} to={user ? "/account" : signInTarget}>
             <Button variant={user ? "outline" : "default"} className="w-full mt-2 rounded-full h-11">
               {user ? "My sessions" : "Sign in"}
             </Button>

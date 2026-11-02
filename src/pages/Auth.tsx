@@ -59,11 +59,38 @@ const AuthPage = () => {
     return () => window.clearTimeout(id);
   }, [resendIn]);
 
+  useEffect(() => {
+    const req = searchParams.get("view");
+    if (req === "signup") {
+      setView("signup");
+    } else if (req === "forgot") {
+      setView("forgot");
+    } else if (req === "confirm") {
+      setView("confirm");
+    } else if (req === "forgot_sent") {
+      setView("forgot_sent");
+    } else if (req === "signin") {
+      setView("signin");
+    } else if (!referralCode) {
+      setView("signin");
+    }
+  }, [searchParams, referralCode]);
+
   const goSignIn = () => {
     setOtp("");
     setCodeSent(false);
     setSignMethod("password");
     setView("signin");
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("view", "signin");
+    navigate(`/auth?${nextParams.toString()}`, { replace: true });
+  };
+
+  const goSignUp = () => {
+    setView("signup");
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("view", "signup");
+    navigate(`/auth?${nextParams.toString()}`, { replace: true });
   };
 
   const sendSignInCode = async () => {
@@ -541,7 +568,7 @@ const AuthPage = () => {
           ) : view === "signin" ? (
             <>
               New to Kuśala?{" "}
-              <button type="button" onClick={() => setView("signup")} className="text-primary underline underline-offset-4">
+              <button type="button" onClick={goSignUp} className="text-primary underline underline-offset-4">
                 Create an account
               </button>
             </>
