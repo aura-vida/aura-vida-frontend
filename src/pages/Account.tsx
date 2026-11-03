@@ -74,7 +74,7 @@ const modeLabel = (mode: string) =>
 
 const formatPrice = (val: number | null | undefined) => {
   if (val == null) return "₹0";
-  const inr = val > 10000 ? Math.round(val / 100) : val;
+  const inr = Math.round(val / 100);
   return `₹${inr.toLocaleString("en-IN")}`;
 };
 
