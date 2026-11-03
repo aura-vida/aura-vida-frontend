@@ -24,6 +24,7 @@ export interface Appointment {
     place_id?: string;
     lat?: number;
     lng?: number;
+    meet_link?: string;
   } | null;
 }
 

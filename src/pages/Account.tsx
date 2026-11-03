@@ -42,6 +42,7 @@ import ReferralCard from "@/components/aura/ReferralCard";
 import ClickableDatePicker from "@/components/aura/ClickableDatePicker";
 import { cn } from "@/lib/utils";
 import { useServices } from "@/hooks/useServices";
+import { SessionJoinButton } from "@/components/aura/SessionJoinButton";
 
 import { listPractitioners, getPractitioner } from "@/lib/practitionersApi";
 import { getWhatsappLink } from "@/lib/whatsapp";
@@ -514,6 +515,17 @@ const Account = () => {
                         </a>
                       );
                     })()}
+
+                    {/* Online Session 3-stage Join Button */}
+                    {b.mode === "online" && (
+                      <div className="mt-3">
+                        <SessionJoinButton
+                          scheduledAt={b.scheduled_at}
+                          meetLink={b.meeting_location?.meet_link}
+                          status={b.status}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-right">

@@ -39,6 +39,7 @@ import {
   cancelAppointment,
 } from "@/lib/appointmentsApi";
 import { splitTaxInclusiveTotal } from "@/lib/pricing";
+import { SessionJoinButton } from "@/components/aura/SessionJoinButton";
 import {
   getPractitionerSchedule,
   updateMySchedule,
@@ -126,6 +127,7 @@ interface Booking {
     place_id?: string;
     lat?: number;
     lng?: number;
+    meet_link?: string;
   } | null;
 }
 
@@ -1092,6 +1094,17 @@ const PractitionerArea = () => {
                                 </>
                               )}
                             </div>
+
+                            {/* Online Session 3-stage Join Button */}
+                            {b.mode === "online" && (
+                              <div className="mt-2.5">
+                                <SessionJoinButton
+                                  scheduledAt={b.scheduled_at}
+                                  meetLink={b.meeting_location?.meet_link}
+                                  status={b.status}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
 
