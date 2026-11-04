@@ -338,7 +338,7 @@ const Account = () => {
       },
       customerName: profile?.full_name || user?.user_metadata?.full_name || "",
       customerEmail: user?.email || "",
-      customerPhone: profile?.phone || "",
+      customerPhone: profile?.whatsapp_number || profile?.phone || "",
       onSuccess: () => {
         setPayingBookingId(null);
         toast.success("Payment completed successfully! Your session is now confirmed.");
@@ -393,6 +393,27 @@ const Account = () => {
             </Button>
           </div>
         </div>
+
+        {(!profile?.role || profile.role === "client") && !profile?.whatsapp_number && (
+          <div className="mt-8 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-900 dark:text-amber-100">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="size-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                <MessageCircle className="size-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="text-xs space-y-0.5">
+                <p className="font-semibold text-sm">Action Required: Add your WhatsApp Number</p>
+                <p className="text-muted-foreground">
+                  Kuśala now requires a verified WhatsApp number to deliver your session updates and aftercare notes.
+                </p>
+              </div>
+            </div>
+            <Link to="/settings" className="shrink-0">
+              <Button size="sm" className="rounded-full bg-amber-600 hover:bg-amber-700 text-white text-xs px-5 h-9 w-full sm:w-auto">
+                Add Number
+              </Button>
+            </Link>
+          </div>
+        )}
 
         <div className="mt-12">
           <ReferralCard />

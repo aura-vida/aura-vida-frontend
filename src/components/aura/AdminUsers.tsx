@@ -18,15 +18,29 @@ import {
   RefreshCw,
   Wallet,
   Sparkles,
-  X
+  X,
+  MessageCircle,
+  ExternalLink,
+  Eye,
+  Copy,
+  Check,
+  Calendar
 } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import AuraPagination from "@/components/aura/AuraPagination";
+import { getWhatsappLink } from "@/lib/whatsapp";
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -38,6 +52,15 @@ export default function AdminUsers() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [copiedWa, setCopiedWa] = useState(false);
+
+  const handleCopyWhatsapp = (num: string) => {
+    navigator.clipboard.writeText(num);
+    setCopiedWa(true);
+    toast.success("WhatsApp number copied to clipboard");
+    setTimeout(() => setCopiedWa(false), 2000);
+  };
 
   const fetchUsers = async (p = page, q = searchTerm, status = statusFilter) => {
     setLoading(true);
@@ -276,7 +299,29 @@ export default function AdminUsers() {
 
                       {/* Contact */}
                       <td className="py-4 px-6">
-                        <div className="space-y-1 text-xs">
+                        <div className="space-y-1.5 text-xs">
+                          {/* WhatsApp number (Mandatory customer field) */}
+                          {u.whatsapp_number ? (
+                            <div className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                              <MessageCircle className="size-3.5 shrink-0" />
+                              <span className="font-mono text-[11px]">{u.whatsapp_number}</span>
+                              <a
+                                href={getWhatsappLink(u.whatsapp_number) || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Open WhatsApp chat"
+                                className="inline-flex items-center text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-700 dark:text-emerald-300 transition-colors"
+                              >
+                                Chat <ExternalLink className="size-2.5 ml-0.5" />
+                              </a>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-amber-600/90 dark:text-amber-400/90 text-[11px]">
+                              <MessageCircle className="size-3 shrink-0 opacity-60" />
+                              <span className="italic">WhatsApp: Not set</span>
+                            </div>
+                          )}
+
                           {u.email ? (
                             <a
                               href={`mailto:${u.email}`}
@@ -288,7 +333,7 @@ export default function AdminUsers() {
                           ) : (
                             <span className="text-muted-foreground/60 italic text-xs">No email synced</span>
                           )}
-                          {u.phone && (
+                          {u.phone && u.phone !== u.whatsapp_number && (
                             <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
                               <Phone className="size-3 shrink-0" />
                               <span>{u.phone}</span>
@@ -315,9 +360,19 @@ export default function AdminUsers() {
                         </div>
                       </td>
 
-                      {/* Active / Inactive Status Switch */}
+                      {/* Active / Inactive Status Switch & Actions */}
                       <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                        <div className="flex items-center justify-end gap-2.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedUser(u)}
+                            className="h-8 px-2.5 rounded-full text-xs text-muted-foreground hover:text-foreground hover:bg-secondary flex items-center gap-1"
+                            title="View customer details"
+                          >
+                            <Eye className="size-3.5" />
+                            <span className="hidden sm:inline">Details</span>
+                          </Button>
                           <span className={`text-xs font-medium ${
                             isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
                           }`}>
@@ -352,6 +407,120 @@ export default function AdminUsers() {
           />
         </div>
       </div>
+
+      {/* Customer / User Profile Details Dialog (Admin Only) */}
+      <Dialog open={Boolean(selectedUser)} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="max-w-lg rounded-[2rem] p-6 sm:p-8">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="size-12 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-medium text-sm">
+                {getInitials(selectedUser?.full_name)}
+              </div>
+              <div>
+                <DialogTitle className="font-display text-2xl text-foreground">
+                  {selectedUser?.full_name || "Unnamed Customer"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Customer account &amp; contact profile
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="space-y-5 pt-4">
+              {/* WhatsApp Card Highlight */}
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                    <MessageCircle className="size-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>WhatsApp Number</span>
+                    <span className="text-[10px] lowercase font-normal px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      Mandatory Field
+                    </span>
+                  </div>
+                  {selectedUser.whatsapp_number && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyWhatsapp(selectedUser.whatsapp_number!)}
+                      className="h-7 px-2 text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 rounded-full"
+                    >
+                      {copiedWa ? <Check className="size-3 mr-1" /> : <Copy className="size-3 mr-1" />}
+                      {copiedWa ? "Copied" : "Copy"}
+                    </Button>
+                  )}
+                </div>
+
+                {selectedUser.whatsapp_number ? (
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <span className="text-lg font-mono font-semibold text-foreground">
+                      {selectedUser.whatsapp_number}
+                    </span>
+                    <a
+                      href={getWhatsappLink(selectedUser.whatsapp_number) || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                    >
+                      Open WhatsApp <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-xs text-amber-800 dark:text-amber-200">
+                    <p className="font-medium">No WhatsApp number saved</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      This is an existing account registered before mandatory WhatsApp collection was implemented.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Other details */}
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                  <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">Email Address</span>
+                  <p className="font-medium text-foreground truncate">{selectedUser.email || "No email"}</p>
+                </div>
+
+                <div className="space-y-1 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                  <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">Alternate Phone</span>
+                  <p className="font-medium text-foreground">{selectedUser.phone || "None"}</p>
+                </div>
+
+                <div className="space-y-1 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                  <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">Role</span>
+                  <div className="pt-0.5">{roleBadge(selectedUser.role)}</div>
+                </div>
+
+                <div className="space-y-1 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                  <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">Account Status</span>
+                  <p className={`font-semibold capitalize ${selectedUser.status === "inactive" ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
+                    {selectedUser.status || "active"}
+                  </p>
+                </div>
+
+                <div className="space-y-1 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                  <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">Store Credit</span>
+                  <p className="font-medium text-foreground">₹{(selectedUser.credit_inr || 0).toLocaleString("en-IN")}</p>
+                </div>
+
+                <div className="space-y-1 p-3 rounded-xl bg-secondary/40 border border-border/50">
+                  <span className="text-muted-foreground block text-[11px] uppercase tracking-wider">User ID</span>
+                  <p className="font-mono text-[10px] text-muted-foreground truncate">{selectedUser.id}</p>
+                </div>
+              </div>
+
+              {selectedUser.referral_code && (
+                <div className="p-3 rounded-xl bg-secondary/20 border border-border/40 text-xs flex items-center justify-between">
+                  <span className="text-muted-foreground">Referral Code</span>
+                  <span className="font-mono font-semibold text-primary">{selectedUser.referral_code}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

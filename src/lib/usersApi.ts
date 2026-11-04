@@ -43,7 +43,7 @@ export interface AppointmentsResponse {
 export const getMe = () => 
   api<{ profile: AuthProfile }>("/api/users/me");
 
-export const updateMe = (fields: { full_name?: string; phone?: string; referred_by?: string }) => 
+export const updateMe = (fields: { full_name?: string; phone?: string; whatsapp_number?: string; referred_by?: string }) => 
   api<{ message: string; profile: AuthProfile }>("/api/users/me", {
     method: "PATCH",
     body: fields,

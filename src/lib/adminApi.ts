@@ -14,6 +14,7 @@ export interface AdminUser {
   full_name: string | null;
   email?: string | null;
   phone?: string | null;
+  whatsapp_number?: string | null;
   role?: "client" | "practitioner" | "admin" | string | null;
   status?: "active" | "inactive" | string | null;
   credit_inr?: number | null;

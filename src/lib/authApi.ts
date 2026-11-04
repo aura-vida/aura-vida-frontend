@@ -13,6 +13,7 @@ export type AuthProfile = {
   id?: string;
   full_name: string | null;
   phone: string | null;
+  whatsapp_number?: string | null;
   practitioner_slug: string | null;
   referral_code: string | null;
   credit_inr: number | null;
@@ -102,6 +103,8 @@ export const registerUser = async (payload: {
   password: string;
   name: string;
   role?: "Customer" | "Practitioner" | "Admin";
+  whatsapp_number?: string;
+  phone?: string;
   referral_code?: string;
 }) => {
   const data = await api<BackendAuthResponse>("/api/auth/register", {
@@ -111,6 +114,8 @@ export const registerUser = async (payload: {
       password: payload.password,
       name: payload.name,
       role: payload.role ?? "Customer",
+      whatsapp_number: payload.whatsapp_number,
+      phone: payload.phone || payload.whatsapp_number,
       referral_code: payload.referral_code,
     },
   });

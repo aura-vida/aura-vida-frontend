@@ -12,9 +12,10 @@ import { updateMe } from "@/lib/usersApi";
 import { getMyPractitionerProfile, updateMyPractitionerProfile, type Practitioner } from "@/lib/practitionersApi";
 import { isValidPhoneNumber } from "@/lib/whatsapp";
 import { isImageTooLarge, IMAGE_TOO_LARGE_MESSAGE } from "@/lib/fileValidation";
-import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck, Crop } from "lucide-react";
+import { Loader2, Settings2, ImagePlus, CheckCircle2, User, Camera, ShieldCheck, Crop, AlertCircle } from "lucide-react";
 import ImageCropDialog from "@/components/aura/ImageCropDialog";
 import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
+import { WhatsAppInput } from "@/components/ui/whatsapp-input";
 
 export default function SettingsPage() {
     const { user, profile, loading } = useAuth();
@@ -23,6 +24,7 @@ export default function SettingsPage() {
     // Basic Profile State
     const [fullName, setFullName] = useState("");
     const [phone, setPhone] = useState("");
+    const [whatsappNumber, setWhatsappNumber] = useState("");
     const [savingBase, setSavingBase] = useState(false);
 
     // Practitioner State
@@ -56,7 +58,8 @@ export default function SettingsPage() {
 
     const isBaseChanged =
         fullName.trim() !== (profile?.full_name || "").trim() ||
-        phone.trim() !== (profile?.phone || "").trim();
+        phone.trim() !== (profile?.phone || "").trim() ||
+        whatsappNumber.trim() !== (profile?.whatsapp_number || "").trim();
 
     const isPracChanged = Boolean(
         imageFile !== null ||
@@ -81,6 +84,7 @@ export default function SettingsPage() {
         if (profile) {
             setFullName(profile.full_name || "");
             setPhone(profile.phone || "");
+            setWhatsappNumber(profile.whatsapp_number || "");
         }
 
         // If they have practitioner slug, fetch their practitioner profile
@@ -108,9 +112,17 @@ export default function SettingsPage() {
 
     const handleBaseSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!whatsappNumber.trim()) {
+            toast.error("WhatsApp number is mandatory");
+            return;
+        }
+        if (!isValidPhoneNumber(whatsappNumber)) {
+            toast.error("Please enter a valid WhatsApp number, including the country code");
+            return;
+        }
         setSavingBase(true);
         try {
-            await updateMe({ full_name: fullName, phone });
+            await updateMe({ full_name: fullName, phone, whatsapp_number: whatsappNumber });
             toast.success("Personal details updated");
             window.location.reload(); // Refresh to ensure context updates everywhere
         } catch (err: any) {
@@ -217,6 +229,18 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
+                    {!profile?.whatsapp_number && (
+                        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-amber-800 dark:text-amber-200">
+                            <AlertCircle className="size-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                            <div className="text-xs space-y-1">
+                                <p className="font-semibold text-sm">Action Required: Add your WhatsApp Number</p>
+                                <p className="text-muted-foreground">
+                                    Every customer must have a valid WhatsApp number for appointment updates, reminders, and practitioner communications.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <form onSubmit={handleBaseSubmit} className="space-y-5">
                         <div className="grid sm:grid-cols-2 gap-5">
                             <div className="space-y-2">
@@ -270,7 +294,23 @@ export default function SettingsPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="phone" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Phone Number</Label>
+                                <Label htmlFor="whatsapp" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                                    WhatsApp Number <span className="text-destructive">*</span>
+                                </Label>
+                                <WhatsAppInput
+                                    id="whatsapp"
+                                    value={whatsappNumber}
+                                    onChange={setWhatsappNumber}
+                                    required
+                                    className="h-12 rounded-2xl"
+                                    placeholder="98765 43210"
+                                />
+                                <p className="text-[11px] text-muted-foreground">
+                                    Mandatory with country code. Used for session notifications.
+                                </p>
+                            </div>
+                            <div className="space-y-2 sm:col-span-2">
+                                <Label htmlFor="phone" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Alternate Phone Number (Optional)</Label>
                                 <Input
                                     id="phone"
                                     value={phone}

@@ -238,6 +238,7 @@ export type Database = {
           referral_code: string | null
           referred_by: string | null
           updated_at: string
+          whatsapp_number: string | null
         }
         Insert: {
           created_at?: string
@@ -249,6 +250,7 @@ export type Database = {
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
+          whatsapp_number?: string | null
         }
         Update: {
           created_at?: string
@@ -260,6 +262,7 @@ export type Database = {
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
+          whatsapp_number?: string | null
         }
         Relationships: []
       }

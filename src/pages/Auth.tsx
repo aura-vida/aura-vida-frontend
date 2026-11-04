@@ -11,6 +11,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Mail } from "lucide-react";
+import { WhatsAppInput } from "@/components/ui/whatsapp-input";
+import { isValidPhoneNumber } from "@/lib/whatsapp";
 
 const SIGN_IN_CODE_LENGTH = 6;
 
@@ -36,6 +38,7 @@ const AuthPage = () => {
   const [codeSent, setCodeSent] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -162,9 +165,32 @@ const AuthPage = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!whatsappNumber.trim()) {
+      toast({
+        title: "WhatsApp number required",
+        description: "Please enter your WhatsApp number with country code.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!isValidPhoneNumber(whatsappNumber)) {
+      toast({
+        title: "Invalid WhatsApp number",
+        description: "Please enter a valid WhatsApp number, including the country code.",
+        variant: "destructive",
+      });
+      return;
+    }
     setBusy(true);
     try {
-      const result = await signUp({ email, password, name: fullName, referral_code: referralCode || undefined });
+      const result = await signUp({
+        email,
+        password,
+        name: fullName,
+        whatsapp_number: whatsappNumber,
+        phone: phone || whatsappNumber,
+        referral_code: referralCode || undefined,
+      });
       if (result.session?.access_token && result.user) {
         navigate(redirectTo);
         return;
@@ -434,17 +460,19 @@ const AuthPage = () => {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="signup-phone">Phone</Label>
-              <Input
-                id="signup-phone"
-                name="tel"
-                type="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="rounded-full h-12"
-                placeholder="+91"
+              <Label htmlFor="signup-whatsapp">
+                WhatsApp Number <span className="text-destructive">*</span>
+              </Label>
+              <WhatsAppInput
+                id="signup-whatsapp"
+                value={whatsappNumber}
+                onChange={setWhatsappNumber}
+                required
+                placeholder="98765 43210"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Mandatory. Include your country code for session updates and notifications.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="signup-email">Email</Label>
