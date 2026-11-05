@@ -163,11 +163,11 @@ export default function Journal() {
                   className="group block rounded-3xl border border-border bg-card overflow-hidden hover:border-accent/40 hover:shadow-soft transition-all duration-300"
                 >
                   <div className="grid md:grid-cols-2 gap-6 lg:gap-8 p-6 sm:p-8 items-center">
-                    <div className="relative aspect-[16/10] md:aspect-auto md:h-full min-h-[260px] rounded-2xl overflow-hidden bg-secondary">
+                    <div className="relative aspect-[4/3] md:aspect-auto md:h-full min-h-[280px] max-h-[460px] rounded-2xl overflow-hidden bg-secondary/30 flex items-center justify-center p-2">
                       <img
                         src={featured.featured_image || FALLBACK_BLOG_IMAGES[0]}
                         alt={featured.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 rounded-xl"
                       />
                     </div>
                     <div className="flex flex-col justify-between py-2 space-y-4">
@@ -226,7 +226,7 @@ export default function Journal() {
                           <img
                             src={b.featured_image || FALLBACK_BLOG_IMAGES[(idx + 1) % FALLBACK_BLOG_IMAGES.length]}
                             alt={b.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 rounded-xl"
                           />
                         </div>
                         <div className="flex items-center gap-2">

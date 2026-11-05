@@ -46,9 +46,37 @@ export default function ArticleDetail() {
                 p.id === data.author_id ||
                 (p as any).user_id === data.author_id
             );
-            if (matched) setAuthor(matched);
+            if (matched) {
+              setAuthor(matched);
+            } else if (data.author) {
+              setAuthor({
+                slug: data.author.practitioner_slug || "anjali-sawlani",
+                name: data.author.full_name || "Anjali Sawlani",
+                craft: (data.author as any).craft || "Emotional Wellbeing & Positive Mindset Counsellor",
+                city: (data.author as any).city || "Online & In-Person",
+                rating: 5.0,
+                price_inr: (data.author as any).price_inr || 2500,
+                image_url: data.author.avatar_url || data.featured_image || null,
+                bookable: (data.author as any).bookable ?? true,
+                bio: (data.author as any).bio || "Anjali Sawlani is a warm, compassionate Emotional Wellbeing and Positive Mindset Counsellor, offering a safe, non-judgemental space where you feel truly heard and supported. She works with women, single parents and young adults, helping them navigate anxiety, stress, low mood, grief, trauma and life transitions.",
+              });
+            }
           })
-          .catch(() => {});
+          .catch(() => {
+            if (data.author) {
+              setAuthor({
+                slug: data.author.practitioner_slug || "anjali-sawlani",
+                name: data.author.full_name || "Anjali Sawlani",
+                craft: (data.author as any).craft || "Emotional Wellbeing & Positive Mindset Counsellor",
+                city: (data.author as any).city || "Online & In-Person",
+                rating: 5.0,
+                price_inr: (data.author as any).price_inr || 2500,
+                image_url: data.author.avatar_url || data.featured_image || null,
+                bookable: (data.author as any).bookable ?? true,
+                bio: (data.author as any).bio || "Anjali Sawlani is a warm, compassionate Emotional Wellbeing and Positive Mindset Counsellor, offering a safe, non-judgemental space where you feel truly heard and supported.",
+              });
+            }
+          });
       })
       .catch((err) => {
         console.error("Failed to load blog:", err);
@@ -195,11 +223,11 @@ export default function ArticleDetail() {
 
         {/* Featured Cover Image */}
         {blog.featured_image && (
-          <div className="rounded-[2rem] overflow-hidden aspect-[16/9] mb-12 border border-border shadow-soft bg-secondary">
+          <div className="rounded-[2rem] overflow-hidden mb-12 border border-border shadow-soft bg-secondary/30 flex justify-center items-center p-2 sm:p-4">
             <img
               src={blog.featured_image}
               alt={blog.title}
-              className="w-full h-full object-cover"
+              className="max-h-[640px] w-auto max-w-full rounded-2xl object-contain shadow-xs"
             />
           </div>
         )}
@@ -217,7 +245,20 @@ export default function ArticleDetail() {
                 </h3>
               );
             }
-            if (line.startsWith("## ") || (line.length < 50 && !line.endsWith(".") && !line.startsWith("-"))) {
+            // Numbered items: 1. , 2. , etc.
+            const numMatch = line.match(/^(\d+)\.\s+(.*)$/);
+            if (numMatch) {
+              return (
+                <div key={i} className="flex items-start gap-3.5 pl-2 sm:pl-4 my-2.5">
+                  <span className="flex items-center justify-center size-6 rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0 mt-0.5">
+                    {numMatch[1]}
+                  </span>
+                  <p className="flex-1 text-foreground/90 leading-relaxed">{numMatch[2]}</p>
+                </div>
+              );
+            }
+
+            if (line.startsWith("## ") || (line.length < 50 && !line.endsWith(".") && !line.endsWith(":") && !line.startsWith("-") && !line.startsWith("•"))) {
               return (
                 <h2 key={i} className="font-display text-2xl sm:text-3xl font-medium pt-6 pb-1 text-foreground">
                   {line.replace("## ", "")}
@@ -228,7 +269,7 @@ export default function ArticleDetail() {
             // Blockquote
             if (line.startsWith("> ")) {
               return (
-                <blockquote key={i} className="border-l-2 border-accent pl-5 py-2 my-6 italic text-foreground/80 font-serif text-xl">
+                <blockquote key={i} className="border-l-2 border-accent pl-5 py-3 my-6 italic text-foreground/80 font-serif text-base sm:text-lg bg-secondary/30 rounded-r-xl">
                   {line.replace("> ", "")}
                 </blockquote>
               );
