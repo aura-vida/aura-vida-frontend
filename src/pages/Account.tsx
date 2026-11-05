@@ -334,7 +334,15 @@ const Account = () => {
         pin: b.pin,
         group_size: b.group_size || 1,
         attendees,
-        meeting_location: b.meeting_location || undefined,
+        meeting_location: b.meeting_location?.address
+          ? {
+              address: b.meeting_location.address,
+              pincode: b.meeting_location.pincode,
+              place_id: b.meeting_location.place_id,
+              lat: b.meeting_location.lat,
+              lng: b.meeting_location.lng,
+            }
+          : undefined,
       },
       customerName: profile?.full_name || user?.user_metadata?.full_name || "",
       customerEmail: user?.email || "",
@@ -394,7 +402,7 @@ const Account = () => {
           </div>
         </div>
 
-        {(!profile?.role || profile.role === "client") && !profile?.whatsapp_number && (
+        {(!profile?.role || profile.role === "client") && !profile?.whatsapp_number && !profile?.phone && (
           <div className="mt-8 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-900 dark:text-amber-100">
             <div className="flex items-start sm:items-center gap-3">
               <div className="size-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">

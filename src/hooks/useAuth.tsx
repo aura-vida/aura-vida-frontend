@@ -39,6 +39,7 @@ interface AuthContextValue {
   requestPasswordReset: (email: string) => Promise<{ message: string }>;
   resetPassword: (token: string, email: string, password: string) => Promise<{ message: string }>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<AuthProfile | null>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -54,6 +55,7 @@ const AuthContext = createContext<AuthContextValue>({
   requestPasswordReset: async () => ({ message: "" }),
   resetPassword: async () => ({ message: "" }),
   signOut: async () => { },
+  refreshUser: async () => null,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -317,6 +319,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const meData = await api<{ profile: AuthProfile }>("/api/users/me");
+      if (meData?.profile) {
+        setProfile(meData.profile);
+        const stored = loadStoredAuth();
+        if (stored.user && stored.session) {
+          persistAuth({ ...stored, profile: meData.profile });
+        }
+        return meData.profile;
+      }
+    } catch (e) {
+      console.error("Failed to refresh user profile", e);
+    }
+    return null;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -332,6 +351,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         requestPasswordReset,
         resetPassword,
         signOut,
+        refreshUser,
       }}
     >
       {children}

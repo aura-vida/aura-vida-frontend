@@ -18,7 +18,7 @@ import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 import { WhatsAppInput } from "@/components/ui/whatsapp-input";
 
 export default function SettingsPage() {
-    const { user, profile, loading } = useAuth();
+    const { user, profile, loading, refreshUser } = useAuth();
     const navigate = useNavigate();
 
     // Basic Profile State
@@ -84,7 +84,7 @@ export default function SettingsPage() {
         if (profile) {
             setFullName(profile.full_name || "");
             setPhone(profile.phone || "");
-            setWhatsappNumber(profile.whatsapp_number || "");
+            setWhatsappNumber(profile.whatsapp_number || profile.phone || "");
         }
 
         // If they have practitioner slug, fetch their practitioner profile
@@ -122,9 +122,14 @@ export default function SettingsPage() {
         }
         setSavingBase(true);
         try {
-            await updateMe({ full_name: fullName, phone, whatsapp_number: whatsappNumber });
-            toast.success("Personal details updated");
-            window.location.reload(); // Refresh to ensure context updates everywhere
+            const res = await updateMe({ full_name: fullName, phone, whatsapp_number: whatsappNumber });
+            if (res?.profile) {
+                setFullName(res.profile.full_name || "");
+                setPhone(res.profile.phone || "");
+                setWhatsappNumber(res.profile.whatsapp_number || res.profile.phone || "");
+            }
+            await refreshUser();
+            toast.success("Personal details updated successfully");
         } catch (err: any) {
             toast.error(err.message || "Failed to update profile");
         } finally {
@@ -229,7 +234,7 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    {!profile?.whatsapp_number && (
+                    {(!profile?.whatsapp_number && !profile?.phone) && (
                         <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-amber-800 dark:text-amber-200">
                             <AlertCircle className="size-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                             <div className="text-xs space-y-1">

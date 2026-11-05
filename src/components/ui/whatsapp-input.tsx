@@ -143,7 +143,7 @@ export function WhatsAppInput({
         >
           {COUNTRY_CODES.map((c) => (
             <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="bg-background text-foreground">
-              {c.flag} {c.code} ({c.dialCode})
+              {c.code} ({c.dialCode})
             </option>
           ))}
         </select>

@@ -7,6 +7,10 @@ export const AUTH_SESSION_KEY = "aura_auth_session";
 export type AuthUser = {
   id: string;
   email: string;
+  user_metadata?: {
+    full_name?: string;
+    [key: string]: any;
+  };
 };
 
 export type AuthProfile = {
