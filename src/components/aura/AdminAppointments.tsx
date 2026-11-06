@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ import {
   adminConfirmAppointment, 
   adminAssignPractitioner, 
   cancelAppointment,
+  completeAppointment,
   type AdminBooking
 } from "@/lib/appointmentsApi";
 import { splitTaxInclusiveTotal } from "@/lib/pricing";
@@ -124,6 +126,22 @@ export default function AdminAppointments() {
       );
     } catch (err: any) {
       toast.error(err.message || "Failed to confirm appointment");
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  // Handle Mark Completed
+  const handleComplete = async (booking: AdminBooking) => {
+    setActionBusyId(booking.id);
+    try {
+      await completeAppointment(booking.id);
+      toast.success(`Session with ${booking.practitioner_name || "guide"} marked as completed`);
+      setAppointments((prev) =>
+        prev.map((b) => (b.id === booking.id ? { ...b, status: "completed" } : b))
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to complete appointment");
     } finally {
       setActionBusyId(null);
     }
@@ -449,6 +467,39 @@ export default function AdminAppointments() {
                   </div>
                 </div>
 
+                {/* Client Review & Feedback (if submitted) */}
+                {b.review && (
+                  <div className="p-3.5 rounded-2xl bg-accent/5 border border-accent/20 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-accent flex items-center gap-1">
+                          <Star className="size-3 fill-accent text-accent" /> Client Review
+                        </span>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={cn(
+                                "size-3",
+                                s <= b.review!.rating ? "fill-accent text-accent" : "text-muted-foreground/30"
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <span className="font-semibold text-foreground text-[11px]">{b.review.rating}.0</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(b.review.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    </div>
+                    {b.review.comment && (
+                      <p className="text-foreground/90 italic leading-relaxed text-[11px]">
+                        "{b.review.comment}"
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Admin Actions Footer */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border/60">
                   <div className="text-[11px] text-muted-foreground">
@@ -470,6 +521,19 @@ export default function AdminAppointments() {
                       >
                         <CheckCircle2 className="size-3.5 mr-1.5" />
                         Confirm Booking
+                      </Button>
+                    )}
+
+                    {/* Mark Completed Button */}
+                    {isConfirmed && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleComplete(b)}
+                        disabled={actionBusyId === b.id}
+                        className="rounded-full bg-blue-600 text-white hover:bg-blue-700 h-9 px-4 text-xs font-medium"
+                      >
+                        <CheckCircle2 className="size-3.5 mr-1.5" />
+                        Mark Completed
                       </Button>
                     )}
 

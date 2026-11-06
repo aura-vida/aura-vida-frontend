@@ -14,7 +14,8 @@ import {
   ArrowUpRight, 
   ShieldCheck, 
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -104,89 +105,111 @@ export default function AdminOverview({ onNavigateTab }: AdminOverviewProps) {
       </div>
 
       {/* Primary KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total Revenue */}
-        <div className="p-6 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant transition-smooth">
-          <div className="flex items-center justify-between text-muted-foreground mb-4">
-            <span className="text-xs font-medium uppercase tracking-widest text-accent">Total Revenue</span>
-            <div className="size-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+        <div className="p-5 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant transition-smooth">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-widest text-accent">Total Revenue</span>
+            <div className="size-8 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
               <CreditCard className="size-4" />
             </div>
           </div>
-          <div className="font-display text-3xl text-foreground">
+          <div className="font-display text-2xl text-foreground">
             {loading ? "…" : formatCurrency(summary?.totalRevenueInr || 0)}
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Settled client payments across all modalities
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            Settled client payments
           </p>
           <button
             type="button"
             onClick={handleReconcile}
             disabled={reconciling}
-            className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-accent hover:text-accent/80 disabled:opacity-50 transition-colors"
+            className="mt-2.5 inline-flex items-center gap-1.5 text-[10px] font-medium text-accent hover:text-accent/80 disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={`size-3 ${reconciling ? "animate-spin" : ""}`} />
-            {reconciling ? "Reconciling with Razorpay…" : "Reconcile with Razorpay (last 48h)"}
+            {reconciling ? "Reconciling…" : "Reconcile (48h)"}
           </button>
         </div>
 
         {/* Registered Users */}
         <div 
           onClick={() => onNavigateTab("users")}
-          className="p-6 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-primary/40 cursor-pointer transition-smooth group"
+          className="p-5 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-primary/40 cursor-pointer transition-smooth group"
         >
-          <div className="flex items-center justify-between text-muted-foreground mb-4">
-            <span className="text-xs font-medium uppercase tracking-widest text-accent">Total Users</span>
-            <div className="size-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-widest text-accent">Total Users</span>
+            <div className="size-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
               <Users className="size-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <div className="font-display text-3xl text-foreground">
+            <div className="font-display text-2xl text-foreground">
               {loading ? "…" : (summary?.totalUsers || 0).toLocaleString()}
             </div>
             <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Clients, practitioners, and registered profiles
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            Clients & practitioners
           </p>
         </div>
 
         {/* Confirmed Sessions */}
         <div 
           onClick={() => onNavigateTab("appointments")}
-          className="p-6 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-primary/40 cursor-pointer transition-smooth group"
+          className="p-5 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-primary/40 cursor-pointer transition-smooth group"
         >
-          <div className="flex items-center justify-between text-muted-foreground mb-4">
-            <span className="text-xs font-medium uppercase tracking-widest text-accent">Confirmed</span>
-            <div className="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Confirmed</span>
+            <div className="size-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <CalendarCheck className="size-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <div className="font-display text-3xl text-foreground">
+            <div className="font-display text-2xl text-foreground">
               {loading ? "…" : (summary?.confirmedBookings || 0).toLocaleString()}
             </div>
             <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Active scheduled and completed appointments
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            Upcoming active sessions
+          </p>
+        </div>
+
+        {/* Completed Sessions */}
+        <div 
+          onClick={() => onNavigateTab("appointments")}
+          className="p-5 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-blue-500/40 cursor-pointer transition-smooth group"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-widest text-blue-600 dark:text-blue-400">Completed</span>
+            <div className="size-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <CheckCircle2 className="size-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <div className="font-display text-2xl text-foreground">
+              {loading ? "…" : (summary?.completedBookings || 0).toLocaleString()}
+            </div>
+            <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            Fulfilled wellness sessions
           </p>
         </div>
 
         {/* Pending Bookings */}
         <div 
           onClick={() => onNavigateTab("appointments")}
-          className="p-6 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-amber-500/40 cursor-pointer transition-smooth group"
+          className="p-5 rounded-[2rem] bg-card border border-border shadow-soft hover:shadow-elegant hover:border-amber-500/40 cursor-pointer transition-smooth group"
         >
-          <div className="flex items-center justify-between text-muted-foreground mb-4">
-            <span className="text-xs font-medium uppercase tracking-widest text-amber-600 dark:text-amber-400">Needs Action</span>
-            <div className="size-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-widest text-amber-600 dark:text-amber-400">Needs Action</span>
+            <div className="size-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
               <Clock className="size-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <div className="font-display text-3xl text-amber-600 dark:text-amber-400">
+            <div className="font-display text-2xl text-amber-600 dark:text-amber-400">
               {loading ? "…" : (summary?.pendingBookings || 0).toLocaleString()}
             </div>
             {(summary?.pendingBookings || 0) > 0 && (
@@ -195,8 +218,8 @@ export default function AdminOverview({ onNavigateTab }: AdminOverviewProps) {
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Appointments awaiting client payment or confirmation
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            Awaiting client payment
           </p>
         </div>
       </div>

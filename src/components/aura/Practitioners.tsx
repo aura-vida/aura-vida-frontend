@@ -407,12 +407,17 @@ const Practitioners = () => {
                         </DialogTrigger>
                         <div className="text-sm text-muted-foreground mt-1">{p.craft}</div>
                       </div>
-                      {/* Star rating hidden for early stage; uncomment when public ratings / app reviews go live:
-                      <div className="flex items-center gap-1 text-sm shrink-0">
-                        <Star className="size-4 fill-accent text-accent" />
-                        <span className="font-medium text-foreground">{p.rating ?? 0}</span>
+                      <div className="flex items-center gap-1.5 text-xs shrink-0">
+                        <div className="flex items-center gap-1 bg-accent/10 text-accent font-semibold px-2 py-0.5 rounded-full border border-accent/20">
+                          <Star className="size-3.5 fill-accent text-accent" />
+                          <span>{p.rating && p.rating > 0 ? p.rating.toFixed(1) : "New"}</span>
+                        </div>
+                        {p.sessions != null && p.sessions > 0 && (
+                          <span className="text-muted-foreground text-[11px]">
+                            ({p.sessions} session{p.sessions === 1 ? "" : "s"})
+                          </span>
+                        )}
                       </div>
-                      */}
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground mt-3.5">
                       <div className="flex items-center gap-1.5">
@@ -494,13 +499,17 @@ const Practitioners = () => {
                           <DialogTitle className="font-display text-3xl text-foreground">{p.name}</DialogTitle>
                           <DialogDescription className="text-base text-muted-foreground mt-0.5">{p.craft}</DialogDescription>
                         </div>
-                        {/* Star rating hidden for early stage; uncomment when public ratings / app reviews go live:
-                        <div className="flex items-center gap-1 text-sm shrink-0 bg-secondary px-2.5 py-1 rounded-full border border-border/40">
-                          <Star className="size-4 fill-accent text-accent" />
-                          <span className="font-medium text-foreground">{p.rating ?? 0}</span>
-                          <span className="text-xs text-muted-foreground">({p.sessions ?? 0})</span>
+                        <div className="flex items-center gap-1.5 text-sm shrink-0 bg-secondary px-3 py-1 rounded-full border border-border/60">
+                          <Star className="size-3.5 fill-accent text-accent" />
+                          <span className="font-semibold text-foreground">
+                            {p.rating && p.rating > 0 ? p.rating.toFixed(1) : "New Guide"}
+                          </span>
+                          {p.sessions != null && p.sessions > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              · {p.sessions} completed session{p.sessions === 1 ? "" : "s"}
+                            </span>
+                          )}
                         </div>
-                        */}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground pt-1">
                         <MapPin className="size-4 text-accent" /> {p.city}

@@ -366,13 +366,17 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
 
-                                {/* Star rating hidden for early stage; uncomment when public ratings / app reviews go live:
-                                <div className="flex items-center gap-2 pb-2">
-                                    <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Your Rating</Label>
-                                    <span className="text-sm font-semibold">⭐ {practitioner.rating ?? 0}</span>
-                                    <span className="text-xs text-muted-foreground">(calculated automatically from customer reviews)</span>
+                                <div className="flex items-center gap-3 pb-2 flex-wrap">
+                                    <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                        <span>⭐ {practitioner.rating ? practitioner.rating.toFixed(1) : "0.0"} Rating</span>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                        • {practitioner.sessions ?? 0} session{(practitioner.sessions ?? 0) === 1 ? "" : "s"} completed
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground/80">
+                                        (Calculated automatically from customer reviews &amp; bookings)
+                                    </span>
                                 </div>
-                                */}
 
                                 <div className="grid sm:grid-cols-2 gap-5">
                                     <div className="space-y-2">

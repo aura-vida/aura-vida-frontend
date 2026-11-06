@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,13 +93,14 @@ import {
   ImagePlus,
   X,
   Crop,
+  Star,
 } from "lucide-react";
 import ImageCropDialog from "@/components/aura/ImageCropDialog";
 import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
 import { supabase } from "@/integrations/supabase/client";
 import AuraPagination from "@/components/aura/AuraPagination";
 import { useServices } from "@/hooks/useServices";
-import { submitPractitionerSupport } from "@/lib/practitionersApi";
+import { submitPractitionerSupport, getPractitioner, type Practitioner } from "@/lib/practitionersApi";
 import {
   listMyServices,
   createMyService,
@@ -128,6 +130,13 @@ interface Booking {
     lat?: number;
     lng?: number;
     meet_link?: string;
+  } | null;
+  review?: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    status: string;
   } | null;
 }
 
@@ -179,6 +188,15 @@ const PractitionerArea = () => {
     src: null,
     fileName: "service.jpg",
   });
+
+  const [practitionerInfo, setPractitionerInfo] = useState<Practitioner | null>(null);
+
+  useEffect(() => {
+    if (!profile?.practitioner_slug) return;
+    getPractitioner(profile.practitioner_slug)
+      .then((res) => setPractitionerInfo(res.practitioner))
+      .catch((err) => console.error("Failed to load practitioner details:", err));
+  }, [profile?.practitioner_slug]);
 
   useEffect(() => {
     if (!profile?.practitioner_slug) return;
@@ -796,6 +814,17 @@ const PractitionerArea = () => {
           <div>
             <span className="text-[11px] tracking-[0.2em] uppercase text-accent font-medium">Practitioner Workspace</span>
             <h1 className="font-display text-4xl md:text-5xl mt-3">Guide Portal</h1>
+            {practitionerInfo && (
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-accent/10 text-accent font-semibold px-3 py-1 rounded-full border border-accent/20 text-xs">
+                  <Star className="size-3.5 fill-accent text-accent" />
+                  <span>{practitionerInfo.rating ? practitionerInfo.rating.toFixed(1) : "0.0"} Rating</span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  • {practitionerInfo.sessions ?? 0} completed session{(practitionerInfo.sessions ?? 0) === 1 ? "" : "s"}
+                </span>
+              </div>
+            )}
           </div>
           <Button
             onClick={() => setSupportOpen(true)}
@@ -1157,6 +1186,56 @@ const PractitionerArea = () => {
                             )}
                           </div>
                         </div>
+
+                        {/* Client Feedback & Review (for Completed Sessions) */}
+                        {isCompleted && (
+                          <div className="space-y-2.5 bg-accent/5 p-4 rounded-2xl border border-accent/20">
+                            {b.review ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] uppercase tracking-wider text-accent font-semibold flex items-center gap-1.5">
+                                      <Star className="size-3.5 fill-accent text-accent" /> Client Rating &amp; Review
+                                    </span>
+                                    <div className="flex items-center gap-0.5">
+                                      {[1, 2, 3, 4, 5].map((star) => (
+                                        <Star
+                                          key={star}
+                                          className={cn(
+                                            "size-3.5",
+                                            star <= b.review!.rating
+                                              ? "fill-accent text-accent"
+                                              : "text-muted-foreground/30"
+                                          )}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-xs font-semibold text-foreground">
+                                      {b.review.rating}.0
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Reviewed on {new Date(b.review.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                  </span>
+                                </div>
+                                {b.review.comment ? (
+                                  <div className="p-3 rounded-xl bg-card border border-border/70 text-xs text-foreground/90 italic leading-relaxed">
+                                    "{b.review.comment}"
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-muted-foreground italic">
+                                    Client provided a {b.review.rating}-star rating without a written feedback note.
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Star className="size-3.5 text-muted-foreground/40" />
+                                <span>Awaiting client feedback for this completed session.</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Aftercare Notes Editor */}
                         <div className="space-y-3 bg-secondary/20 p-4 rounded-2xl border border-border/50">

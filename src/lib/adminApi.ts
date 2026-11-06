@@ -4,6 +4,7 @@ export interface AdminDashboardSummary {
   totalUsers: number;
   pendingBookings: number;
   confirmedBookings: number;
+  completedBookings?: number;
   totalRevenueInr: number;
   totalPractitioners?: number;
   totalSpaces?: number;
@@ -87,6 +88,57 @@ export async function updateAdminUserStatus(
   status: "active" | "inactive"
 ): Promise<{ id: string; status: string }> {
   return api<{ id: string; status: string }>(`/api/admin/users/${userId}/status`, {
+    method: "PATCH",
+    body: { status },
+  });
+}
+
+export interface AdminReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+  booking_id: string | null;
+  practitioner_id: string;
+  client_id: string;
+  practitioners?: { id: string; name: string; slug: string } | null;
+  client?: { id: string; full_name: string | null; email?: string | null; phone?: string | null } | null;
+  booking?: { id: string; scheduled_at: string | null; mode: string | null; item_id: string | null } | null;
+}
+
+export interface AdminReviewsResponse {
+  reviews: AdminReview[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function getAdminReviews(params?: {
+  status?: string;
+  rating?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<AdminReviewsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.append("status", params.status);
+  if (params?.rating) qs.append("rating", String(params.rating));
+  if (params?.search) qs.append("search", params.search);
+  if (params?.page) qs.append("page", String(params.page));
+  if (params?.limit) qs.append("limit", String(params.limit));
+  const query = qs.toString();
+  return api<AdminReviewsResponse>(`/api/admin/reviews${query ? `?${query}` : ""}`);
+}
+
+export async function updateAdminReviewStatus(
+  reviewId: string,
+  status: "approved" | "rejected" | "pending"
+): Promise<{ message: string; data: AdminReview }> {
+  return api<{ message: string; data: AdminReview }>(`/api/admin/reviews/${reviewId}/status`, {
     method: "PATCH",
     body: { status },
   });

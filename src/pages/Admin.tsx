@@ -46,6 +46,7 @@ import AdminAppointments from "@/components/aura/AdminAppointments";
 import AdminOverview from "@/components/aura/AdminOverview";
 import AdminUsers from "@/components/aura/AdminUsers";
 import AdminCoupons from "@/components/aura/AdminCoupons";
+import AdminReviews from "@/components/aura/AdminReviews";
 import AuraPagination from "@/components/aura/AuraPagination";
 import ConfirmDialog from "@/components/aura/ConfirmDialog";
 import ImageCropDialog from "@/components/aura/ImageCropDialog";
@@ -85,6 +86,7 @@ const ADMIN_TABS = [
   { value: "overview", label: "Overview" },
   { value: "users", label: "Users & Clients" },
   { value: "appointments", label: "Appointments" },
+  { value: "reviews", label: "Reviews" },
   { value: "practitioners", label: "Practitioners" },
   { value: "services", label: "Services" },
   { value: "spaces", label: "Spaces" },
@@ -436,6 +438,10 @@ const Admin = () => {
 
           <TabsContent value="appointments" className="mt-0">
             <AdminAppointments />
+          </TabsContent>
+
+          <TabsContent value="reviews" className="mt-0">
+            <AdminReviews />
           </TabsContent>
 
           <TabsContent value="practitioners" className="mt-0">

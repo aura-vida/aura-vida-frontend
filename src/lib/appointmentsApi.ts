@@ -40,6 +40,12 @@ export async function updatePractitionerAppointmentStatus(id: string, status: st
   });
 }
 
+export async function completeAppointment(id: string) {
+  return api<{ message: string; appointment: any }>(`/api/appointments/${id}/complete`, {
+    method: "POST",
+  });
+}
+
 export type TimeSlot = {
   start: string;
   end: string;
@@ -99,6 +105,13 @@ export type AdminBooking = {
   } | null;
   created_at: string;
   aftercare_notes?: string | null;
+  review?: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    status: string;
+  } | null;
 };
 
 export type AdminAppointmentsResponse = {

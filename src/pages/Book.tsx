@@ -631,11 +631,19 @@ const Book = () => {
                   <div>
                     <h3 className="font-display text-xl text-foreground">{selectedPractitioner?.name}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">{selectedPractitioner?.craft} · {selectedPractitioner?.city}</p>
-                    {/* Star rating hidden for early stage; uncomment when public ratings / app reviews go live:
-                    <div className="flex items-center gap-1 text-xs text-accent mt-1">
-                      <Star className="size-3.5 fill-accent" /> {selectedPractitioner?.rating} ({selectedPractitioner?.sessions} sessions)
+                    <div className="flex items-center gap-1.5 text-xs text-accent mt-1">
+                      <Star className="size-3.5 fill-accent" />
+                      <span className="font-semibold">
+                        {selectedPractitioner?.rating && selectedPractitioner.rating > 0
+                          ? selectedPractitioner.rating.toFixed(1)
+                          : "New Guide"}
+                      </span>
+                      {selectedPractitioner?.sessions != null && selectedPractitioner.sessions > 0 && (
+                        <span className="text-muted-foreground">
+                          ({selectedPractitioner.sessions} completed session{selectedPractitioner.sessions === 1 ? "" : "s"})
+                        </span>
+                      )}
                     </div>
-                    */}
                   </div>
                 </div>
               </section>

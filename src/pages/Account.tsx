@@ -163,17 +163,20 @@ const Account = () => {
   };
 
   const handleSubmitReview = async () => {
-    if (!reviewBooking || !reviewPractitionerId || reviewRating === 0) return;
+    if (!reviewBooking || reviewRating === 0) {
+      toast.error("Please select a star rating (1–5 stars).");
+      return;
+    }
     setSubmittingReview(true);
     try {
       const res = await submitReview({
-        practitioner_id: reviewPractitionerId,
+        practitioner_id: reviewPractitionerId || "",
         booking_id: reviewBooking.id,
         rating: reviewRating,
         comment: reviewComment.trim() || undefined,
       });
       setMyReviews((prev) => ({ ...prev, [reviewBooking.id]: res.data }));
-      toast.success("Thanks for your feedback!");
+      toast.success("Thank you for your review! Your feedback has been saved.");
       setReviewBooking(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to submit your review. Please try again.");
@@ -609,34 +612,53 @@ const Account = () => {
                   </p>
                 </div>
 
-                {/* Review */}
+                {/* Customer Review Section (Completed Sessions Only) */}
                 {isCompleted && (
-                  <div className="pt-4 border-t border-border flex items-center justify-between gap-3 flex-wrap">
+                  <div className="pt-4 border-t border-border">
                     {myReviews[b.id] ? (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <Star
-                              key={n}
-                              className={cn(
-                                "size-4",
-                                n <= myReviews[b.id].rating ? "fill-accent text-accent" : "text-muted-foreground/30"
-                              )}
-                            />
-                          ))}
+                      <div className="w-full space-y-2.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <Star
+                                  key={n}
+                                  className={cn(
+                                    "size-4",
+                                    n <= myReviews[b.id].rating ? "fill-accent text-accent" : "text-muted-foreground/30"
+                                  )}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs font-semibold text-foreground">
+                              You rated this session · {myReviews[b.id].rating}.0
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">
+                            Reviewed on {new Date(myReviews[b.id].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">You rated this session</span>
+                        {myReviews[b.id].comment && (
+                          <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border/70 text-xs text-foreground/90 italic leading-relaxed">
+                            "{myReviews[b.id].comment}"
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openReviewDialog(b)}
-                        className="rounded-full h-9 px-4 text-xs"
-                      >
-                        <Star className="size-3.5 mr-1.5 text-accent" />
-                        Leave a Review
-                      </Button>
+                      <div className="w-full flex items-center justify-between gap-3 flex-wrap">
+                        <span className="text-xs text-muted-foreground">
+                          How was your session with {b.practitioner_name || "your guide"}?
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openReviewDialog(b)}
+                          className="rounded-full h-9 px-4 text-xs font-medium border-accent/40 hover:bg-accent/10"
+                        >
+                          <Star className="size-3.5 mr-1.5 fill-accent text-accent" />
+                          Rate &amp; Review Session
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -817,25 +839,32 @@ const Account = () => {
           </DialogHeader>
 
           <div className="space-y-5 py-2">
-            <div className="flex items-center justify-center gap-2">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setReviewRating(n)}
-                  onMouseEnter={() => setReviewHoverRating(n)}
-                  onMouseLeave={() => setReviewHoverRating(0)}
-                  className="p-1"
-                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
-                >
-                  <Star
-                    className={cn(
-                      "size-8 transition-colors",
-                      n <= (reviewHoverRating || reviewRating) ? "fill-accent text-accent" : "text-muted-foreground/30"
-                    )}
-                  />
-                </button>
-              ))}
+            <div className="flex flex-col items-center justify-center gap-2">
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setReviewRating(n)}
+                    onMouseEnter={() => setReviewHoverRating(n)}
+                    onMouseLeave={() => setReviewHoverRating(0)}
+                    className="p-1 focus:outline-none hover:scale-110 transition-transform"
+                    aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                  >
+                    <Star
+                      className={cn(
+                        "size-8 transition-colors",
+                        n <= (reviewHoverRating || reviewRating) ? "fill-accent text-accent" : "text-muted-foreground/30"
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs font-medium text-accent">
+                {(reviewHoverRating || reviewRating) > 0
+                  ? `${reviewHoverRating || reviewRating} of 5 Stars`
+                  : "Tap a star to rate (Required)"}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="review-comment">Share your experience (optional)</Label>
@@ -843,7 +872,7 @@ const Account = () => {
                 id="review-comment"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="What stood out about your session?"
+                placeholder="What stood out about your session? (Optional)"
                 className="min-h-[100px] rounded-xl"
               />
             </div>
@@ -855,8 +884,8 @@ const Account = () => {
             </Button>
             <Button
               onClick={handleSubmitReview}
-              disabled={reviewRating === 0 || submittingReview || loadingReviewTarget || !reviewPractitionerId}
-              className="rounded-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={reviewRating === 0 || submittingReview || loadingReviewTarget}
+              className="rounded-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {submittingReview ? "Submitting…" : "Submit Review"}
             </Button>
