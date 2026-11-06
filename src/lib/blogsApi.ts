@@ -41,6 +41,63 @@ export interface BlogsResponse {
   pagination: BlogsPagination;
 }
 
+export const NEELAM_BLOG: Blog = {
+  id: "everything-is-connected-to-your-breath",
+  title: "Everything Is Connected to Your Breath",
+  slug: "everything-is-connected-to-your-breath",
+  category: "Wisdom & Practice",
+  author_id: "neelam-chheda",
+  practitioner_slug: "neelam-chheda",
+  author: {
+    id: "neelam-chheda",
+    full_name: "Neelam Chheda",
+    practitioner_slug: "neelam-chheda",
+    avatar_url: "/images/journal/neelam-chheda.jpg",
+    craft: "Breathwork Guide",
+    city: "Online & In-Person",
+    bio: "Neelam Chheda is a breathwork guide who works with all five elements. She guides individuals through transformational breathwork journeys to dissolve emotional blockages and connect with their true being.",
+    price_inr: 2500,
+    bookable: true,
+  },
+  excerpt:
+    "Neelam Chheda guides breathwork through all five elements. Here she shares how she found it, how the elements show up in the body, and what to expect from your sessions.",
+  content: `Neelam Chheda guides breathwork through all five elements. Here she shares how she found it, how the elements show up in the body, and what to expect from your sessions.
+
+## How I found breathwork
+When my sister first told me about breathwork, I didn’t take her seriously. I thought it was just a modern name for some pranayam. But once I experienced it myself, there was no looking back.
+
+## Five elements, five energy centres
+We are primarily made of five elements, and each element corresponds to one chakra, or energy centre, in our body. Water, for example, corresponds to the Svadisthana chakra, and we are about 70% water.
+
+Water loves to flow. In our being, the water element relates to emotions, creativity, vitality, abundance and more.
+
+## What a session feels like
+Experiences vary from person to person. Some people have more physical sensations, while others have more emotional ones. The same person can also have very different experiences in different sessions.
+
+No prior experience is needed. Each time you take a session, your breathing mechanism opens up a little more.
+
+To begin with, we recommend a few sessions at a short interval, such as once a week. Once you start breathing in well, we can space the sessions out. Think of it like being on a dose for something: at first the doses are higher, then we taper them down and keep it on a maintenance basis.
+
+There are also a few practices you can do at home regularly, once they have been taught to you.
+
+## What I wish people understood
+Everything, and I mean everything, is connected to our breath.
+
+Have you ever observed how you breathe in different situations? When you are angry, sad, scared, happy, in love? Your breath can tell a lot about your entire life. Working with the breath can align you with your true being and help dissolve what is holding you back.
+
+I believe you can control your entire life if you can manage your own breath.
+
+## About Neelam Chheda
+Neelam Chheda is a breathwork guide who works with all five elements. Book a session with Neelam Chheda on Kuśala at kusala.in.
+
+> This article is shared for awareness and is not a substitute for medical advice. If you have a medical condition or are pregnant, please check with your doctor before trying breathwork.`,
+  tags: ["Breathwork", "Pranayama", "Holistic Healing", "Five Elements", "Mindfulness"],
+  featured_image: "/images/journal/neelam-chheda.jpg",
+  status: "published",
+  created_at: "2026-11-06T12:00:00.000Z",
+  updated_at: "2026-11-06T12:00:00.000Z",
+};
+
 export const ANJALI_BLOG: Blog = {
   id: "no-emotion-is-too-small",
   title: "No Emotion Is Too ‘Small’",
@@ -104,6 +161,8 @@ Anjali Sawlani is a warm, compassionate Emotional Wellbeing and Positive Mindset
   updated_at: "2026-11-05T12:00:00.000Z",
 };
 
+export const STATIC_BLOGS: Blog[] = [NEELAM_BLOG, ANJALI_BLOG];
+
 export async function listPublishedBlogs(params?: {
   author_id?: string;
   practitioner_slug?: string;
@@ -122,8 +181,10 @@ export async function listPublishedBlogs(params?: {
   try {
     const res = await api<BlogsResponse>(`/api/content/blogs${query ? `?${query}` : ""}`);
     const existing = res?.data || [];
-    const hasAnjali = existing.some((b) => b.slug === ANJALI_BLOG.slug || b.id === ANJALI_BLOG.id);
-    const combined = hasAnjali ? existing : [ANJALI_BLOG, ...existing];
+    const missingStatic = STATIC_BLOGS.filter(
+      (sb) => !existing.some((b) => b.slug === sb.slug || b.id === sb.id)
+    );
+    const combined = [...missingStatic, ...existing];
 
     return {
       data: combined,
@@ -137,11 +198,11 @@ export async function listPublishedBlogs(params?: {
   } catch (error) {
     console.warn("Could not fetch remote blogs, falling back to curated journal articles:", error);
     return {
-      data: [ANJALI_BLOG],
+      data: STATIC_BLOGS,
       pagination: {
         page: 1,
         limit: 10,
-        total: 1,
+        total: STATIC_BLOGS.length,
         totalPages: 1,
       },
     };
@@ -160,15 +221,14 @@ export async function listMyBlogs(params?: {
 }
 
 export async function getBlogBySlug(slug: string): Promise<Blog> {
-  if (slug === ANJALI_BLOG.slug) {
-    try {
-      const res = await api<Blog>(`/api/content/blogs/${slug}`);
-      if (res && res.title) return res;
-    } catch {
-      // Fallback to static copy
-    }
-    return ANJALI_BLOG;
+  const staticFound = STATIC_BLOGS.find((b) => b.slug === slug);
+  try {
+    const res = await api<Blog>(`/api/content/blogs/${slug}`);
+    if (res && res.title) return res;
+  } catch {
+    // Fallback to static
   }
+  if (staticFound) return staticFound;
   return api<Blog>(`/api/content/blogs/${slug}`);
 }
 

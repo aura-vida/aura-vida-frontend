@@ -50,30 +50,30 @@ export default function ArticleDetail() {
               setAuthor(matched);
             } else if (data.author) {
               setAuthor({
-                slug: data.author.practitioner_slug || "anjali-sawlani",
-                name: data.author.full_name || "Anjali Sawlani",
-                craft: (data.author as any).craft || "Emotional Wellbeing & Positive Mindset Counsellor",
+                slug: data.author.practitioner_slug || data.practitioner_slug || data.slug,
+                name: data.author.full_name || "Kuśala Guide",
+                craft: (data.author as any).craft || "Holistic Practitioner",
                 city: (data.author as any).city || "Online & In-Person",
                 rating: 5.0,
                 price_inr: (data.author as any).price_inr || 2500,
                 image_url: data.author.avatar_url || data.featured_image || null,
                 bookable: (data.author as any).bookable ?? true,
-                bio: (data.author as any).bio || "Anjali Sawlani is a warm, compassionate Emotional Wellbeing and Positive Mindset Counsellor, offering a safe, non-judgemental space where you feel truly heard and supported. She works with women, single parents and young adults, helping them navigate anxiety, stress, low mood, grief, trauma and life transitions.",
+                bio: (data.author as any).bio || `Book a healing session with ${data.author.full_name || "our vetted guide"} on Kuśala.`,
               });
             }
           })
           .catch(() => {
             if (data.author) {
               setAuthor({
-                slug: data.author.practitioner_slug || "anjali-sawlani",
-                name: data.author.full_name || "Anjali Sawlani",
-                craft: (data.author as any).craft || "Emotional Wellbeing & Positive Mindset Counsellor",
+                slug: data.author.practitioner_slug || data.practitioner_slug || data.slug,
+                name: data.author.full_name || "Kuśala Guide",
+                craft: (data.author as any).craft || "Holistic Practitioner",
                 city: (data.author as any).city || "Online & In-Person",
                 rating: 5.0,
                 price_inr: (data.author as any).price_inr || 2500,
                 image_url: data.author.avatar_url || data.featured_image || null,
                 bookable: (data.author as any).bookable ?? true,
-                bio: (data.author as any).bio || "Anjali Sawlani is a warm, compassionate Emotional Wellbeing and Positive Mindset Counsellor, offering a safe, non-judgemental space where you feel truly heard and supported.",
+                bio: (data.author as any).bio || `Book a healing session with ${data.author.full_name || "our vetted guide"} on Kuśala.`,
               });
             }
           });
