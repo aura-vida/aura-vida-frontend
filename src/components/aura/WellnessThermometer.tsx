@@ -4,6 +4,7 @@ import { Sparkles, Flame, Compass } from "lucide-react";
 export interface ThermometerBooking {
   status: string;
   item_id: string;
+  scheduled_at?: string | null;
 }
 
 const TIERS = [
@@ -23,7 +24,18 @@ interface Props {
 
 const WellnessThermometer = ({ bookings, craftBySlug }: Props) => {
   const stats = useMemo(() => {
-    const completed = bookings.filter((b) => b.status === "completed");
+    const isCompletedBooking = (b: ThermometerBooking) => {
+      if (b.status === "completed") return true;
+      if (b.status === "confirmed" && b.scheduled_at) {
+        const start = new Date(b.scheduled_at).getTime();
+        // Session duration + 15 min buffer (75 mins)
+        if (start && Date.now() > start + 75 * 60 * 1000) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const completed = bookings.filter(isCompletedBooking);
     const crafts = new Set(
       completed.map((b) => craftBySlug[b.item_id]).filter(Boolean) as string[],
     );

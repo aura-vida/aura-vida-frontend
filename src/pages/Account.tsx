@@ -47,7 +47,7 @@ import { SessionJoinButton } from "@/components/aura/SessionJoinButton";
 import { listPractitioners, getPractitioner } from "@/lib/practitionersApi";
 import { getWhatsappLink } from "@/lib/whatsapp";
 import { getMyAppointments, updateMe, getMe, type Appointment as Booking } from "@/lib/usersApi";
-import { cancelAppointment, rescheduleAppointment, getAvailableSlots } from "@/lib/appointmentsApi";
+import { cancelAppointment, rescheduleAppointment, getAvailableSlots, completeAppointment } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 import { splitTaxInclusiveTotal } from "@/lib/pricing";
 import { submitReview, listMyReviews, type Review } from "@/lib/reviewsApi";
@@ -190,8 +190,18 @@ const Account = () => {
     setFetching(true);
     getMyAppointments()
       .then((data) => {
-        setBookings(data.appointments || []);
+        const list = data.appointments || [];
+        setBookings(list);
         setFetching(false);
+        // Idempotently sync completion for any confirmed bookings that ended in the past
+        list.forEach((b) => {
+          if (b.status === "confirmed" && b.scheduled_at) {
+            const start = new Date(b.scheduled_at).getTime();
+            if (start && Date.now() > start + 75 * 60 * 1000) {
+              completeAppointment(b.id).catch(() => {});
+            }
+          }
+        });
       })
       .catch((err) => {
         console.error("Failed to load sessions:", err);
@@ -337,9 +347,17 @@ const Account = () => {
         pin: b.pin,
         group_size: b.group_size || 1,
         attendees,
-        meeting_location: b.meeting_location || undefined,
+        meeting_location: b.meeting_location?.address
+          ? {
+              address: b.meeting_location.address,
+              lat: b.meeting_location.lat,
+              lng: b.meeting_location.lng,
+              place_id: b.meeting_location.place_id,
+              pincode: b.meeting_location.pincode,
+            }
+          : undefined,
       },
-      customerName: profile?.full_name || user?.user_metadata?.full_name || "",
+      customerName: profile?.full_name || "",
       customerEmail: user?.email || "",
       customerPhone: profile?.phone || "",
       onSuccess: () => {
@@ -436,9 +454,11 @@ const Account = () => {
           {bookings.map((b) => {
             const Icon = modeIcon(b.mode);
             const isPending = b.status === "pending";
-            const isConfirmed = b.status === "confirmed";
             const isCancelled = b.status === "cancelled";
-            const isCompleted = b.status === "completed";
+            const scheduledStartTime = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
+            const isPastSession = scheduledStartTime > 0 && Date.now() > scheduledStartTime + 75 * 60 * 1000;
+            const isCompleted = b.status === "completed" || (b.status === "confirmed" && isPastSession);
+            const isConfirmed = b.status === "confirmed" && !isCompleted;
             const canModify = !isCancelled && !isCompleted;
             const cancelEligible = canModify && canCustomerCancel(b.created_at);
 
@@ -475,7 +495,7 @@ const Account = () => {
                               : "border-border bg-muted text-muted-foreground"
                           }`}
                       >
-                        {isPending ? "Payment Pending" : b.status}
+                        {isPending ? "Payment Pending" : isCompleted ? "completed" : b.status}
                       </Badge>
                     </div>
 

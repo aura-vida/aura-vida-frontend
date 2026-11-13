@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Nav from "@/components/aura/Nav";
 import Footer from "@/components/aura/Footer";
@@ -190,6 +190,11 @@ const PractitionerArea = () => {
   });
 
   const [practitionerInfo, setPractitionerInfo] = useState<Practitioner | null>(null);
+
+  const completedSessionsCount = useMemo(() => {
+    const fromBookings = bookings.filter((b) => b.status === "completed").length;
+    return Math.max(fromBookings, practitionerInfo?.sessions ?? 0);
+  }, [bookings, practitionerInfo]);
 
   useEffect(() => {
     if (!profile?.practitioner_slug) return;
@@ -466,6 +471,11 @@ const PractitionerArea = () => {
       setBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
       );
+      if (profile?.practitioner_slug) {
+        getPractitioner(profile.practitioner_slug)
+          .then((res) => setPractitionerInfo(res.practitioner))
+          .catch(() => {});
+      }
     } catch (err: any) {
       toast.error(err.message || `Failed to update status to ${newStatus}`);
     } finally {
@@ -821,7 +831,7 @@ const PractitionerArea = () => {
                   <span>{practitionerInfo.rating ? practitionerInfo.rating.toFixed(1) : "0.0"} Rating</span>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  • {practitionerInfo.sessions ?? 0} completed session{(practitionerInfo.sessions ?? 0) === 1 ? "" : "s"}
+                  • {completedSessionsCount} completed session{completedSessionsCount === 1 ? "" : "s"}
                 </span>
               </div>
             )}
