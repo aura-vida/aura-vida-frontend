@@ -144,3 +144,4 @@ export async function getMyEventBookings() {
 export async function getEventBooking(id: string) {
   return api<{ booking: EventBooking }>(`/api/events/bookings/${id}`);
 }
+

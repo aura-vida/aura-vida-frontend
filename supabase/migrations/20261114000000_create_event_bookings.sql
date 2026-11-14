@@ -40,3 +40,4 @@ USING (public.has_role(auth.uid(), 'admin'))
 WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
 GRANT ALL ON public.event_bookings TO service_role;
+
