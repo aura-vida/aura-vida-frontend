@@ -7,7 +7,7 @@ export type Service = {
   duration_min: number | null;
   price_inr: number | null;
   category: string | null;
-  image_url: string | null;
+  image_url?: string | null;
   is_active?: boolean;
   sort_order?: number;
   practitioner_id?: string | null;

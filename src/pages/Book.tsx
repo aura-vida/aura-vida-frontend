@@ -185,6 +185,7 @@ const Book = () => {
             duration_min: 60,
             price_inr: selectedPractitioner.price_inr || 1500,
             category: selectedPractitioner.craft || "Holistic Healing",
+            image_url: selectedPractitioner.image_url || null,
             is_active: true,
           };
           setServices([fallbackService]);
@@ -231,6 +232,10 @@ const Book = () => {
     const today = new Date().toISOString().split("T")[0];
     const { available_from, available_to } = selectedSpaceSchedule;
 
+    // If dates are blank or invalid/past, treat as ongoing availability — no restriction
+    if (!available_from && !available_to) return;
+    if (available_to && available_to < today) return;
+
     let targetDate = selectedDate;
     if (available_from && targetDate < available_from) {
       targetDate = available_from >= today ? available_from : today;
@@ -240,8 +245,6 @@ const Book = () => {
         targetDate = available_from;
       } else if (today <= available_to) {
         targetDate = today;
-      } else {
-        targetDate = available_to;
       }
     }
 
@@ -441,7 +444,11 @@ const Book = () => {
     setLoadingPlaces(true);
     try {
       const res = await getPublicSpacesByPin(pin);
-      setSuggestedPlaces(res.spaces || []);
+      const spaces = res.spaces || [];
+      setSuggestedPlaces(spaces);
+      if (spaces.length > 0) {
+        setSelectedCentre(spaces[0].space_name);
+      }
     } catch (err) {
       console.error(err);
       toast({ title: "Search failed", description: "Could not fetch nearby spaces.", variant: "destructive" });
@@ -937,14 +944,15 @@ const Book = () => {
                           return (
                             <li
                               key={c.id}
-                              onClick={() => setSelectedCentre(isSelected ? "" : c.space_name)}
+                              onClick={() => setSelectedCentre(c.space_name)}
                               className={cn(
-                                "relative flex items-center justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all hover:border-accent/50",
-                                isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-background border-border",
-                                (!selectedCentre && i === 0) && "bg-accent-soft border-primary/40"
+                                "relative flex items-center justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all",
+                                isSelected
+                                  ? "bg-accent/10 border-primary ring-2 ring-primary/40 shadow-sm"
+                                  : "bg-background border-border hover:border-accent/50 hover:bg-secondary/20"
                               )}
                             >
-                              <div className="flex items-start gap-3 w-full pr-16">
+                              <div className="flex items-start gap-3 w-full pr-24">
                                 {c.space_images && c.space_images.length > 0 ? (
                                   <img
                                     src={[...c.space_images].sort((a, b) => a.sort_order - b.sort_order)[0].image_url}
@@ -984,17 +992,28 @@ const Book = () => {
                                   </div>
                                 </div>
                               </div>
-                              {(!selectedCentre && i === 0) && (
-                                <span className="text-[10px] uppercase tracking-widest text-accent font-medium absolute bottom-3 right-4">Best Option</span>
-                              )}
-                              {isSelected && (
+                              {isSelected ? (
+                                <div className="absolute right-3 top-3 flex items-center gap-1.5">
+                                  <span className="text-[11px] font-semibold text-primary flex items-center gap-1 bg-primary/10 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 className="size-3 text-primary" /> Selected
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
+                                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                  >
+                                    Change
+                                  </Button>
+                                </div>
+                              ) : (
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
-                                  onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
-                                  className="absolute right-3 top-3 h-8 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedCentre(c.space_name); }}
+                                  className="absolute right-3 top-3 h-8 text-xs rounded-full hover:bg-primary hover:text-primary-foreground"
                                 >
-                                  Change
+                                  Select
                                 </Button>
                               )}
                             </li>
@@ -1112,7 +1131,10 @@ const Book = () => {
                   </span> */}
                 </div>
 
-                {location === "centre" && selectedSpaceSchedule && (selectedSpaceSchedule.available_from || selectedSpaceSchedule.available_to) && (
+                {location === "centre" &&
+                  selectedSpaceSchedule &&
+                  (selectedSpaceSchedule.available_from || selectedSpaceSchedule.available_to) &&
+                  (!selectedSpaceSchedule.available_to || selectedSpaceSchedule.available_to >= new Date().toISOString().split("T")[0]) && (
                   <div className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-foreground">
                     <CalendarIcon className="size-4 text-accent shrink-0" />
                     <span>
