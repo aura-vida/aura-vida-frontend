@@ -156,10 +156,10 @@ const modeLabel = (mode: string) =>
   mode === "studio"
     ? "At your studio"
     : mode === "online"
-    ? "Online session"
-    : mode === "host"
-    ? "At client's home"
-    : "Partner centre";
+      ? "Online session"
+      : mode === "host"
+        ? "At client's home"
+        : "Partner centre";
 
 const PractitionerArea = () => {
   const { user, profile, loading } = useAuth();
@@ -190,11 +190,6 @@ const PractitionerArea = () => {
   });
 
   const [practitionerInfo, setPractitionerInfo] = useState<Practitioner | null>(null);
-
-  const completedSessionsCount = useMemo(() => {
-    const fromBookings = bookings.filter((b) => b.status === "completed").length;
-    return Math.max(fromBookings, practitionerInfo?.sessions ?? 0);
-  }, [bookings, practitionerInfo]);
 
   useEffect(() => {
     if (!profile?.practitioner_slug) return;
@@ -307,6 +302,11 @@ const PractitionerArea = () => {
 
   // Bookings state
   const [bookings, setBookings] = useState<Booking[]>([]);
+
+  const completedSessionsCount = useMemo(() => {
+    const fromBookings = bookings.filter((b) => b.status === "completed").length;
+    return Math.max(fromBookings, practitionerInfo?.sessions ?? 0);
+  }, [bookings, practitionerInfo]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
@@ -474,7 +474,7 @@ const PractitionerArea = () => {
       if (profile?.practitioner_slug) {
         getPractitioner(profile.practitioner_slug)
           .then((res) => setPractitionerInfo(res.practitioner))
-          .catch(() => {});
+          .catch(() => { });
       }
     } catch (err: any) {
       toast.error(err.message || `Failed to update status to ${newStatus}`);
@@ -675,10 +675,10 @@ const PractitionerArea = () => {
           day_of_week: d.day,
           slots: item && item.active
             ? item.windows.map((win) => ({
-                start_time: win.start,
-                end_time: win.end,
-                duration_min: win.duration || 60,
-              }))
+              start_time: win.start,
+              end_time: win.end,
+              duration_min: win.duration || 60,
+            }))
             : [],
         };
       });
