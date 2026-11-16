@@ -150,6 +150,7 @@ export default function EventsSection() {
       return;
     }
 
+    const currentEvent = bookingEvent;
     setIsPaying(true);
 
     try {
@@ -161,19 +162,24 @@ export default function EventsSection() {
 
       // 2. Call backend to create Razorpay Order
       const orderRes = await createEventOrder({
-        eventId: bookingEvent.id,
+        eventId: currentEvent.id,
         customerName: customerName.trim(),
         customerEmail: customerEmail.trim(),
         customerPhone: customerPhone.trim(),
       });
 
-      // 3. Open Razorpay Checkout modal
+      // 3. Close the Radix Dialog BEFORE opening Razorpay modal.
+      // This releases Radix's modal focus-trap and removes pointer-events: none from document.body,
+      // allowing the user to click Cards, Netbanking, type numbers, and select options inside Razorpay!
+      setBookingEvent(null);
+
+      // 4. Open Razorpay Checkout modal
       const options = {
         key: orderRes.keyId,
         amount: orderRes.amount,
         currency: orderRes.currency || "INR",
         name: "Kuśala",
-        description: `${bookingEvent.title} Ticket`,
+        description: `${currentEvent.title} Ticket`,
         order_id: orderRes.orderId,
         prefill: {
           name: customerName,
@@ -208,6 +214,8 @@ export default function EventsSection() {
         modal: {
           ondismiss: () => {
             setIsPaying(false);
+            // Re-open booking dialog if dismissed without completing payment
+            setBookingEvent(currentEvent);
           },
         },
         handler: async (response: {
@@ -216,7 +224,7 @@ export default function EventsSection() {
           razorpay_signature: string;
         }) => {
           try {
-            // 4. Verify signature on backend
+            // 5. Verify signature on backend
             const verifyRes = await verifyEventPayment({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -224,7 +232,6 @@ export default function EventsSection() {
             });
 
             if (verifyRes.success) {
-              setBookingEvent(null);
               setConfirmedBooking(verifyRes.booking);
               toast.success("Workshop booking confirmed! Confirmation email has been sent.");
             } else {
@@ -245,6 +252,7 @@ export default function EventsSection() {
       console.error("Booking order error:", err);
       toast.error(err.message || "Failed to initiate payment. Please try again.");
       setIsPaying(false);
+      setBookingEvent(currentEvent);
     }
   };
 

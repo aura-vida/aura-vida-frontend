@@ -218,3 +218,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
+/* Ensure Razorpay checkout modal is always fully interactive and above overlays */
+.razorpay-container {
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+}
+
+.razorpay-container iframe {
+  pointer-events: auto !important;
+}
+
