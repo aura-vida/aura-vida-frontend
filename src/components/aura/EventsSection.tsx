@@ -183,6 +183,28 @@ export default function EventsSection() {
         theme: {
           color: "#0d9488",
         },
+        config: {
+          display: {
+            blocks: {
+              cards: {
+                name: "Cards",
+                instruments: [{ method: "card" }],
+              },
+              netbanking: {
+                name: "Netbanking",
+                instruments: [{ method: "netbanking" }],
+              },
+              upi: {
+                name: "UPI",
+                instruments: [{ method: "upi" }],
+              },
+            },
+            sequence: ["block.cards", "block.netbanking", "block.upi"],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
         modal: {
           ondismiss: () => {
             setIsPaying(false);
