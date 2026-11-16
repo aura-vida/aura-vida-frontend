@@ -6,6 +6,9 @@ export const MAX_GROUP_SIZE = 10;
 // the backend is the authority on the charged amount; this is only for display here.
 export const SESSION_TAX_RATE = 0.05;
 
+// Space GST — mirrors SPACE_GST_RATE in backend/src/config/spacePricing.js
+export const SPACE_GST_RATE = 0.18;
+
 export const parsePrice = (price?: string) =>
   price ? Number(price.replace(/[^\d]/g, "")) : 0;
 
@@ -86,4 +89,102 @@ export const getStartingPrice = (practitioner: any): number => {
   if (rates.length > 0) return Math.min(...rates);
   return Number(practitioner.price_inr) || 0;
 };
+
+// ─── Space Pricing ────────────────────────────────────────────────────────────
+// Mirrors backend/src/config/spacePricing.js — display-only; backend is authoritative.
+
+export interface SpacePricingResult {
+  spaceType: string;
+  hourlyRate: number;
+  durationHours: number;
+  spaceSubtotal: number;
+  gstPercent: number;
+  gstAmount: number;
+  totalSpaceCost: number;
+}
+
+const HOUR_SPACE_PRICING = {
+  weekday: [
+    { max_clients: 2, rate: 825 },
+    { max_clients: 4, rate: 1100 },
+    { max_clients: Infinity, rate: 1485 },
+  ],
+  sunday: [
+    { max_clients: 2, rate: 1100 },
+    { max_clients: 4, rate: 1485 },
+    { max_clients: Infinity, rate: 1650 },
+  ],
+};
+
+const ECLIPSE_PRICING = [
+  { max_persons: 5, rate: 1500 },
+  { max_persons: Infinity, rate: 3000 },
+];
+
+const BOHEMISO_PRICING = [
+  { max_persons: Infinity, rate: 1500 },
+];
+
+function resolveSlab(slabs: { max_clients?: number; max_persons?: number; rate: number }[], count: number): number {
+  for (const slab of slabs) {
+    const limit = slab.max_clients ?? slab.max_persons ?? Infinity;
+    if (count <= limit) return slab.rate;
+  }
+  return slabs[slabs.length - 1].rate;
+}
+
+export function identifySpaceCategory(spaceType?: string, spaceName?: string): string | null {
+  const combined = `${spaceType || ''} ${spaceName || ''}`.toLowerCase();
+  if (combined.includes('hour')) return 'hour_space';
+  if (combined.includes('eclipse')) return 'eclipse';
+  if (combined.includes('bohemiso')) return 'bohemiso';
+  return null;
+}
+
+/**
+ * Calculate partner space fee for display purposes.
+ * The backend recalculates this authoritatively — this is only for the preview UI.
+ *
+ * @param spaceType       'hour_space' | 'eclipse' | 'bohemiso' or general string
+ * @param participantCount total group size (client participants)
+ * @param bookingDate     'YYYY-MM-DD' in IST
+ * @param durationHours   number of booked hours (>= 1)
+ * @param spaceName       optional space name for fallback detection
+ */
+export const calculateSpaceFee = (
+  spaceType: string,
+  participantCount: number,
+  bookingDate: string,
+  durationHours: number,
+  spaceName?: string
+): SpacePricingResult | null => {
+  const category = identifySpaceCategory(spaceType, spaceName);
+  if (!category) return null;
+
+  const hours = Math.max(1, Math.round(durationHours || 1));
+  const count = Math.max(1, Math.round(participantCount || 1));
+
+  let hourlyRate = 0;
+
+  if (category === 'hour_space') {
+    const [y, m, d] = (bookingDate || '').split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayOfWeek = dateObj.getDay();
+    const dayType = dayOfWeek === 0 ? 'sunday' : 'weekday';
+    hourlyRate = resolveSlab(HOUR_SPACE_PRICING[dayType], count);
+  } else if (category === 'eclipse') {
+    hourlyRate = resolveSlab(ECLIPSE_PRICING, count);
+  } else if (category === 'bohemiso') {
+    hourlyRate = resolveSlab(BOHEMISO_PRICING, count);
+  } else {
+    return null;
+  }
+
+  const spaceSubtotal = hourlyRate * hours;
+  const gstAmount = Math.round(spaceSubtotal * SPACE_GST_RATE);
+  const totalSpaceCost = spaceSubtotal + gstAmount;
+
+  return { spaceType: category, hourlyRate, durationHours: hours, spaceSubtotal, gstPercent: 18, gstAmount, totalSpaceCost };
+};
+
 

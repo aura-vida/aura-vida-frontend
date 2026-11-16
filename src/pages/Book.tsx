@@ -38,7 +38,15 @@ import type { Service } from "@/lib/servicesApi";
 import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 import { validateCoupon } from "@/lib/couponsApi";
-import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax, calculateSessionSubtotal } from "@/lib/pricing";
+import {
+  MAX_GROUP_SIZE,
+  formatINR,
+  groupTotal,
+  sessionTax,
+  calculateSessionSubtotal,
+  calculateSpaceFee,
+  identifySpaceCategory,
+} from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import { parseSpaceSchedule } from "@/lib/spacesApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
@@ -310,6 +318,9 @@ const Book = () => {
 
   // Pricing calculations
   const selectedService = services.find((s) => s.id === selectedServiceId);
+  const duration = selectedService?.duration_min || 60;
+  const durationHours = Math.max(1, Math.round(duration / 60));
+
   // Authoritative dynamic subtotal matching the backend calculation in payment.controller.js
   const total = selectedPractitioner
     ? calculateSessionSubtotal(selectedPractitioner, location, groupSize)
@@ -317,6 +328,25 @@ const Book = () => {
   const basePrice = selectedPractitioner
     ? calculateSessionSubtotal(selectedPractitioner, location, 1)
     : (selectedService?.price_inr ?? 0);
+
+  // Partner Space Fee calculation (only when location === "centre" and a space is selected)
+  const spaceFee = useMemo(() => {
+    if (location !== "centre" || !selectedSpace) return null;
+    return calculateSpaceFee(
+      selectedSpace.space_type || "",
+      groupSize,
+      selectedDate,
+      durationHours,
+      selectedSpace.space_name
+    );
+  }, [location, selectedSpace, groupSize, selectedDate, durationHours]);
+
+  const spaceCategory = useMemo(() => {
+    if (location !== "centre" || !selectedSpace) return null;
+    return identifySpaceCategory(selectedSpace.space_type, selectedSpace.space_name);
+  }, [location, selectedSpace]);
+
+  const isHourSpace = spaceCategory === "hour_space";
 
   // Helper to format pricing preview on location format cards based on Who is Joining
   const getFormatPriceLabel = (formatId: Location) => {
@@ -356,19 +386,26 @@ const Book = () => {
     return null;
   };
 
-  // Coupon discount applies to the subtotal, before tax — mirrors the
+  // Coupon discount applies to the practitioner subtotal, before tax — mirrors the
   // backend's authoritative order in payment.controller.js.
-  const couponDiscount = appliedCoupon && total ? Math.round(total * appliedCoupon.discountPercent / 100) : 0;
-  const discountedTotal = total - couponDiscount;
+  const practitionerSubtotal = total;
+  const couponDiscount = appliedCoupon && practitionerSubtotal ? Math.round(practitionerSubtotal * appliedCoupon.discountPercent / 100) : 0;
+  const discountedPractitionerSubtotal = practitionerSubtotal - couponDiscount;
   // 5% tax on the (post-coupon) session subtotal — mirrors the backend's
-  // authoritative calculation in payment.controller.js so this is just an
-  // accurate preview; the backend still computes and validates the real
-  // charged amount (and independently re-validates the coupon).
-  const tax = discountedTotal ? sessionTax(discountedTotal) : 0;
-  const totalWithTax = discountedTotal + tax;
+  // authoritative calculation in payment.controller.js.
+  const practitionerTax = discountedPractitionerSubtotal ? sessionTax(discountedPractitionerSubtotal) : 0;
+  const practitionerTotalWithTax = discountedPractitionerSubtotal + practitionerTax;
+
+  // Space pricing (18% GST on space subtotal)
+  const spaceSubtotal = spaceFee?.spaceSubtotal ?? 0;
+  const spaceGst = spaceFee?.gstAmount ?? 0;
+  const totalSpaceCost = spaceFee?.totalSpaceCost ?? 0;
+
+  // Combined total
+  const combinedTotal = practitionerTotalWithTax + totalSpaceCost;
   const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
-  const creditApplied = credit > 0 && totalWithTax ? Math.min(credit, Math.max(0, totalWithTax - 100)) : 0;
-  const payable = totalWithTax - creditApplied;
+  const creditApplied = credit > 0 && combinedTotal ? Math.min(credit, Math.max(0, combinedTotal - 100)) : 0;
+  const payable = combinedTotal - creditApplied;
 
   const handleApplyCoupon = async () => {
     const code = couponInput.trim().toUpperCase();
@@ -414,7 +451,6 @@ const Book = () => {
   };
 
   // Format Date and Time Slot
-  const duration = selectedService?.duration_min || 60;
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return "";
     try {
@@ -544,6 +580,8 @@ const Book = () => {
           attendees,
           meeting_location,
           coupon_code: appliedCoupon?.code || null,
+          space_id: location === "centre" ? (selectedSpace?.id || null) : null,
+          duration_hours: durationHours,
         },
         customerName: name,
         customerEmail: email,
@@ -1234,10 +1272,10 @@ const Book = () => {
                 </div>
 
                 {/* Pricing Breakdown */}
-                <div className="pt-4 border-t border-border space-y-2 text-xs">
+                <div className="pt-4 border-t border-border space-y-2.5 text-xs">
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Session fee {isGroup ? `(${groupSize} people)` : "(Solo)"}</span>
-                    <span>{formatINR(total)}</span>
+                    <span>Practitioner Session Fee {isGroup ? `(${groupSize} people)` : "(Solo)"}</span>
+                    <span className="font-medium text-foreground">{formatINR(practitionerSubtotal)}</span>
                   </div>
                   {couponDiscount > 0 && (
                     <div className="flex items-center justify-between text-accent font-medium">
@@ -1246,11 +1284,25 @@ const Book = () => {
                     </div>
                   )}
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Tax (5%)</span>
-                    <span>{formatINR(tax)}</span>
+                    <span>Session Tax (5%)</span>
+                    <span>{formatINR(practitionerTax)}</span>
                   </div>
+
+                  {spaceFee && (
+                    <div className="pt-2 border-t border-dashed border-border/70 space-y-2">
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Partner Space Fee ({spaceFee.durationHours} {spaceFee.durationHours === 1 ? 'hr' : 'hrs'})</span>
+                        <span className="font-medium text-foreground">{formatINR(spaceSubtotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Space GST ({spaceFee.gstPercent}%)</span>
+                        <span>{formatINR(spaceGst)}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {creditApplied > 0 && (
-                    <div className="flex items-center justify-between text-accent font-medium">
+                    <div className="flex items-center justify-between text-accent font-medium pt-1">
                       <span>Referral credit applied</span>
                       <span>−{formatINR(creditApplied)}</span>
                     </div>
@@ -1260,6 +1312,19 @@ const Book = () => {
                     <span className="text-primary text-xl font-bold">{formatINR(payable)}</span>
                   </div>
                 </div>
+
+                {/* Hour Space Cancellation Policy Notice */}
+                {isHourSpace && (
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <ShieldCheck className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      Hour Space Cancellation Policy
+                    </p>
+                    <p className="text-[11px] leading-relaxed opacity-90">
+                      Cancellation can be accepted only if 12 hours prior notification is provided, with no exceptions. No refund will be provided if cancellation is not initiated within this timeframe.
+                    </p>
+                  </div>
+                )}
 
                 {/* Pay Button */}
                 <Button
@@ -1281,10 +1346,12 @@ const Book = () => {
                     <ShieldCheck className="size-4 text-accent shrink-0" />
                     <span>256-bit encrypted Razorpay checkout</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="size-4 text-accent shrink-0" />
-                    <span>Free cancellation up to 4 hours prior</span>
-                  </div>
+                  {!isHourSpace && (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="size-4 text-accent shrink-0" />
+                      <span>Free cancellation up to 4 hours prior</span>
+                    </div>
+                  )}
                 </div>
 
               </div>
