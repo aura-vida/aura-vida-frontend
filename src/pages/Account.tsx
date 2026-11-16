@@ -120,14 +120,20 @@ const Account = () => {
 
   useEffect(() => {
     if (!user) return;
-    getMyEventBookings()
-      .then((res) => {
-        const confirmed = (res.bookings || []).filter(
-          (b) => b.booking_status === "CONFIRMED" && b.payment_status === "SUCCESS"
-        );
-        setEventBookings(confirmed);
-      })
-      .catch((err) => console.error("Failed to load event bookings:", err));
+    const fetchBookings = () => {
+      getMyEventBookings()
+        .then((res) => {
+          const confirmed = (res.bookings || []).filter(
+            (b) => b.booking_status === "CONFIRMED" || b.payment_status === "SUCCESS"
+          );
+          setEventBookings(confirmed);
+        })
+        .catch((err) => console.error("Failed to load event bookings:", err));
+    };
+
+    fetchBookings();
+    window.addEventListener("aura:event-booked", fetchBookings);
+    return () => window.removeEventListener("aura:event-booked", fetchBookings);
   }, [user]);
   const [myReviews, setMyReviews] = useState<Record<string, Review>>({});
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);

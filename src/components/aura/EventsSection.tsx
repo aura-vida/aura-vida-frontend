@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Calendar,
@@ -139,31 +139,48 @@ export default function EventsSection() {
       });
   }, []);
 
-  // Fetch booked events whenever the authenticated user changes
-  useEffect(() => {
+  // Synchronize and refresh booked events from backend
+  const refreshBookedEvents = useCallback(async () => {
     if (!user) {
       setBookedEventIds(new Set());
-      return;
+      return new Set<string>();
     }
 
-    setCheckingBookings(true);
-    getMyEventBookings()
-      .then((res) => {
-        const ids = new Set<string>();
-        (res.bookings || []).forEach((b) => {
-          if (b.booking_status === "CONFIRMED" || b.payment_status === "SUCCESS") {
-            ids.add(b.event_id);
-          }
-        });
-        setBookedEventIds(ids);
-      })
-      .catch((err) => {
-        console.warn("Could not load user's event bookings:", err);
-      })
-      .finally(() => {
-        setCheckingBookings(false);
+    try {
+      setCheckingBookings(true);
+      const res = await getMyEventBookings();
+      const ids = new Set<string>();
+      (res.bookings || []).forEach((b) => {
+        if (b.booking_status === "CONFIRMED" || b.payment_status === "SUCCESS") {
+          ids.add(b.event_id);
+        }
       });
+      setBookedEventIds(ids);
+      return ids;
+    } catch (err) {
+      console.warn("Could not load user's event bookings:", err);
+      return new Set<string>();
+    } finally {
+      setCheckingBookings(false);
+    }
   }, [user]);
+
+  // Fetch booked events whenever the authenticated user changes or focus returns
+  useEffect(() => {
+    refreshBookedEvents();
+
+    const handleBookingUpdate = () => {
+      refreshBookedEvents();
+    };
+
+    window.addEventListener("aura:event-booked", handleBookingUpdate);
+    window.addEventListener("focus", handleBookingUpdate);
+
+    return () => {
+      window.removeEventListener("aura:event-booked", handleBookingUpdate);
+      window.removeEventListener("focus", handleBookingUpdate);
+    };
+  }, [refreshBookedEvents]);
 
   // Handle open booking with authentication & duplicate checks
   const handleOpenBooking = (event: StaticEvent) => {
@@ -292,7 +309,19 @@ export default function EventsSection() {
 
             if (verifyRes.success) {
               setConfirmedBooking(verifyRes.booking);
-              setBookedEventIds((prev) => new Set([...prev, currentEvent.id]));
+              // Optimistically update booked event IDs
+              setBookedEventIds((prev) => new Set([...prev, currentEvent.id, verifyRes.booking?.event_id].filter(Boolean)));
+              
+              // Immediately refresh from backend to ensure state consistency
+              await refreshBookedEvents();
+
+              // Notify any other components listening for booking events
+              window.dispatchEvent(
+                new CustomEvent("aura:event-booked", {
+                  detail: { eventId: currentEvent.id, booking: verifyRes.booking },
+                })
+              );
+
               toast.success("Workshop booking confirmed! Confirmation email has been sent.");
             } else {
               toast.error("Payment verification was unsuccessful. Please reach out to support.");
@@ -718,7 +747,15 @@ export default function EventsSection() {
       </Dialog>
 
       {/* ─── 3. Booking Confirmed Ticket Modal ────────────────────────────── */}
-      <Dialog open={!!confirmedBooking} onOpenChange={(open) => !open && setConfirmedBooking(null)}>
+      <Dialog
+        open={!!confirmedBooking}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmedBooking(null);
+            refreshBookedEvents();
+          }
+        }}
+      >
         <DialogContent className="max-w-lg p-7 md:p-8 rounded-[2.5rem]">
           {confirmedBooking && (
             <div className="space-y-6 text-center">
@@ -774,7 +811,10 @@ export default function EventsSection() {
                   </Button>
                 </Link>
                 <Button
-                  onClick={() => setConfirmedBooking(null)}
+                  onClick={() => {
+                    setConfirmedBooking(null);
+                    refreshBookedEvents();
+                  }}
                   className="rounded-full h-11 text-xs px-6 bg-primary text-primary-foreground hover:bg-primary/90 flex-1"
                 >
                   Done
