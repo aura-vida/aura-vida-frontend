@@ -97,6 +97,11 @@ export interface VerifyEventPaymentResponse {
   booking: EventBooking;
 }
 
+export interface EventBookingStatusResponse {
+  isBooked: boolean;
+  booking?: EventBooking | null;
+}
+
 /**
  * Fetch all available events
  */
@@ -136,6 +141,13 @@ export async function verifyEventPayment(payload: VerifyEventPaymentPayload) {
  */
 export async function getMyEventBookings() {
   return api<{ bookings: EventBooking[] }>("/api/events/bookings");
+}
+
+/**
+ * Check if the authenticated user has already booked a specific event
+ */
+export async function getEventBookingStatus(eventId: string) {
+  return api<EventBookingStatusResponse>(`/api/events/bookings/status/${eventId}`);
 }
 
 /**

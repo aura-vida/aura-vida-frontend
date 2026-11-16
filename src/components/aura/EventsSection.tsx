@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Calendar,
   Clock,
@@ -33,6 +33,7 @@ import {
   listEvents,
   createEventOrder,
   verifyEventPayment,
+  getMyEventBookings,
   type StaticEvent,
   type EventBooking,
 } from "@/lib/eventsApi";
@@ -105,8 +106,13 @@ const loadRazorpayScript = () =>
 
 export default function EventsSection() {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [events, setEvents] = useState<StaticEvent[]>([FALLBACK_EVENT]);
   const [loading, setLoading] = useState(false);
+  const [bookedEventIds, setBookedEventIds] = useState<Set<string>>(new Set());
+  const [checkingBookings, setCheckingBookings] = useState(false);
 
   // Modal states
   const [detailsEvent, setDetailsEvent] = useState<StaticEvent | null>(null);
@@ -133,17 +139,70 @@ export default function EventsSection() {
       });
   }, []);
 
-  // Prefill contact details from logged-in user if available
+  // Fetch booked events whenever the authenticated user changes
+  useEffect(() => {
+    if (!user) {
+      setBookedEventIds(new Set());
+      return;
+    }
+
+    setCheckingBookings(true);
+    getMyEventBookings()
+      .then((res) => {
+        const ids = new Set<string>();
+        (res.bookings || []).forEach((b) => {
+          if (b.booking_status === "CONFIRMED" || b.payment_status === "SUCCESS") {
+            ids.add(b.event_id);
+          }
+        });
+        setBookedEventIds(ids);
+      })
+      .catch((err) => {
+        console.warn("Could not load user's event bookings:", err);
+      })
+      .finally(() => {
+        setCheckingBookings(false);
+      });
+  }, [user]);
+
+  // Handle open booking with authentication & duplicate checks
   const handleOpenBooking = (event: StaticEvent) => {
+    // 1. Require Authentication: Unauthenticated users are redirected to login
+    if (!user) {
+      toast.info("Please sign in to book your workshop seat.");
+      const redirectUrl = `${location.pathname}${location.search}${location.hash || "#events"}`;
+      navigate(`/auth?view=signin&redirect=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
+    // 2. Prevent Duplicate Bookings: Disallow booking if already booked
+    if (bookedEventIds.has(event.id)) {
+      toast.info("You have already booked a seat for this event.");
+      return;
+    }
+
     setBookingEvent(event);
-    setCustomerName(profile?.full_name || "");
-    setCustomerEmail(user?.email || "");
+    setCustomerName(profile?.full_name || user.email?.split("@")[0] || "");
+    setCustomerEmail(user.email || "");
     setCustomerPhone(profile?.phone || "");
   };
 
   const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingEvent) return;
+
+    if (!user) {
+      toast.info("Please sign in to proceed with payment.");
+      const redirectUrl = `${location.pathname}${location.search}${location.hash || "#events"}`;
+      navigate(`/auth?view=signin&redirect=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
+    if (bookedEventIds.has(bookingEvent.id)) {
+      toast.info("You have already booked this event.");
+      setBookingEvent(null);
+      return;
+    }
 
     if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
       toast.error("Please fill in your name, email, and phone number.");
@@ -233,6 +292,7 @@ export default function EventsSection() {
 
             if (verifyRes.success) {
               setConfirmedBooking(verifyRes.booking);
+              setBookedEventIds((prev) => new Set([...prev, currentEvent.id]));
               toast.success("Workshop booking confirmed! Confirmation email has been sent.");
             } else {
               toast.error("Payment verification was unsuccessful. Please reach out to support.");
@@ -280,6 +340,7 @@ export default function EventsSection() {
             gstAmount: 125,
             totalAmount: 2625,
           };
+          const isBooked = bookedEventIds.has(event.id);
 
           return (
             <article
@@ -304,9 +365,15 @@ export default function EventsSection() {
                 </div>
 
                 <div className="absolute top-6 left-6">
-                  <Badge className="bg-primary/95 text-primary-foreground backdrop-blur-md border-0 text-[11px] uppercase tracking-wider font-semibold px-3 py-1 rounded-full">
-                    {event.schedule.status}
-                  </Badge>
+                  {isBooked ? (
+                    <Badge className="bg-emerald-600/90 text-white backdrop-blur-md border border-white/20 text-[11px] uppercase tracking-wider font-semibold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                      <CheckCircle2 className="size-3 text-white" /> Booked
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-primary/95 text-primary-foreground backdrop-blur-md border-0 text-[11px] uppercase tracking-wider font-semibold px-3 py-1 rounded-full">
+                      {event.schedule.status}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -370,6 +437,12 @@ export default function EventsSection() {
                     <span className="text-[11px] text-muted-foreground block mt-0.5">
                       ₹{breakdown.baseAmount.toLocaleString("en-IN")} + ₹{breakdown.gstAmount} GST ({breakdown.gstPercentage}%)
                     </span>
+                    {isBooked && (
+                      <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
+                        <span>You’re attending this workshop · Booked</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -380,12 +453,21 @@ export default function EventsSection() {
                     >
                       View Details
                     </Button>
-                    <Button
-                      onClick={() => handleOpenBooking(event)}
-                      className="rounded-full h-12 px-7 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex-1 sm:flex-none shadow-sm"
-                    >
-                      Book Now <ArrowRight className="size-3.5 ml-1.5" />
-                    </Button>
+                    {isBooked ? (
+                      <Button
+                        disabled
+                        className="rounded-full h-12 px-7 text-xs font-semibold bg-emerald-600/15 border border-emerald-600/30 text-emerald-800 dark:text-emerald-400 cursor-not-allowed flex-1 sm:flex-none shadow-none"
+                      >
+                        <CheckCircle2 className="size-4 mr-1.5 text-emerald-600" /> Booked
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleOpenBooking(event)}
+                        className="rounded-full h-12 px-7 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex-1 sm:flex-none shadow-sm"
+                      >
+                        Book Now <ArrowRight className="size-3.5 ml-1.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -490,16 +572,25 @@ export default function EventsSection() {
                 >
                   Close
                 </Button>
-                <Button
-                  onClick={() => {
-                    const evt = detailsEvent;
-                    setDetailsEvent(null);
-                    handleOpenBooking(evt);
-                  }}
-                  className="rounded-full h-11 px-7 bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  Book Seat for ₹{detailsEvent.pricingBreakdown?.totalAmount?.toLocaleString("en-IN") || "2,625"}
-                </Button>
+                {bookedEventIds.has(detailsEvent.id) ? (
+                  <Button
+                    disabled
+                    className="rounded-full h-11 px-7 bg-emerald-600/15 border border-emerald-600/30 text-emerald-800 dark:text-emerald-400 cursor-not-allowed"
+                  >
+                    <CheckCircle2 className="size-4 mr-1.5 text-emerald-600" /> Booked
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => {
+                      const evt = detailsEvent;
+                      setDetailsEvent(null);
+                      handleOpenBooking(evt);
+                    }}
+                    className="rounded-full h-11 px-7 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Book Seat for ₹{detailsEvent.pricingBreakdown?.totalAmount?.toLocaleString("en-IN") || "2,625"}
+                  </Button>
+                )}
               </DialogFooter>
             </div>
           )}
