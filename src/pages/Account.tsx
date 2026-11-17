@@ -65,14 +65,17 @@ const canCustomerCancel = (createdAt: string) =>
   Date.now() - new Date(createdAt).getTime() <= CUSTOMER_CANCEL_WINDOW_HOURS * 60 * 60 * 1000;
 
 const modeIcon = (mode: string) => (mode === "online" ? Video : mode === "host" ? Home : MapPin);
-const modeLabel = (mode: string) =>
-  mode === "studio"
-    ? "At practitioner's studio"
-    : mode === "online"
-    ? "Online session"
-    : mode === "host"
-    ? "At your home"
-    : "Partner centre";
+const modeLabel = (mode: string, meetingLocation?: Booking["meeting_location"]) => {
+  if (mode === "studio") return "At practitioner's studio";
+  if (mode === "online") return "Online session";
+  if (mode === "host") {
+    return meetingLocation?.address ? `At your home (${meetingLocation.address})` : "At your home";
+  }
+  if (mode === "centre") {
+    return meetingLocation?.address ? `${meetingLocation.address} (Partner centre)` : "Partner centre";
+  }
+  return "Partner centre";
+};
 
 const formatPrice = (val: number | null | undefined) => {
   if (val == null) return "₹0";
@@ -600,7 +603,7 @@ const Account = () => {
                     )}
 
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1.5">
-                      <Icon className="size-4" /> {modeLabel(b.mode)}
+                      <Icon className="size-4" /> {modeLabel(b.mode, b.meeting_location)}
                       {b.pin && <span>· PIN {b.pin}</span>}
                     </div>
 

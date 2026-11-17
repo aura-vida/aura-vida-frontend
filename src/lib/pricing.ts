@@ -141,6 +141,67 @@ export function identifySpaceCategory(spaceType?: string, spaceName?: string): s
   return null;
 }
 
+export interface SpacePricingDetails {
+  category: 'hour_space' | 'eclipse' | 'bohemiso' | 'general';
+  startingPrice: number;
+  startingPriceText: string;
+  hasSlabs: boolean;
+  slabs: { label: string; rate: number }[];
+  weekendSlabs?: { label: string; rate: number }[];
+  policy?: string;
+  gstNote: string;
+}
+
+export function getSpacePricingInfo(spaceType?: string, spaceName?: string): SpacePricingDetails | null {
+  const cat = identifySpaceCategory(spaceType, spaceName);
+  if (cat === 'hour_space') {
+    return {
+      category: 'hour_space',
+      startingPrice: 825,
+      startingPriceText: 'From ₹825/hr',
+      hasSlabs: true,
+      slabs: [
+        { label: '1–2 persons', rate: 825 },
+        { label: '3–4 persons', rate: 1100 },
+        { label: '5+ persons', rate: 1485 },
+      ],
+      weekendSlabs: [
+        { label: '1–2 persons', rate: 1100 },
+        { label: '3–4 persons', rate: 1485 },
+        { label: '5+ persons', rate: 1650 },
+      ],
+      policy: 'Cancellation accepted only if 12 hours prior notification is provided.',
+      gstNote: '+ 18% GST applicable on space hire',
+    };
+  }
+  if (cat === 'eclipse') {
+    return {
+      category: 'eclipse',
+      startingPrice: 1500,
+      startingPriceText: 'From ₹1,500/hr',
+      hasSlabs: true,
+      slabs: [
+        { label: '1–5 persons', rate: 1500 },
+        { label: '6–20 persons', rate: 3000 },
+      ],
+      gstNote: '+ 18% GST applicable on space hire',
+    };
+  }
+  if (cat === 'bohemiso') {
+    return {
+      category: 'bohemiso',
+      startingPrice: 1500,
+      startingPriceText: '₹1,500/hr',
+      hasSlabs: false,
+      slabs: [
+        { label: 'Up to 20 persons', rate: 1500 },
+      ],
+      gstNote: '+ 18% GST applicable on space hire',
+    };
+  }
+  return null;
+}
+
 /**
  * Calculate partner space fee for display purposes.
  * The backend recalculates this authoritatively — this is only for the preview UI.

@@ -35,6 +35,7 @@ import {
   type SpaceImage,
 } from "@/lib/spacesApi";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
+import { getSpacePricingInfo } from "@/lib/pricing";
 import fallbackInterior from "@/assets/center-interior.jpg";
 
 function parseAmenities(amenities: unknown): string[] {
@@ -307,11 +308,21 @@ export default function PartnerSpaces() {
                   <div className="p-6 sm:p-7 flex-1 flex flex-col justify-between">
                     <div>
                       {/* Name & City */}
-                      <div className="flex items-start justify-between gap-2">
-                        <h2 className="font-display text-2xl text-foreground group-hover:text-accent transition-colors leading-snug">
-                          {space.space_name}
-                        </h2>
-                      </div>
+                      {(() => {
+                        const priceInfo = getSpacePricingInfo(space.space_type, space.space_name);
+                        return (
+                          <div className="flex items-start justify-between gap-2">
+                            <h2 className="font-display text-2xl text-foreground group-hover:text-accent transition-colors leading-snug">
+                              {space.space_name}
+                            </h2>
+                            {priceInfo && (
+                              <span className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent/10 text-accent border border-accent/20">
+                                {priceInfo.startingPriceText}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
                         <MapPin className="size-3.5 text-accent shrink-0" />
@@ -537,6 +548,61 @@ export default function PartnerSpaces() {
                     </span>
                   </div>
                 </div>
+
+                {/* Sanctuary Pricing & Hire Rates */}
+                {(() => {
+                  const priceInfo = getSpacePricingInfo(activeSpace.space_type, activeSpace.space_name);
+                  if (!priceInfo) return null;
+                  return (
+                    <div className="rounded-2xl border border-border/80 bg-secondary/30 p-5 space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Sanctuary Pricing &amp; Hire Rates
+                        </span>
+                        <span className="text-xs font-semibold text-accent bg-accent/10 px-3 py-1 rounded-full border border-accent/20">
+                          {priceInfo.startingPriceText}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <div className="text-[11px] font-medium text-foreground/80">
+                          {priceInfo.category === "hour_space" ? "Standard Hourly Rates (Mon – Sat)" : "Standard Hourly Rates"}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {priceInfo.slabs.map((slab, i) => (
+                            <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl bg-card border border-border text-xs">
+                              <span className="text-muted-foreground">{slab.label}</span>
+                              <span className="font-semibold text-foreground">₹{slab.rate.toLocaleString("en-IN")}/hr</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {priceInfo.weekendSlabs && (
+                          <>
+                            <div className="text-[11px] font-medium text-foreground/80 pt-2">
+                              Sunday Hourly Rates
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {priceInfo.weekendSlabs.map((slab, i) => (
+                                <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl bg-card border border-border text-xs">
+                                  <span className="text-muted-foreground">{slab.label}</span>
+                                  <span className="font-semibold text-foreground">₹{slab.rate.toLocaleString("en-IN")}/hr</span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-muted-foreground flex flex-col gap-1 pt-2 border-t border-border/60">
+                        <div>• {priceInfo.gstNote}</div>
+                        {priceInfo.policy && (
+                          <div className="text-amber-800 dark:text-amber-400 font-medium">• {priceInfo.policy}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Amenities List */}
                 {(() => {
