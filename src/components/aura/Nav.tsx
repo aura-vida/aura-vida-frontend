@@ -33,6 +33,7 @@ const Nav = () => {
         <a href="/#digital" className="hover:text-foreground transition-colors">Library</a>
         <Link to="/guides" className="hover:text-foreground transition-colors">Guides</Link>
         <Link to="/spaces" className="hover:text-foreground transition-colors">The Spaces</Link>
+        <Link to="/events" className="hover:text-foreground transition-colors">Events</Link>
         <Link to="/journal" className="hover:text-foreground transition-colors">Journal</Link>
         {!isPractitioner && !isAdmin && (
           <a href="/guides#healers" className="hover:text-foreground transition-colors">For Healers</a>
@@ -118,6 +119,9 @@ const Nav = () => {
           </Link>
           <Link onClick={close} to="/spaces" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">
             The Spaces
+          </Link>
+          <Link onClick={close} to="/events" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">
+            Events &amp; Workshops
           </Link>
           <Link onClick={close} to="/journal" className="px-3 py-3 rounded-lg text-sm uppercase tracking-widest text-foreground hover:bg-secondary">Journal</Link>
           {!isPractitioner && !isAdmin && (

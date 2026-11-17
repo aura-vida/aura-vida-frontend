@@ -67,6 +67,28 @@ export const startCheckout = async (opts: CheckoutOptions) => {
       contact: opts.customerPhone ?? "",
     },
     theme: { color: "#2f8f7f" },
+    config: {
+      display: {
+        blocks: {
+          cards: {
+            name: "Cards",
+            instruments: [{ method: "card" }],
+          },
+          netbanking: {
+            name: "Netbanking",
+            instruments: [{ method: "netbanking" }],
+          },
+          upi: {
+            name: "UPI",
+            instruments: [{ method: "upi" }],
+          },
+        },
+        sequence: ["block.cards", "block.netbanking", "block.upi"],
+        preferences: {
+          show_default_blocks: true,
+        },
+      },
+    },
     modal: { ondismiss: () => opts.onDismiss?.() },
     handler: async (response: Record<string, string>) => {
       try {

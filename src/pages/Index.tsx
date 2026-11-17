@@ -5,6 +5,7 @@ import Hero from "@/components/aura/Hero";
 import About from "@/components/aura/About";
 import Modalities from "@/components/aura/Modalities";
 import DigitalProducts from "@/components/aura/DigitalProducts";
+import EventsSection from "@/components/aura/EventsSection";
 import WhyAuraVida from "@/components/aura/WhyAuraVida";
 import Waitlist from "@/components/aura/Waitlist";
 import HowItWorks from "@/components/aura/HowItWorks";
@@ -31,6 +32,7 @@ const Index = () => {
       <HowItWorks />
       <Modalities />
       <WhyAuraVida />
+      <EventsSection />
       <DigitalProducts />
       <Waitlist />
       <Footer />

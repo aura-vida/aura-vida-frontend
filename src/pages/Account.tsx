@@ -35,7 +35,8 @@ import {
   Settings,
   Building2,
   Star,
-  MessageCircle
+  MessageCircle,
+  Ticket,
 } from "lucide-react";
 import WellnessThermometer from "@/components/aura/WellnessThermometer";
 import ReferralCard from "@/components/aura/ReferralCard";
@@ -51,6 +52,7 @@ import { cancelAppointment, rescheduleAppointment, getAvailableSlots, completeAp
 import { startCheckout } from "@/lib/razorpay";
 import { splitTaxInclusiveTotal } from "@/lib/pricing";
 import { submitReview, listMyReviews, type Review } from "@/lib/reviewsApi";
+import { getMyEventBookings, type EventBooking } from "@/lib/eventsApi";
 
 const getTomorrowDate = () => {
   const d = new Date();
@@ -113,7 +115,26 @@ const Account = () => {
   // Payment state
   const [payingBookingId, setPayingBookingId] = useState<string | null>(null);
 
-  // Review state
+  // Event Bookings state
+  const [eventBookings, setEventBookings] = useState<EventBooking[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchBookings = () => {
+      getMyEventBookings()
+        .then((res) => {
+          const confirmed = (res.bookings || []).filter(
+            (b) => b.booking_status === "CONFIRMED" || b.payment_status === "SUCCESS"
+          );
+          setEventBookings(confirmed);
+        })
+        .catch((err) => console.error("Failed to load event bookings:", err));
+    };
+
+    fetchBookings();
+    window.addEventListener("aura:event-booked", fetchBookings);
+    return () => window.removeEventListener("aura:event-booked", fetchBookings);
+  }, [user]);
   const [myReviews, setMyReviews] = useState<Record<string, Review>>({});
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
   const [reviewPractitionerId, setReviewPractitionerId] = useState<string | null>(null);
@@ -425,6 +446,74 @@ const Account = () => {
         <div className="mt-8">
           <WellnessThermometer bookings={bookings} craftBySlug={craftBySlug} />
         </div>
+
+        {/* Booked Events & Workshops */}
+        {eventBookings.length > 0 && (
+          <div className="mt-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
+                <Ticket className="size-5 text-accent" /> Your Booked Events &amp; Workshops
+              </h2>
+              <span className="text-xs text-muted-foreground">{eventBookings.length} confirmed</span>
+            </div>
+
+            <div className="grid gap-4">
+              {eventBookings.map((eb) => (
+                <article
+                  key={eb.id}
+                  className="rounded-[2rem] border border-border bg-card p-6 md:p-7 shadow-soft space-y-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-display text-2xl text-foreground">{eb.event_name}</h3>
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full"
+                        >
+                          {eb.booking_status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs md:text-sm text-foreground font-medium mt-2">
+                        <Calendar className="size-4 text-accent" />
+                        <span>Sunday, 6 December 2026 · 11:00 AM – 1:00 PM</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                        <MapPin className="size-3.5 text-accent" />
+                        <span>Eclipse Wellbeing – Yoga Studio, Santacruz (West), Mumbai</span>
+                      </div>
+
+                      <div className="text-[11px] text-muted-foreground mt-2">
+                        Attendee: <span className="font-medium text-foreground">{eb.customer_name}</span> · {eb.customer_email}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="font-display text-2xl text-foreground">
+                        ₹{Number(eb.total_amount).toLocaleString("en-IN")}
+                      </div>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">
+                        Base: ₹{Number(eb.base_amount).toLocaleString("en-IN")} + {eb.gst_percentage}% GST (₹{Number(eb.gst_amount).toLocaleString("en-IN")})
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-medium block mt-0.5">
+                        Payment: {eb.payment_status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {eb.razorpay_payment_id && (
+                    <div className="pt-3 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground flex-wrap gap-2">
+                      <span>Order ID: <code className="font-mono text-[10px]">{eb.razorpay_order_id}</code></span>
+                      <span>Payment Ref: <code className="font-mono text-[10px] text-foreground">{eb.razorpay_payment_id}</code></span>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 space-y-4">
           <div className="flex items-center justify-between">

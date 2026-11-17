@@ -16,6 +16,7 @@ import Admin from "./pages/Admin.tsx";
 import ListSpace from "./pages/ListSpace.tsx";
 import ArticleDetail from "./pages/ArticleDetail.tsx";
 import Journal from "./pages/Journal.tsx";
+import EventsPage from "./pages/Events.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import PartnerSpaces from "./pages/PartnerSpaces.tsx";
 import ProtectedRoute from "./components/aura/ProtectedRoute.tsx";
@@ -36,6 +37,7 @@ const App = () => (
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/events" element={<EventsPage />} />
             <Route path="/guides" element={<Guides />} />
             <Route path="/spaces" element={<PartnerSpaces />} />
             <Route path="/partner-spaces" element={<PartnerSpaces />} />
