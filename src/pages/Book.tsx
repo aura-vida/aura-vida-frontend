@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { toast as toastSonner } from "sonner";
 import { listPractitioners, getPractitioner, getPractitionerServices, type Practitioner } from "@/lib/practitionersApi";
 import type { Service } from "@/lib/servicesApi";
 import { getAvailableSlots } from "@/lib/appointmentsApi";
@@ -133,6 +134,14 @@ const Book = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [paying, setPaying] = useState(false);
+  const [bookingSuccessData, setBookingSuccessData] = useState<{
+    practitionerName: string;
+    serviceName: string;
+    date: string;
+    time: string;
+    location: string;
+    amount: number;
+  } | null>(null);
 
   // Coupon
   const [couponInput, setCouponInput] = useState("");
@@ -595,8 +604,29 @@ const Book = () => {
         customerPhone: phone,
         onSuccess: () => {
           setPaying(false);
-          toast({ title: "Booking confirmed!", description: "We have emailed you the session details." });
-          navigate("/account");
+          toastSonner.success("Payment Successful! Your session is booked.", {
+            description: "A confirmation email with session details has been sent to you.",
+            duration: 8000,
+          });
+          toast({
+            title: "Booking Confirmed! 🎉",
+            description: "Your session has been successfully booked and paid.",
+          });
+          setBookingSuccessData({
+            practitionerName: selectedPractitioner?.name || "Your Guide",
+            serviceName: selectedService?.name || selectedPractitioner?.craft || "Session",
+            date: formatDateDisplay(selectedDate),
+            time: formatSlot(selectedTime).start,
+            location: location === "studio"
+              ? (selectedPractitioner?.studio_name || "Practitioner's Studio")
+              : location === "centre"
+              ? (selectedCentre || "Partner Centre")
+              : location === "host"
+              ? "At your Home"
+              : "Virtual Video",
+            amount: payable,
+          });
+          window.dispatchEvent(new CustomEvent("aura:booking-confirmed"));
         },
         onError: (msg) => {
           setPaying(false);
@@ -1382,6 +1412,85 @@ const Book = () => {
           </div>
         </div>
       )}
+
+      {/* Booking Confirmed Success Modal */}
+      <Dialog
+        open={!!bookingSuccessData}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingSuccessData(null);
+            navigate("/account");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-[2.5rem] p-7 text-center space-y-5 border-border shadow-soft">
+          {bookingSuccessData && (
+            <>
+              <div className="size-16 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 mx-auto grid place-items-center">
+                <CheckCircle2 className="size-9 stroke-[2.5]" />
+              </div>
+
+              <div className="space-y-1.5">
+                <DialogTitle className="font-display text-2xl text-foreground">
+                  Booking Confirmed!
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your session payment was successful and your slot has been reserved.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border/80 bg-secondary/30 p-4 text-left text-xs space-y-2.5">
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Guide</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.practitionerName}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Therapy / Session</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.serviceName}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Date &amp; Time</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.date} · {bookingSuccessData.time}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.location}</span>
+                </div>
+                <div className="flex justify-between items-center pt-0.5">
+                  <span className="text-muted-foreground font-medium">Total Paid</span>
+                  <span className="font-bold text-primary text-sm">{formatINR(bookingSuccessData.amount)}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                A confirmation email with session details and directions has been sent to your email.
+              </p>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <Button
+                  onClick={() => {
+                    setBookingSuccessData(null);
+                    navigate("/account");
+                  }}
+                  className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium"
+                >
+                  View My Sessions in Account
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setBookingSuccessData(null);
+                    window.location.reload();
+                  }}
+                  className="w-full h-10 rounded-full text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Book Another Session
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </main>
