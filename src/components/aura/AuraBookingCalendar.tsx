@@ -274,11 +274,18 @@ export const AuraBookingCalendar: React.FC<AuraBookingCalendarProps> = ({
               spaceSchedule?.days && spaceSchedule.days.length > 0
                 ? !spaceSchedule.days.includes(dayOfWeek)
                 : false;
+
+            const todayIso = new Date().toISOString().split("T")[0];
+            const hasSpaceFrom = Boolean(spaceSchedule?.available_from?.trim());
+            const hasSpaceTo = Boolean(
+              spaceSchedule?.available_to?.trim() && spaceSchedule.available_to >= todayIso
+            );
+
             const isBeforeSpaceRange = Boolean(
-              spaceSchedule?.available_from && dateStr < spaceSchedule.available_from
+              hasSpaceFrom && dateStr < spaceSchedule!.available_from!
             );
             const isAfterSpaceRange = Boolean(
-              spaceSchedule?.available_to && dateStr > spaceSchedule.available_to
+              hasSpaceTo && dateStr > spaceSchedule!.available_to!
             );
             const isSpaceClosed = isSpaceOffDay || isBeforeSpaceRange || isAfterSpaceRange;
 

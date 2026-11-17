@@ -15,9 +15,11 @@ export type AppointmentPayload = {
     pincode?: string;
     type?: string;
   };
-  mode?: "host" | "centre" | "online";
+  mode?: "host" | "centre" | "online" | "studio";
   pin?: string | null;
   coupon_code?: string | null;
+  space_id?: string | null;
+  duration_hours?: number;
 };
 
 export async function listMyAppointments(status?: string, page = 1) {

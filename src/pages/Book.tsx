@@ -33,12 +33,21 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { toast as toastSonner } from "sonner";
 import { listPractitioners, getPractitioner, getPractitionerServices, type Practitioner } from "@/lib/practitionersApi";
 import type { Service } from "@/lib/servicesApi";
 import { getAvailableSlots } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
 import { validateCoupon } from "@/lib/couponsApi";
-import { MAX_GROUP_SIZE, formatINR, groupTotal, sessionTax, calculateSessionSubtotal } from "@/lib/pricing";
+import {
+  MAX_GROUP_SIZE,
+  formatINR,
+  groupTotal,
+  sessionTax,
+  calculateSessionSubtotal,
+  calculateSpaceFee,
+  identifySpaceCategory,
+} from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import { parseSpaceSchedule } from "@/lib/spacesApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
@@ -125,6 +134,14 @@ const Book = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [paying, setPaying] = useState(false);
+  const [bookingSuccessData, setBookingSuccessData] = useState<{
+    practitionerName: string;
+    serviceName: string;
+    date: string;
+    time: string;
+    location: string;
+    amount: number;
+  } | null>(null);
 
   // Coupon
   const [couponInput, setCouponInput] = useState("");
@@ -177,6 +194,7 @@ const Book = () => {
             duration_min: 60,
             price_inr: selectedPractitioner.price_inr || 1500,
             category: selectedPractitioner.craft || "Holistic Healing",
+            image_url: selectedPractitioner.image_url || null,
             is_active: true,
           };
           setServices([fallbackService]);
@@ -223,6 +241,10 @@ const Book = () => {
     const today = new Date().toISOString().split("T")[0];
     const { available_from, available_to } = selectedSpaceSchedule;
 
+    // If dates are blank or invalid/past, treat as ongoing availability — no restriction
+    if (!available_from && !available_to) return;
+    if (available_to && available_to < today) return;
+
     let targetDate = selectedDate;
     if (available_from && targetDate < available_from) {
       targetDate = available_from >= today ? available_from : today;
@@ -232,8 +254,6 @@ const Book = () => {
         targetDate = available_from;
       } else if (today <= available_to) {
         targetDate = today;
-      } else {
-        targetDate = available_to;
       }
     }
 
@@ -310,6 +330,9 @@ const Book = () => {
 
   // Pricing calculations
   const selectedService = services.find((s) => s.id === selectedServiceId);
+  const duration = selectedService?.duration_min || 60;
+  const durationHours = Math.max(1, Math.round(duration / 60));
+
   // Authoritative dynamic subtotal matching the backend calculation in payment.controller.js
   const total = selectedPractitioner
     ? calculateSessionSubtotal(selectedPractitioner, location, groupSize)
@@ -317,6 +340,25 @@ const Book = () => {
   const basePrice = selectedPractitioner
     ? calculateSessionSubtotal(selectedPractitioner, location, 1)
     : (selectedService?.price_inr ?? 0);
+
+  // Partner Space Fee calculation (only when location === "centre" and a space is selected)
+  const spaceFee = useMemo(() => {
+    if (location !== "centre" || !selectedSpace) return null;
+    return calculateSpaceFee(
+      selectedSpace.space_type || "",
+      groupSize,
+      selectedDate,
+      durationHours,
+      selectedSpace.space_name
+    );
+  }, [location, selectedSpace, groupSize, selectedDate, durationHours]);
+
+  const spaceCategory = useMemo(() => {
+    if (location !== "centre" || !selectedSpace) return null;
+    return identifySpaceCategory(selectedSpace.space_type, selectedSpace.space_name);
+  }, [location, selectedSpace]);
+
+  const isHourSpace = spaceCategory === "hour_space";
 
   // Helper to format pricing preview on location format cards based on Who is Joining
   const getFormatPriceLabel = (formatId: Location) => {
@@ -356,19 +398,26 @@ const Book = () => {
     return null;
   };
 
-  // Coupon discount applies to the subtotal, before tax — mirrors the
+  // Coupon discount applies to the practitioner subtotal, before tax — mirrors the
   // backend's authoritative order in payment.controller.js.
-  const couponDiscount = appliedCoupon && total ? Math.round(total * appliedCoupon.discountPercent / 100) : 0;
-  const discountedTotal = total - couponDiscount;
+  const practitionerSubtotal = total;
+  const couponDiscount = appliedCoupon && practitionerSubtotal ? Math.round(practitionerSubtotal * appliedCoupon.discountPercent / 100) : 0;
+  const discountedPractitionerSubtotal = practitionerSubtotal - couponDiscount;
   // 5% tax on the (post-coupon) session subtotal — mirrors the backend's
-  // authoritative calculation in payment.controller.js so this is just an
-  // accurate preview; the backend still computes and validates the real
-  // charged amount (and independently re-validates the coupon).
-  const tax = discountedTotal ? sessionTax(discountedTotal) : 0;
-  const totalWithTax = discountedTotal + tax;
+  // authoritative calculation in payment.controller.js.
+  const practitionerTax = discountedPractitionerSubtotal ? sessionTax(discountedPractitionerSubtotal) : 0;
+  const practitionerTotalWithTax = discountedPractitionerSubtotal + practitionerTax;
+
+  // Space pricing (18% GST on space subtotal)
+  const spaceSubtotal = spaceFee?.spaceSubtotal ?? 0;
+  const spaceGst = spaceFee?.gstAmount ?? 0;
+  const totalSpaceCost = spaceFee?.totalSpaceCost ?? 0;
+
+  // Combined total
+  const combinedTotal = practitionerTotalWithTax + totalSpaceCost;
   const credit = user ? Number(profile?.credit_inr ?? 0) : 0;
-  const creditApplied = credit > 0 && totalWithTax ? Math.min(credit, Math.max(0, totalWithTax - 100)) : 0;
-  const payable = totalWithTax - creditApplied;
+  const creditApplied = credit > 0 && combinedTotal ? Math.min(credit, Math.max(0, combinedTotal - 100)) : 0;
+  const payable = combinedTotal - creditApplied;
 
   const handleApplyCoupon = async () => {
     const code = couponInput.trim().toUpperCase();
@@ -404,7 +453,11 @@ const Book = () => {
     setLoadingPlaces(true);
     try {
       const res = await getPublicSpacesByPin(pin);
-      setSuggestedPlaces(res.spaces || []);
+      const spaces = res.spaces || [];
+      setSuggestedPlaces(spaces);
+      if (spaces.length > 0) {
+        setSelectedCentre(spaces[0].space_name);
+      }
     } catch (err) {
       console.error(err);
       toast({ title: "Search failed", description: "Could not fetch nearby spaces.", variant: "destructive" });
@@ -414,7 +467,6 @@ const Book = () => {
   };
 
   // Format Date and Time Slot
-  const duration = selectedService?.duration_min || 60;
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return "";
     try {
@@ -544,14 +596,37 @@ const Book = () => {
           attendees,
           meeting_location,
           coupon_code: appliedCoupon?.code || null,
+          space_id: location === "centre" ? (selectedSpace?.id || null) : null,
+          duration_hours: durationHours,
         },
         customerName: name,
         customerEmail: email,
         customerPhone: phone,
         onSuccess: () => {
           setPaying(false);
-          toast({ title: "Booking confirmed!", description: "We have emailed you the session details." });
-          navigate("/account");
+          toastSonner.success("Payment Successful! Your session is booked.", {
+            description: "A confirmation email with session details has been sent to you.",
+            duration: 8000,
+          });
+          toast({
+            title: "Booking Confirmed! 🎉",
+            description: "Your session has been successfully booked and paid.",
+          });
+          setBookingSuccessData({
+            practitionerName: selectedPractitioner?.name || "Your Guide",
+            serviceName: selectedService?.name || selectedPractitioner?.craft || "Session",
+            date: formatDateDisplay(selectedDate),
+            time: formatSlot(selectedTime).start,
+            location: location === "studio"
+              ? (selectedPractitioner?.studio_name || "Practitioner's Studio")
+              : location === "centre"
+              ? (selectedCentre || "Partner Centre")
+              : location === "host"
+              ? "At your Home"
+              : "Virtual Video",
+            amount: payable,
+          });
+          window.dispatchEvent(new CustomEvent("aura:booking-confirmed"));
         },
         onError: (msg) => {
           setPaying(false);
@@ -899,14 +974,15 @@ const Book = () => {
                           return (
                             <li
                               key={c.id}
-                              onClick={() => setSelectedCentre(isSelected ? "" : c.space_name)}
+                              onClick={() => setSelectedCentre(c.space_name)}
                               className={cn(
-                                "relative flex items-center justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all hover:border-accent/50",
-                                isSelected ? "bg-accent/5 border-accent ring-1 ring-accent" : "bg-background border-border",
-                                (!selectedCentre && i === 0) && "bg-accent-soft border-primary/40"
+                                "relative flex items-center justify-between gap-3 rounded-2xl border p-4 cursor-pointer transition-all",
+                                isSelected
+                                  ? "bg-accent/10 border-primary ring-2 ring-primary/40 shadow-sm"
+                                  : "bg-background border-border hover:border-accent/50 hover:bg-secondary/20"
                               )}
                             >
-                              <div className="flex items-start gap-3 w-full pr-16">
+                              <div className="flex items-start gap-3 w-full pr-24">
                                 {c.space_images && c.space_images.length > 0 ? (
                                   <img
                                     src={[...c.space_images].sort((a, b) => a.sort_order - b.sort_order)[0].image_url}
@@ -946,17 +1022,28 @@ const Book = () => {
                                   </div>
                                 </div>
                               </div>
-                              {(!selectedCentre && i === 0) && (
-                                <span className="text-[10px] uppercase tracking-widest text-accent font-medium absolute bottom-3 right-4">Best Option</span>
-                              )}
-                              {isSelected && (
+                              {isSelected ? (
+                                <div className="absolute right-3 top-3 flex items-center gap-1.5">
+                                  <span className="text-[11px] font-semibold text-primary flex items-center gap-1 bg-primary/10 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 className="size-3 text-primary" /> Selected
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
+                                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                  >
+                                    Change
+                                  </Button>
+                                </div>
+                              ) : (
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
-                                  onClick={(e) => { e.stopPropagation(); setSelectedCentre(""); }}
-                                  className="absolute right-3 top-3 h-8 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedCentre(c.space_name); }}
+                                  className="absolute right-3 top-3 h-8 text-xs rounded-full hover:bg-primary hover:text-primary-foreground"
                                 >
-                                  Change
+                                  Select
                                 </Button>
                               )}
                             </li>
@@ -1074,7 +1161,10 @@ const Book = () => {
                   </span> */}
                 </div>
 
-                {location === "centre" && selectedSpaceSchedule && (selectedSpaceSchedule.available_from || selectedSpaceSchedule.available_to) && (
+                {location === "centre" &&
+                  selectedSpaceSchedule &&
+                  (selectedSpaceSchedule.available_from || selectedSpaceSchedule.available_to) &&
+                  (!selectedSpaceSchedule.available_to || selectedSpaceSchedule.available_to >= new Date().toISOString().split("T")[0]) && (
                   <div className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-foreground">
                     <CalendarIcon className="size-4 text-accent shrink-0" />
                     <span>
@@ -1234,10 +1324,10 @@ const Book = () => {
                 </div>
 
                 {/* Pricing Breakdown */}
-                <div className="pt-4 border-t border-border space-y-2 text-xs">
+                <div className="pt-4 border-t border-border space-y-2.5 text-xs">
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Session fee {isGroup ? `(${groupSize} people)` : "(Solo)"}</span>
-                    <span>{formatINR(total)}</span>
+                    <span>Practitioner Session Fee {isGroup ? `(${groupSize} people)` : "(Solo)"}</span>
+                    <span className="font-medium text-foreground">{formatINR(practitionerSubtotal)}</span>
                   </div>
                   {couponDiscount > 0 && (
                     <div className="flex items-center justify-between text-accent font-medium">
@@ -1246,11 +1336,25 @@ const Book = () => {
                     </div>
                   )}
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Tax (5%)</span>
-                    <span>{formatINR(tax)}</span>
+                    <span>Session Tax (5%)</span>
+                    <span>{formatINR(practitionerTax)}</span>
                   </div>
+
+                  {spaceFee && (
+                    <div className="pt-2 border-t border-dashed border-border/70 space-y-2">
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Partner Space Fee ({spaceFee.durationHours} {spaceFee.durationHours === 1 ? 'hr' : 'hrs'})</span>
+                        <span className="font-medium text-foreground">{formatINR(spaceSubtotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Space GST ({spaceFee.gstPercent}%)</span>
+                        <span>{formatINR(spaceGst)}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {creditApplied > 0 && (
-                    <div className="flex items-center justify-between text-accent font-medium">
+                    <div className="flex items-center justify-between text-accent font-medium pt-1">
                       <span>Referral credit applied</span>
                       <span>−{formatINR(creditApplied)}</span>
                     </div>
@@ -1260,6 +1364,19 @@ const Book = () => {
                     <span className="text-primary text-xl font-bold">{formatINR(payable)}</span>
                   </div>
                 </div>
+
+                {/* Hour Space Cancellation Policy Notice */}
+                {isHourSpace && (
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <ShieldCheck className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      Hour Space Cancellation Policy
+                    </p>
+                    <p className="text-[11px] leading-relaxed opacity-90">
+                      Cancellation can be accepted only if 12 hours prior notification is provided, with no exceptions. No refund will be provided if cancellation is not initiated within this timeframe.
+                    </p>
+                  </div>
+                )}
 
                 {/* Pay Button */}
                 <Button
@@ -1281,10 +1398,12 @@ const Book = () => {
                     <ShieldCheck className="size-4 text-accent shrink-0" />
                     <span>256-bit encrypted Razorpay checkout</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="size-4 text-accent shrink-0" />
-                    <span>Free cancellation up to 4 hours prior</span>
-                  </div>
+                  {!isHourSpace && (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="size-4 text-accent shrink-0" />
+                      <span>Free cancellation up to 4 hours prior</span>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1293,6 +1412,85 @@ const Book = () => {
           </div>
         </div>
       )}
+
+      {/* Booking Confirmed Success Modal */}
+      <Dialog
+        open={!!bookingSuccessData}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingSuccessData(null);
+            navigate("/account");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-[2.5rem] p-7 text-center space-y-5 border-border shadow-soft">
+          {bookingSuccessData && (
+            <>
+              <div className="size-16 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 mx-auto grid place-items-center">
+                <CheckCircle2 className="size-9 stroke-[2.5]" />
+              </div>
+
+              <div className="space-y-1.5">
+                <DialogTitle className="font-display text-2xl text-foreground">
+                  Booking Confirmed!
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your session payment was successful and your slot has been reserved.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border/80 bg-secondary/30 p-4 text-left text-xs space-y-2.5">
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Guide</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.practitionerName}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Therapy / Session</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.serviceName}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Date &amp; Time</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.date} · {bookingSuccessData.time}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-border/60">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="font-medium text-foreground">{bookingSuccessData.location}</span>
+                </div>
+                <div className="flex justify-between items-center pt-0.5">
+                  <span className="text-muted-foreground font-medium">Total Paid</span>
+                  <span className="font-bold text-primary text-sm">{formatINR(bookingSuccessData.amount)}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                A confirmation email with session details and directions has been sent to your email.
+              </p>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <Button
+                  onClick={() => {
+                    setBookingSuccessData(null);
+                    navigate("/account");
+                  }}
+                  className="w-full h-12 rounded-full bg-primary text-primary-foreground font-medium"
+                >
+                  View My Sessions in Account
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setBookingSuccessData(null);
+                    window.location.reload();
+                  }}
+                  className="w-full h-10 rounded-full text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Book Another Session
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </main>
