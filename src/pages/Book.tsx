@@ -48,6 +48,8 @@ import {
   calculateSpaceFee,
   identifySpaceCategory,
   getSpacePricingInfo,
+  ENABLE_GST,
+  SESSION_TAX_RATE,
 } from "@/lib/pricing";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import { parseSpaceSchedule } from "@/lib/spacesApi";
@@ -404,15 +406,14 @@ const Book = () => {
   const practitionerSubtotal = total;
   const couponDiscount = appliedCoupon && practitionerSubtotal ? Math.round(practitionerSubtotal * appliedCoupon.discountPercent / 100) : 0;
   const discountedPractitionerSubtotal = practitionerSubtotal - couponDiscount;
-  // 5% tax on the (post-coupon) session subtotal — mirrors the backend's
-  // authoritative calculation in payment.controller.js.
-  const practitionerTax = discountedPractitionerSubtotal ? sessionTax(discountedPractitionerSubtotal) : 0;
+  // Session tax on the (post-coupon) session subtotal (0 when GST is disabled)
+  const practitionerTax = (ENABLE_GST && discountedPractitionerSubtotal) ? sessionTax(discountedPractitionerSubtotal) : 0;
   const practitionerTotalWithTax = discountedPractitionerSubtotal + practitionerTax;
 
-  // Space pricing (18% GST on space subtotal)
+  // Space pricing (spaceSubtotal only when GST is disabled)
   const spaceSubtotal = spaceFee?.spaceSubtotal ?? 0;
-  const spaceGst = spaceFee?.gstAmount ?? 0;
-  const totalSpaceCost = spaceFee?.totalSpaceCost ?? 0;
+  const spaceGst = (ENABLE_GST && spaceFee) ? spaceFee.gstAmount : 0;
+  const totalSpaceCost = ENABLE_GST ? (spaceFee?.totalSpaceCost ?? 0) : spaceSubtotal;
 
   // Combined total
   const combinedTotal = practitionerTotalWithTax + totalSpaceCost;
@@ -1146,7 +1147,9 @@ const Book = () => {
                                     <div className="font-semibold text-sm text-foreground">
                                       ₹{calculatedCurrent.spaceSubtotal.toLocaleString("en-IN")}
                                     </div>
-                                    <div className="text-[10px] text-muted-foreground">+ 18% GST (₹{calculatedCurrent.gstAmount.toLocaleString("en-IN")})</div>
+                                    {ENABLE_GST && calculatedCurrent.gstAmount > 0 && (
+                                      <div className="text-[10px] text-muted-foreground">+ 18% GST (₹{calculatedCurrent.gstAmount.toLocaleString("en-IN")})</div>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -1182,7 +1185,7 @@ const Book = () => {
                               </div>
 
                               <div className="text-[11px] text-muted-foreground flex flex-col gap-1 pt-1.5 border-t border-border/60">
-                                <div>• {priceInfo.gstNote}</div>
+                                {ENABLE_GST && priceInfo.gstNote && <div>• {priceInfo.gstNote}</div>}
                                 {priceInfo.policy && (
                                   <div className="text-amber-800 dark:text-amber-400 font-medium">• {priceInfo.policy}</div>
                                 )}
@@ -1424,10 +1427,12 @@ const Book = () => {
                       <span>−{formatINR(couponDiscount)}</span>
                     </div>
                   )}
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Session Tax (5%)</span>
-                    <span>{formatINR(practitionerTax)}</span>
-                  </div>
+                  {ENABLE_GST && practitionerTax > 0 && (
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Session Tax ({Math.round(SESSION_TAX_RATE * 100)}%)</span>
+                      <span>{formatINR(practitionerTax)}</span>
+                    </div>
+                  )}
 
                   {spaceFee && (
                     <div className="pt-2 border-t border-dashed border-border/70 space-y-2">
@@ -1435,10 +1440,12 @@ const Book = () => {
                         <span>Partner Space Fee ({spaceFee.durationHours} {spaceFee.durationHours === 1 ? 'hr' : 'hrs'})</span>
                         <span className="font-medium text-foreground">{formatINR(spaceSubtotal)}</span>
                       </div>
-                      <div className="flex items-center justify-between text-muted-foreground">
-                        <span>Space GST ({spaceFee.gstPercent}%)</span>
-                        <span>{formatINR(spaceGst)}</span>
-                      </div>
+                      {ENABLE_GST && spaceGst > 0 && (
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Space GST ({spaceFee.gstPercent}%)</span>
+                          <span>{formatINR(spaceGst)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 

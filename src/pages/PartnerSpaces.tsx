@@ -35,7 +35,7 @@ import {
   type SpaceImage,
 } from "@/lib/spacesApi";
 import { listPractitioners, type Practitioner } from "@/lib/practitionersApi";
-import { getSpacePricingInfo } from "@/lib/pricing";
+import { getSpacePricingInfo, ENABLE_GST } from "@/lib/pricing";
 import fallbackInterior from "@/assets/center-interior.jpg";
 
 function parseAmenities(amenities: unknown): string[] {
@@ -595,7 +595,7 @@ export default function PartnerSpaces() {
                       </div>
 
                       <div className="text-xs text-muted-foreground flex flex-col gap-1 pt-2 border-t border-border/60">
-                        <div>• {priceInfo.gstNote}</div>
+                        {ENABLE_GST && priceInfo.gstNote && <div>• {priceInfo.gstNote}</div>}
                         {priceInfo.policy && (
                           <div className="text-amber-800 dark:text-amber-400 font-medium">• {priceInfo.policy}</div>
                         )}

@@ -2269,14 +2269,18 @@ const PractitionerArea = () => {
                     <span>Total paid</span>
                     <span className="text-foreground font-medium">₹{(subtotal + tax).toLocaleString("en-IN")}</span>
                   </div>
-                  <div className="flex items-center justify-between text-muted-foreground pl-3">
-                    <span>— Session price (refundable)</span>
-                    <span>₹{subtotal.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-muted-foreground pl-3">
-                    <span>— Tax (non-refundable)</span>
-                    <span>₹{tax.toLocaleString("en-IN")}</span>
-                  </div>
+                {tax > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-muted-foreground pl-3">
+                      <span>— Session price (refundable)</span>
+                      <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground pl-3">
+                      <span>— Tax (non-refundable)</span>
+                      <span>₹{tax.toLocaleString("en-IN")}</span>
+                    </div>
+                  </>
+                )}
                   <div className="flex items-center justify-between pt-1.5 border-t border-border font-medium">
                     <span className="text-foreground">Client will be refunded</span>
                     <span className="text-accent">₹{subtotal.toLocaleString("en-IN")}</span>
