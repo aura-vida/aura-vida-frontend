@@ -211,6 +211,9 @@ const Account = () => {
 
   useEffect(() => {
     loadSessions();
+    const handleBookingConfirmed = () => loadSessions();
+    window.addEventListener("aura:booking-confirmed", handleBookingConfirmed);
+    return () => window.removeEventListener("aura:booking-confirmed", handleBookingConfirmed);
   }, [user]);
 
   useEffect(() => {
