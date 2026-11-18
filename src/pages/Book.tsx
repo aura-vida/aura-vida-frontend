@@ -48,6 +48,7 @@ import {
   calculateSpaceFee,
   identifySpaceCategory,
 } from "@/lib/pricing";
+import { SHOW_PUBLIC_RATING_AND_SESSIONS } from "@/lib/featureFlags";
 import { getPublicSpacesByPin, type PartnerSpace } from "@/lib/locationApi";
 import { parseSpaceSchedule } from "@/lib/spacesApi";
 import AuraBookingCalendar from "@/components/aura/AuraBookingCalendar";
@@ -706,19 +707,21 @@ const Book = () => {
                   <div>
                     <h3 className="font-display text-xl text-foreground">{selectedPractitioner?.name}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">{selectedPractitioner?.craft} · {selectedPractitioner?.city}</p>
-                    <div className="flex items-center gap-1.5 text-xs text-accent mt-1">
-                      <Star className="size-3.5 fill-accent" />
-                      <span className="font-semibold">
-                        {selectedPractitioner?.rating && selectedPractitioner.rating > 0
-                          ? selectedPractitioner.rating.toFixed(1)
-                          : "New Guide"}
-                      </span>
-                      {selectedPractitioner?.sessions != null && selectedPractitioner.sessions > 0 && (
-                        <span className="text-muted-foreground">
-                          ({selectedPractitioner.sessions} completed session{selectedPractitioner.sessions === 1 ? "" : "s"})
+                    {SHOW_PUBLIC_RATING_AND_SESSIONS && (
+                      <div className="flex items-center gap-1.5 text-xs text-accent mt-1">
+                        <Star className="size-3.5 fill-accent" />
+                        <span className="font-semibold">
+                          {selectedPractitioner?.rating && selectedPractitioner.rating > 0
+                            ? selectedPractitioner.rating.toFixed(1)
+                            : "New Guide"}
                         </span>
-                      )}
-                    </div>
+                        {selectedPractitioner?.sessions != null && selectedPractitioner.sessions > 0 && (
+                          <span className="text-muted-foreground">
+                            ({selectedPractitioner.sessions} completed session{selectedPractitioner.sessions === 1 ? "" : "s"})
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
