@@ -37,6 +37,7 @@ import {
   type StaticEvent,
   type EventBooking,
 } from "@/lib/eventsApi";
+import { ENABLE_GST } from "@/lib/pricing";
 
 declare global {
   interface Window {
@@ -86,10 +87,10 @@ const FALLBACK_EVENT: StaticEvent = {
   image: "/images/journal/neelam-chheda.jpg",
   pricingBreakdown: {
     baseAmount: 2500,
-    gstPercentage: 5,
-    gstAmount: 125,
-    totalAmount: 2625,
-    amountPaise: 262500,
+    gstPercentage: ENABLE_GST ? 5 : 0,
+    gstAmount: ENABLE_GST ? 125 : 0,
+    totalAmount: ENABLE_GST ? 2625 : 2500,
+    amountPaise: (ENABLE_GST ? 2625 : 2500) * 100,
     currency: "INR",
   },
 };
@@ -365,9 +366,9 @@ export default function EventsSection() {
         {events.map((event) => {
           const breakdown = event.pricingBreakdown || {
             baseAmount: 2500,
-            gstPercentage: 5,
-            gstAmount: 125,
-            totalAmount: 2625,
+            gstPercentage: ENABLE_GST ? 5 : 0,
+            gstAmount: ENABLE_GST ? 125 : 0,
+            totalAmount: ENABLE_GST ? 2625 : 2500,
           };
           const isBooked = bookedEventIds.has(event.id);
 
@@ -453,19 +454,25 @@ export default function EventsSection() {
                 <div className="pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                   <div>
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground block font-medium">
-                      Event Price ({breakdown.gstPercentage}% GST Included)
+                      {ENABLE_GST && breakdown.gstPercentage > 0
+                        ? `Event Price (${breakdown.gstPercentage}% GST Included)`
+                        : "Event Price"}
                     </span>
                     <div className="flex items-baseline gap-2 mt-0.5">
                       <span className="font-display text-3xl font-medium text-foreground">
-                        ₹{breakdown.totalAmount.toLocaleString("en-IN")}
+                        ₹{(ENABLE_GST ? breakdown.totalAmount : breakdown.baseAmount).toLocaleString("en-IN")}
                       </span>
-                      <span className="text-xs text-muted-foreground line-through">
-                        ₹{breakdown.baseAmount.toLocaleString("en-IN")}
-                      </span>
+                      {ENABLE_GST && breakdown.gstAmount > 0 && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          ₹{breakdown.baseAmount.toLocaleString("en-IN")}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground block mt-0.5">
-                      ₹{breakdown.baseAmount.toLocaleString("en-IN")} + ₹{breakdown.gstAmount} GST ({breakdown.gstPercentage}%)
-                    </span>
+                    {ENABLE_GST && breakdown.gstAmount > 0 && (
+                      <span className="text-[11px] text-muted-foreground block mt-0.5">
+                        ₹{breakdown.baseAmount.toLocaleString("en-IN")} + ₹{breakdown.gstAmount} GST ({breakdown.gstPercentage}%)
+                      </span>
+                    )}
                     {isBooked && (
                       <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
@@ -573,21 +580,23 @@ export default function EventsSection() {
               {/* Pricing Breakdown Card */}
               <div className="p-4 rounded-2xl bg-muted/40 border border-border/80">
                 <h4 className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-2.5">
-                  Pricing &amp; Tax Breakdown
+                  {ENABLE_GST ? "Pricing & Tax Breakdown" : "Pricing Summary"}
                 </h4>
                 <div className="space-y-1.5 text-xs text-foreground/90">
                   <div className="flex justify-between">
-                    <span>Base Event Price:</span>
+                    <span>Event Price:</span>
                     <span>₹{detailsEvent.pricingBreakdown?.baseAmount?.toLocaleString("en-IN") || "2,500"}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>GST ({detailsEvent.pricingBreakdown?.gstPercentage || 5}%):</span>
-                    <span>₹{detailsEvent.pricingBreakdown?.gstAmount?.toLocaleString("en-IN") || "125"}</span>
-                  </div>
+                  {ENABLE_GST && (detailsEvent.pricingBreakdown?.gstAmount || 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>GST ({detailsEvent.pricingBreakdown?.gstPercentage || 5}%):</span>
+                      <span>₹{detailsEvent.pricingBreakdown?.gstAmount?.toLocaleString("en-IN") || "125"}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
                     <span>Total Payable:</span>
                     <span className="text-accent">
-                      ₹{detailsEvent.pricingBreakdown?.totalAmount?.toLocaleString("en-IN") || "2,625"}
+                      ₹{(ENABLE_GST ? detailsEvent.pricingBreakdown?.totalAmount : detailsEvent.pricingBreakdown?.baseAmount)?.toLocaleString("en-IN") || "2,500"}
                     </span>
                   </div>
                 </div>
@@ -617,7 +626,7 @@ export default function EventsSection() {
                     }}
                     className="rounded-full h-11 px-7 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    Book Seat for ₹{detailsEvent.pricingBreakdown?.totalAmount?.toLocaleString("en-IN") || "2,625"}
+                    Book Seat for ₹{(ENABLE_GST ? detailsEvent.pricingBreakdown?.totalAmount : detailsEvent.pricingBreakdown?.baseAmount)?.toLocaleString("en-IN") || "2,500"}
                   </Button>
                 )}
               </DialogFooter>
@@ -692,21 +701,23 @@ export default function EventsSection() {
               {/* Exact Pricing Breakdown */}
               <div className="rounded-2xl bg-secondary/50 p-4 border border-border/80 space-y-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
-                  Pricing Breakdown
+                  {ENABLE_GST ? "Pricing Breakdown" : "Pricing Summary"}
                 </span>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between text-muted-foreground">
                     <span>Event Price:</span>
                     <span>₹{bookingEvent.pricingBreakdown?.baseAmount?.toLocaleString("en-IN") || "2,500"}</span>
                   </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>GST ({bookingEvent.pricingBreakdown?.gstPercentage || 5}%):</span>
-                    <span>₹{bookingEvent.pricingBreakdown?.gstAmount?.toLocaleString("en-IN") || "125"}</span>
-                  </div>
+                  {ENABLE_GST && (bookingEvent.pricingBreakdown?.gstAmount || 0) > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>GST ({bookingEvent.pricingBreakdown?.gstPercentage || 5}%):</span>
+                      <span>₹{bookingEvent.pricingBreakdown?.gstAmount?.toLocaleString("en-IN") || "125"}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
                     <span>Total Payable:</span>
                     <span className="text-emerald-700">
-                      ₹{bookingEvent.pricingBreakdown?.totalAmount?.toLocaleString("en-IN") || "2,625"}
+                      ₹{(ENABLE_GST ? bookingEvent.pricingBreakdown?.totalAmount : bookingEvent.pricingBreakdown?.baseAmount)?.toLocaleString("en-IN") || "2,500"}
                     </span>
                   </div>
                 </div>
@@ -737,7 +748,7 @@ export default function EventsSection() {
                       <Loader2 className="size-3.5 mr-2 animate-spin" /> Processing Payment…
                     </>
                   ) : (
-                    `Proceed to Pay ₹${bookingEvent.pricingBreakdown?.totalAmount?.toLocaleString("en-IN") || "2,625"}`
+                    `Proceed to Pay ₹${(ENABLE_GST ? bookingEvent.pricingBreakdown?.totalAmount : bookingEvent.pricingBreakdown?.baseAmount)?.toLocaleString("en-IN") || "2,500"}`
                   )}
                 </Button>
               </DialogFooter>

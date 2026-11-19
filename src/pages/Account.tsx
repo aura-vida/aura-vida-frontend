@@ -50,7 +50,7 @@ import { getWhatsappLink } from "@/lib/whatsapp";
 import { getMyAppointments, updateMe, getMe, type Appointment as Booking } from "@/lib/usersApi";
 import { cancelAppointment, rescheduleAppointment, getAvailableSlots, completeAppointment } from "@/lib/appointmentsApi";
 import { startCheckout } from "@/lib/razorpay";
-import { splitTaxInclusiveTotal } from "@/lib/pricing";
+import { splitTaxInclusiveTotal, ENABLE_GST } from "@/lib/pricing";
 import { submitReview, listMyReviews, type Review } from "@/lib/reviewsApi";
 import { getMyEventBookings, type EventBooking } from "@/lib/eventsApi";
 
@@ -65,14 +65,17 @@ const canCustomerCancel = (createdAt: string) =>
   Date.now() - new Date(createdAt).getTime() <= CUSTOMER_CANCEL_WINDOW_HOURS * 60 * 60 * 1000;
 
 const modeIcon = (mode: string) => (mode === "online" ? Video : mode === "host" ? Home : MapPin);
-const modeLabel = (mode: string) =>
-  mode === "studio"
-    ? "At practitioner's studio"
-    : mode === "online"
-    ? "Online session"
-    : mode === "host"
-    ? "At your home"
-    : "Partner centre";
+const modeLabel = (mode: string, meetingLocation?: Booking["meeting_location"]) => {
+  if (mode === "studio") return "At practitioner's studio";
+  if (mode === "online") return "Online session";
+  if (mode === "host") {
+    return meetingLocation?.address ? `At your home (${meetingLocation.address})` : "At your home";
+  }
+  if (mode === "centre") {
+    return meetingLocation?.address ? `${meetingLocation.address} (Partner centre)` : "Partner centre";
+  }
+  return "Partner centre";
+};
 
 const formatPrice = (val: number | null | undefined) => {
   if (val == null) return "₹0";
@@ -494,9 +497,11 @@ const Account = () => {
                       <div className="font-display text-2xl text-foreground">
                         ₹{Number(eb.total_amount).toLocaleString("en-IN")}
                       </div>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">
-                        Base: ₹{Number(eb.base_amount).toLocaleString("en-IN")} + {eb.gst_percentage}% GST (₹{Number(eb.gst_amount).toLocaleString("en-IN")})
-                      </span>
+                      {ENABLE_GST && Number(eb.gst_amount) > 0 && (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">
+                          Base: ₹{Number(eb.base_amount).toLocaleString("en-IN")} + {eb.gst_percentage}% GST (₹{Number(eb.gst_amount).toLocaleString("en-IN")})
+                        </span>
+                      )}
                       <span className="text-[10px] text-emerald-700 font-medium block mt-0.5">
                         Payment: {eb.payment_status}
                       </span>
@@ -600,7 +605,7 @@ const Account = () => {
                     )}
 
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1.5">
-                      <Icon className="size-4" /> {modeLabel(b.mode)}
+                      <Icon className="size-4" /> {modeLabel(b.mode, b.meeting_location)}
                       {b.pin && <span>· PIN {b.pin}</span>}
                     </div>
 
@@ -904,14 +909,18 @@ const Account = () => {
                   <span>Total paid</span>
                   <span className="text-foreground font-medium">₹{(subtotal + tax).toLocaleString("en-IN")}</span>
                 </div>
-                <div className="flex items-center justify-between text-muted-foreground pl-3">
-                  <span>— Session price (refundable)</span>
-                  <span>₹{subtotal.toLocaleString("en-IN")}</span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground pl-3">
-                  <span>— Tax (non-refundable)</span>
-                  <span>₹{tax.toLocaleString("en-IN")}</span>
-                </div>
+                {tax > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-muted-foreground pl-3">
+                      <span>— Session price (refundable)</span>
+                      <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-muted-foreground pl-3">
+                      <span>— Tax (non-refundable)</span>
+                      <span>₹{tax.toLocaleString("en-IN")}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex items-center justify-between pt-1.5 border-t border-border font-medium">
                   <span className="text-foreground">You'll be refunded</span>
                   <span className="text-accent">₹{subtotal.toLocaleString("en-IN")}</span>

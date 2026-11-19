@@ -2,12 +2,21 @@
 export const EXTRA_PERSON_RATE = 0.6;
 export const MAX_GROUP_SIZE = 10;
 
+// Master toggle for GST/tax calculations platform-wide.
+// Set to false to temporarily disable GST/tax across the application.
+// Set to true to re-enable in the future.
+export const ENABLE_GST = false;
+
+// Preserved original rates for re-enabling in the future:
+export const ORIGINAL_SESSION_TAX_RATE = 0.05;
+export const ORIGINAL_SPACE_GST_RATE = 0.18;
+
 // Keep in sync with SESSION_TAX_RATE in Kusala-backend/src/controllers/payment.controller.js —
 // the backend is the authority on the charged amount; this is only for display here.
-export const SESSION_TAX_RATE = 0.05;
+export const SESSION_TAX_RATE = ENABLE_GST ? ORIGINAL_SESSION_TAX_RATE : 0;
 
 // Space GST — mirrors SPACE_GST_RATE in backend/src/config/spacePricing.js
-export const SPACE_GST_RATE = 0.18;
+export const SPACE_GST_RATE = ENABLE_GST ? ORIGINAL_SPACE_GST_RATE : 0;
 
 export const parsePrice = (price?: string) =>
   price ? Number(price.replace(/[^\d]/g, "")) : 0;
@@ -17,7 +26,8 @@ export const groupTotal = (base: number, groupSize: number) =>
   base + Math.round(base * EXTRA_PERSON_RATE) * Math.max(0, groupSize - 1);
 
 /** 5% tax on the session subtotal, in rupees, rounded the same way the backend does. */
-export const sessionTax = (subtotal: number) => Math.round(subtotal * SESSION_TAX_RATE);
+export const sessionTax = (subtotal: number) =>
+  ENABLE_GST ? Math.round(subtotal * SESSION_TAX_RATE) : 0;
 
 /**
  * Splits a tax-inclusive total (e.g. a booking's stored `amount`) back into
@@ -28,6 +38,9 @@ export const sessionTax = (subtotal: number) => Math.round(subtotal * SESSION_TA
  * than this preview, since it's capped at what was really charged.
  */
 export const splitTaxInclusiveTotal = (total: number) => {
+  if (!ENABLE_GST || SESSION_TAX_RATE === 0) {
+    return { subtotal: total, tax: 0 };
+  }
   const subtotal = Math.round(total / (1 + SESSION_TAX_RATE));
   return { subtotal, tax: total - subtotal };
 };
@@ -141,6 +154,67 @@ export function identifySpaceCategory(spaceType?: string, spaceName?: string): s
   return null;
 }
 
+export interface SpacePricingDetails {
+  category: 'hour_space' | 'eclipse' | 'bohemiso' | 'general';
+  startingPrice: number;
+  startingPriceText: string;
+  hasSlabs: boolean;
+  slabs: { label: string; rate: number }[];
+  weekendSlabs?: { label: string; rate: number }[];
+  policy?: string;
+  gstNote: string;
+}
+
+export function getSpacePricingInfo(spaceType?: string, spaceName?: string): SpacePricingDetails | null {
+  const cat = identifySpaceCategory(spaceType, spaceName);
+  if (cat === 'hour_space') {
+    return {
+      category: 'hour_space',
+      startingPrice: 825,
+      startingPriceText: 'From ₹825/hr',
+      hasSlabs: true,
+      slabs: [
+        { label: '1–2 persons', rate: 825 },
+        { label: '3–4 persons', rate: 1100 },
+        { label: '5+ persons', rate: 1485 },
+      ],
+      weekendSlabs: [
+        { label: '1–2 persons', rate: 1100 },
+        { label: '3–4 persons', rate: 1485 },
+        { label: '5+ persons', rate: 1650 },
+      ],
+      policy: 'Cancellation accepted only if 12 hours prior notification is provided.',
+      gstNote: ENABLE_GST ? '+ 18% GST applicable on space hire' : '',
+    };
+  }
+  if (cat === 'eclipse') {
+    return {
+      category: 'eclipse',
+      startingPrice: 1500,
+      startingPriceText: 'From ₹1,500/hr',
+      hasSlabs: true,
+      slabs: [
+        { label: '1–5 persons', rate: 1500 },
+        { label: '6–20 persons', rate: 3000 },
+      ],
+      gstNote: ENABLE_GST ? '+ 18% GST applicable on space hire' : '',
+    };
+  }
+  if (cat === 'bohemiso') {
+    return {
+      category: 'bohemiso',
+      startingPrice: 1500,
+      startingPriceText: '₹1,500/hr',
+      hasSlabs: false,
+      slabs: [
+        { label: 'Up to 20 persons', rate: 1500 },
+      ],
+      gstNote: ENABLE_GST ? '+ 18% GST applicable on space hire' : '',
+    };
+  }
+  return null;
+}
+
 /**
  * Calculate partner space fee for display purposes.
  * The backend recalculates this authoritatively — this is only for the preview UI.
@@ -181,10 +255,10 @@ export const calculateSpaceFee = (
   }
 
   const spaceSubtotal = hourlyRate * hours;
-  const gstAmount = Math.round(spaceSubtotal * SPACE_GST_RATE);
+  const gstAmount = ENABLE_GST ? Math.round(spaceSubtotal * SPACE_GST_RATE) : 0;
   const totalSpaceCost = spaceSubtotal + gstAmount;
 
-  return { spaceType: category, hourlyRate, durationHours: hours, spaceSubtotal, gstPercent: 18, gstAmount, totalSpaceCost };
+  return { spaceType: category, hourlyRate, durationHours: hours, spaceSubtotal, gstPercent: ENABLE_GST ? 18 : 0, gstAmount, totalSpaceCost };
 };
 
 
