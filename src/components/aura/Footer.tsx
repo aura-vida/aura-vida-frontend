@@ -20,7 +20,7 @@ const Footer = () => (
             { label: "About", href: "/#about" },
             { label: "Trust & safety", href: "/values" },
             { label: "Journal", href: "/journal" },
-            { label: "Contact", href: "mailto:sahil.dhanani@kusala.in" },
+            { label: "Contact", href: "mailto:sahil.dhanani@kusala.in?subject=Contact%20Inquiry%20%E2%80%94%20Ku%C5%9Bala" },
           ]},
         ].map((c) => (
           <div key={c.h}>
