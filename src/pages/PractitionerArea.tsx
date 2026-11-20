@@ -94,6 +94,7 @@ import {
   X,
   Crop,
   Star,
+  Menu,
 } from "lucide-react";
 import ImageCropDialog from "@/components/aura/ImageCropDialog";
 import { fetchSafeImageBlobUrl } from "@/lib/safeImageFetch";
@@ -161,10 +162,23 @@ const modeLabel = (mode: string) =>
         ? "At client's home"
         : "Partner centre";
 
+const NAV_TABS = [
+  { value: "appointments", label: "Client Sessions", icon: Users },
+  { value: "availability", label: "Weekly Schedule", icon: Clock },
+  { value: "articles", label: "Articles & Wisdom", icon: BookOpen },
+  { value: "services", label: "My Services", icon: Sparkles },
+];
+
 const PractitionerArea = () => {
   const { user, profile, loading } = useAuth();
   const { services } = useServices();
   const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState("appointments");
+  const activeTabConfig = useMemo(
+    () => NAV_TABS.find((t) => t.value === activeTab) || NAV_TABS[0],
+    [activeTab]
+  );
 
   // My Services state
   const [myServices, setMyServices] = useState<Service[]>([]);
@@ -854,10 +868,51 @@ const PractitionerArea = () => {
             </p>
           </div>
         ) : (
-          <Tabs defaultValue="appointments" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            {/* Mobile Navigation Header with Hamburger Menu */}
+            <div className="md:hidden flex items-center justify-between bg-secondary/80 border border-border/80 rounded-full px-4 py-2 mb-6 shadow-xs backdrop-blur-sm">
+              <div className="flex items-center gap-2.5">
+                <activeTabConfig.icon className="size-4 text-accent shrink-0" />
+                <span className="font-medium text-sm text-foreground">{activeTabConfig.label}</span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 rounded-full hover:bg-background/80"
+                    aria-label="Navigation Menu"
+                  >
+                    <Menu className="size-5 text-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-2xl bg-popover/95 backdrop-blur-md border border-border shadow-lg z-50">
+                  {NAV_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={tab.value}
+                        onClick={() => setActiveTab(tab.value)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-colors",
+                          activeTab === tab.value
+                            ? "bg-accent/15 text-accent font-semibold"
+                            : "text-foreground hover:bg-secondary/80"
+                        )}
+                      >
+                        <Icon className="size-4 shrink-0" />
+                        <span>{tab.label}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Desktop Navigation TabsList */}
             <TabsList
               className="
-                grid w-full max-w-[920px] grid-cols-4
+                hidden md:grid w-full max-w-[920px] grid-cols-4
                 h-12 sm:h-14
                 rounded-full
                 p-1
