@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const Footer = () => (
   <footer className="bg-background border-t border-border">
     <div className="max-w-[1500px] mx-auto px-6 lg:px-12 py-20">
@@ -19,6 +21,7 @@ const Footer = () => (
           { h: "Company", l: [
             { label: "About", href: "/#about" },
             { label: "Trust & safety", href: "/values" },
+            { label: "Privacy policy", href: "/privacy-policy" },
             { label: "Journal", href: "/journal" },
             { label: "Contact", href: "mailto:sahil.dhanani@kusala.in?subject=Contact%20Inquiry%20%E2%80%94%20Ku%C5%9Bala" },
           ]},
@@ -36,7 +39,7 @@ const Footer = () => (
       <div className="pt-8 border-t border-border flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs text-muted-foreground">
         <div>© {new Date().getFullYear()} Kuśala. Wellness simplified.</div>
         <div className="flex gap-6">
-          <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+          <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy</Link>
           <a href="#" className="hover:text-foreground transition-colors">Terms</a>
           <a href="#" className="hover:text-foreground transition-colors">Cookies</a>
         </div>

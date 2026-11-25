@@ -19,6 +19,7 @@ import Journal from "./pages/Journal.tsx";
 import EventsPage from "./pages/Events.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import PartnerSpaces from "./pages/PartnerSpaces.tsx";
+import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import ProtectedRoute from "./components/aura/ProtectedRoute.tsx";
 import ScrollToTop from "./components/aura/ScrollToTop.tsx";
 
@@ -85,6 +86,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* Legal / Policy */}
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+
+            {/* Legal / Policy */}
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
