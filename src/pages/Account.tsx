@@ -468,13 +468,19 @@ const Account = () => {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2.5">
                         <h3 className="font-display text-2xl text-foreground">{eb.event_name}</h3>
                         <Badge
                           variant="outline"
                           className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 text-[10px] uppercase tracking-wider font-semibold px-2.5 py-0.5 rounded-full"
                         >
                           {eb.booking_status}
+                        </Badge>
+                        <Badge
+                          variant="secondary"
+                          className="bg-accent/10 text-accent border border-accent/20 text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                        >
+                          {eb.ticket_quantity || 1} Ticket{(eb.ticket_quantity || 1) > 1 ? "s" : ""}
                         </Badge>
                       </div>
 
@@ -497,6 +503,9 @@ const Account = () => {
                       <div className="font-display text-2xl text-foreground">
                         ₹{Number(eb.total_amount).toLocaleString("en-IN")}
                       </div>
+                      <span className="text-[11px] text-muted-foreground block">
+                        ₹{Number(eb.ticket_price || (Number(eb.base_amount) / (eb.ticket_quantity || 1))).toLocaleString("en-IN")} / ticket
+                      </span>
                       {ENABLE_GST && Number(eb.gst_amount) > 0 && (
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">
                           Base: ₹{Number(eb.base_amount).toLocaleString("en-IN")} + {eb.gst_percentage}% GST (₹{Number(eb.gst_amount).toLocaleString("en-IN")})

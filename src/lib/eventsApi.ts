@@ -7,6 +7,8 @@ export interface EventPricingBreakdown {
   totalAmount: number;
   amountPaise: number;
   currency: string;
+  unitPrice?: number;
+  ticketQuantity?: number;
 }
 
 export interface StaticEvent {
@@ -46,6 +48,8 @@ export interface EventBooking {
   customer_name: string;
   customer_email: string;
   customer_phone: string;
+  ticket_quantity?: number;
+  ticket_price?: number;
   base_amount: number;
   gst_percentage: number;
   gst_amount: number;
@@ -64,6 +68,7 @@ export interface CreateEventOrderPayload {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  ticketQuantity?: number;
 }
 
 export interface CreateEventOrderResponse {
@@ -99,7 +104,9 @@ export interface VerifyEventPaymentResponse {
 
 export interface EventBookingStatusResponse {
   isBooked: boolean;
+  totalTickets?: number;
   booking?: EventBooking | null;
+  bookings?: EventBooking[];
 }
 
 /**

@@ -14,6 +14,8 @@ import {
   Mail,
   Phone,
   Ticket,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +115,7 @@ export default function EventsSection() {
   const [events, setEvents] = useState<StaticEvent[]>([FALLBACK_EVENT]);
   const [loading, setLoading] = useState(false);
   const [bookedEventIds, setBookedEventIds] = useState<Set<string>>(new Set());
+  const [ticketsByEventId, setTicketsByEventId] = useState<Record<string, number>>({});
   const [checkingBookings, setCheckingBookings] = useState(false);
 
   // Modal states
@@ -120,6 +123,7 @@ export default function EventsSection() {
   const [bookingEvent, setBookingEvent] = useState<StaticEvent | null>(null);
 
   // Booking Form State
+  const [ticketQuantity, setTicketQuantity] = useState<number>(1);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -144,6 +148,7 @@ export default function EventsSection() {
   const refreshBookedEvents = useCallback(async () => {
     if (!user) {
       setBookedEventIds(new Set());
+      setTicketsByEventId({});
       return new Set<string>();
     }
 
@@ -151,12 +156,15 @@ export default function EventsSection() {
       setCheckingBookings(true);
       const res = await getMyEventBookings();
       const ids = new Set<string>();
+      const countMap: Record<string, number> = {};
       (res.bookings || []).forEach((b) => {
         if (b.booking_status === "CONFIRMED" || b.payment_status === "SUCCESS") {
           ids.add(b.event_id);
+          countMap[b.event_id] = (countMap[b.event_id] || 0) + (Number(b.ticket_quantity) || 1);
         }
       });
       setBookedEventIds(ids);
+      setTicketsByEventId(countMap);
       return ids;
     } catch (err) {
       console.warn("Could not load user's event bookings:", err);
@@ -183,7 +191,7 @@ export default function EventsSection() {
     };
   }, [refreshBookedEvents]);
 
-  // Handle open booking with authentication & duplicate checks
+  // Handle open booking with authentication
   const handleOpenBooking = (event: StaticEvent) => {
     // 1. Require Authentication: Unauthenticated users are redirected to login
     if (!user) {
@@ -193,12 +201,7 @@ export default function EventsSection() {
       return;
     }
 
-    // 2. Prevent Duplicate Bookings: Disallow booking if already booked
-    if (bookedEventIds.has(event.id)) {
-      toast.info("You have already booked a seat for this event.");
-      return;
-    }
-
+    setTicketQuantity(1);
     setBookingEvent(event);
     setCustomerName(profile?.full_name || user.email?.split("@")[0] || "");
     setCustomerEmail(user.email || "");
@@ -213,12 +216,6 @@ export default function EventsSection() {
       toast.info("Please sign in to proceed with payment.");
       const redirectUrl = `${location.pathname}${location.search}${location.hash || "#events"}`;
       navigate(`/auth?view=signin&redirect=${encodeURIComponent(redirectUrl)}`);
-      return;
-    }
-
-    if (bookedEventIds.has(bookingEvent.id)) {
-      toast.info("You have already booked this event.");
-      setBookingEvent(null);
       return;
     }
 
@@ -237,12 +234,13 @@ export default function EventsSection() {
         throw new Error("Unable to load payment portal. Please check your internet connection.");
       }
 
-      // 2. Call backend to create Razorpay Order
+      // 2. Call backend to create Razorpay Order with multiple ticket support
       const orderRes = await createEventOrder({
         eventId: currentEvent.id,
         customerName: customerName.trim(),
         customerEmail: customerEmail.trim(),
         customerPhone: customerPhone.trim(),
+        ticketQuantity,
       });
 
       // 3. Close the Radix Dialog BEFORE opening Razorpay modal.
@@ -256,7 +254,7 @@ export default function EventsSection() {
         amount: orderRes.amount,
         currency: orderRes.currency || "INR",
         name: "Kuśala",
-        description: `${currentEvent.title} Ticket`,
+        description: `${currentEvent.title} (${ticketQuantity} Ticket${ticketQuantity > 1 ? "s" : ""})`,
         order_id: orderRes.orderId,
         prefill: {
           name: customerName,
@@ -474,14 +472,25 @@ export default function EventsSection() {
                       </span>
                     )}
                     {isBooked && (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
-                        <span>You’re attending this workshop · Booked</span>
+                        <span>
+                          You’re attending this workshop · Booked
+                          {ticketsByEventId[event.id] ? ` (${ticketsByEventId[event.id]} ticket${ticketsByEventId[event.id] > 1 ? "s" : ""})` : ""}
+                        </span>
+                        <span className="text-muted-foreground font-normal">·</span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBooking(event)}
+                          className="underline text-accent hover:text-accent/80 font-medium cursor-pointer"
+                        >
+                          + Add more tickets
+                        </button>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     <Button
                       variant="outline"
                       onClick={() => setDetailsEvent(event)}
@@ -490,12 +499,20 @@ export default function EventsSection() {
                       View Details
                     </Button>
                     {isBooked ? (
-                      <Button
-                        disabled
-                        className="rounded-full h-12 px-7 text-xs font-semibold bg-emerald-600/15 border border-emerald-600/30 text-emerald-800 dark:text-emerald-400 cursor-not-allowed flex-1 sm:flex-none shadow-none"
-                      >
-                        <CheckCircle2 className="size-4 mr-1.5 text-emerald-600" /> Booked
-                      </Button>
+                      <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                        <Button
+                          disabled
+                          className="rounded-full h-12 px-5 text-xs font-semibold bg-emerald-600/15 border border-emerald-600/30 text-emerald-800 dark:text-emerald-400 cursor-default flex-1 sm:flex-none shadow-none"
+                        >
+                          <CheckCircle2 className="size-4 mr-1.5 text-emerald-600" /> Booked
+                        </Button>
+                        <Button
+                          onClick={() => handleOpenBooking(event)}
+                          className="rounded-full h-12 px-5 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 flex-1 sm:flex-none shadow-sm"
+                        >
+                          + Add More
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         onClick={() => handleOpenBooking(event)}
@@ -611,12 +628,24 @@ export default function EventsSection() {
                   Close
                 </Button>
                 {bookedEventIds.has(detailsEvent.id) ? (
-                  <Button
-                    disabled
-                    className="rounded-full h-11 px-7 bg-emerald-600/15 border border-emerald-600/30 text-emerald-800 dark:text-emerald-400 cursor-not-allowed"
-                  >
-                    <CheckCircle2 className="size-4 mr-1.5 text-emerald-600" /> Booked
-                  </Button>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Button
+                      disabled
+                      className="rounded-full h-11 px-5 bg-emerald-600/15 border border-emerald-600/30 text-emerald-800 dark:text-emerald-400 cursor-default flex-1 sm:flex-none"
+                    >
+                      <CheckCircle2 className="size-4 mr-1.5 text-emerald-600" /> Booked
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const evt = detailsEvent;
+                        setDetailsEvent(null);
+                        handleOpenBooking(evt);
+                      }}
+                      className="rounded-full h-11 px-5 bg-primary text-primary-foreground hover:bg-primary/90 flex-1 sm:flex-none"
+                    >
+                      + Add More Tickets
+                    </Button>
+                  </div>
                 ) : (
                   <Button
                     onClick={() => {
@@ -638,122 +667,184 @@ export default function EventsSection() {
       {/* ─── 2. Book Now Checkout Modal ────────────────────────────────────── */}
       <Dialog open={!!bookingEvent} onOpenChange={(open) => !isPaying && !open && setBookingEvent(null)}>
         <DialogContent className="max-w-lg p-7 rounded-[2.5rem]">
-          {bookingEvent && (
-            <form onSubmit={handleProceedToPayment} className="space-y-5">
-              <DialogHeader>
-                <span className="text-[10px] uppercase tracking-wider text-accent font-semibold">
-                  Secure Workshop Registration
-                </span>
-                <DialogTitle className="font-display text-2xl">
-                  {bookingEvent.title}
-                </DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">
-                  {bookingEvent.schedule.date} · {bookingEvent.schedule.time}
-                </DialogDescription>
-              </DialogHeader>
+          {bookingEvent && (() => {
+            const unitPrice = bookingEvent.pricing?.basePriceInr || 2500;
+            const subtotal = unitPrice * ticketQuantity;
+            const gstRate = ENABLE_GST ? 5 : 0;
+            const gstAmount = ENABLE_GST ? Math.round(subtotal * 0.05) : 0;
+            const totalPayable = subtotal + gstAmount;
 
-              {/* Contact Information Fields */}
-              <div className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <Label htmlFor="evt_name" className="text-xs font-medium flex items-center gap-1.5">
-                    <User className="size-3.5 text-accent" /> Full Name
-                  </Label>
-                  <Input
-                    id="evt_name"
-                    required
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="e.g. Neelam Dave"
-                    className="rounded-2xl h-11 text-xs"
-                  />
-                </div>
+            return (
+              <form onSubmit={handleProceedToPayment} className="space-y-5">
+                <DialogHeader>
+                  <span className="text-[10px] uppercase tracking-wider text-accent font-semibold">
+                    Secure Workshop Registration
+                  </span>
+                  <DialogTitle className="font-display text-2xl">
+                    {bookingEvent.title}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    {bookingEvent.schedule.date} · {bookingEvent.schedule.time}
+                  </DialogDescription>
+                </DialogHeader>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="evt_email" className="text-xs font-medium flex items-center gap-1.5">
-                    <Mail className="size-3.5 text-accent" /> Email Address
-                  </Label>
-                  <Input
-                    id="evt_email"
-                    type="email"
-                    required
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="rounded-2xl h-11 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="evt_phone" className="text-xs font-medium flex items-center gap-1.5">
-                    <Phone className="size-3.5 text-accent" /> Phone Number (WhatsApp updates)
-                  </Label>
-                  <Input
-                    id="evt_phone"
-                    required
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="e.g. +91 9876543210"
-                    className="rounded-2xl h-11 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Exact Pricing Breakdown */}
-              <div className="rounded-2xl bg-secondary/50 p-4 border border-border/80 space-y-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
-                  {ENABLE_GST ? "Pricing Breakdown" : "Pricing Summary"}
-                </span>
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Event Price:</span>
-                    <span>₹{bookingEvent.pricingBreakdown?.baseAmount?.toLocaleString("en-IN") || "2,500"}</span>
-                  </div>
-                  {ENABLE_GST && (bookingEvent.pricingBreakdown?.gstAmount || 0) > 0 && (
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>GST ({bookingEvent.pricingBreakdown?.gstPercentage || 5}%):</span>
-                      <span>₹{bookingEvent.pricingBreakdown?.gstAmount?.toLocaleString("en-IN") || "125"}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
-                    <span>Total Payable:</span>
-                    <span className="text-emerald-700">
-                      ₹{(ENABLE_GST ? bookingEvent.pricingBreakdown?.totalAmount : bookingEvent.pricingBreakdown?.baseAmount)?.toLocaleString("en-IN") || "2,500"}
+                {/* Existing Booking Notice */}
+                {bookedEventIds.has(bookingEvent.id) && (
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
+                    <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                    <span>
+                      You have an existing booking for this workshop. Select additional tickets below to add more seats.
                     </span>
                   </div>
+                )}
+
+                {/* Ticket Quantity Stepper */}
+                <div className="p-4 rounded-2xl bg-secondary/40 border border-border/80">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Ticket className="size-3.5 text-accent" /> Number of Tickets
+                      </Label>
+                      <span className="text-[11px] text-muted-foreground block mt-0.5">
+                        ₹{unitPrice.toLocaleString("en-IN")} per ticket
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-card border border-border rounded-full p-1 shadow-sm">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={isPaying || ticketQuantity <= 1}
+                        onClick={() => setTicketQuantity((q) => Math.max(1, q - 1))}
+                        className="size-8 rounded-full hover:bg-secondary"
+                        aria-label="Decrease tickets"
+                      >
+                        <Minus className="size-3.5" />
+                      </Button>
+
+                      <span className="w-8 text-center font-display font-semibold text-sm text-foreground">
+                        {ticketQuantity}
+                      </span>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={isPaying || ticketQuantity >= 10}
+                        onClick={() => setTicketQuantity((q) => Math.min(10, q + 1))}
+                        className="size-8 rounded-full hover:bg-secondary"
+                        aria-label="Increase tickets"
+                      >
+                        <Plus className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
-                <span>Encrypted 256-bit checkout powered by Razorpay. Official ticket sent via email.</span>
-              </div>
+                {/* Contact Information Fields */}
+                <div className="space-y-3.5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="evt_name" className="text-xs font-medium flex items-center gap-1.5">
+                      <User className="size-3.5 text-accent" /> Full Name
+                    </Label>
+                    <Input
+                      id="evt_name"
+                      required
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="e.g. Neelam Dave"
+                      className="rounded-2xl h-11 text-xs"
+                    />
+                  </div>
 
-              <DialogFooter className="pt-2 flex flex-col sm:flex-row gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isPaying}
-                  onClick={() => setBookingEvent(null)}
-                  className="rounded-full h-11 text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isPaying}
-                  className="rounded-full h-11 px-6 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex-1"
-                >
-                  {isPaying ? (
-                    <>
-                      <Loader2 className="size-3.5 mr-2 animate-spin" /> Processing Payment…
-                    </>
-                  ) : (
-                    `Proceed to Pay ₹${(ENABLE_GST ? bookingEvent.pricingBreakdown?.totalAmount : bookingEvent.pricingBreakdown?.baseAmount)?.toLocaleString("en-IN") || "2,500"}`
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="evt_email" className="text-xs font-medium flex items-center gap-1.5">
+                      <Mail className="size-3.5 text-accent" /> Email Address
+                    </Label>
+                    <Input
+                      id="evt_email"
+                      type="email"
+                      required
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="rounded-2xl h-11 text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="evt_phone" className="text-xs font-medium flex items-center gap-1.5">
+                      <Phone className="size-3.5 text-accent" /> Phone Number (WhatsApp updates)
+                    </Label>
+                    <Input
+                      id="evt_phone"
+                      required
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="e.g. +91 9876543210"
+                      className="rounded-2xl h-11 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Exact Pricing Breakdown */}
+                <div className="rounded-2xl bg-secondary/50 p-4 border border-border/80 space-y-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                    {ENABLE_GST ? "Pricing Breakdown" : "Pricing Summary"}
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Tickets ({ticketQuantity} × ₹{unitPrice.toLocaleString("en-IN")}):</span>
+                      <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                    </div>
+                    {ENABLE_GST && gstAmount > 0 && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>GST ({gstRate}%):</span>
+                        <span>₹{gstAmount.toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
+                      <span>Total Payable:</span>
+                      <span className="text-emerald-700 font-display text-base">
+                        ₹{totalPayable.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
+                  <span>Encrypted 256-bit checkout powered by Razorpay. Official ticket sent via email.</span>
+                </div>
+
+                <DialogFooter className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isPaying}
+                    onClick={() => setBookingEvent(null)}
+                    className="rounded-full h-11 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isPaying}
+                    className="rounded-full h-11 px-6 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex-1"
+                  >
+                    {isPaying ? (
+                      <>
+                        <Loader2 className="size-3.5 mr-2 animate-spin" /> Processing Payment…
+                      </>
+                    ) : (
+                      `Proceed to Pay ₹${totalPayable.toLocaleString("en-IN")}`
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -797,6 +888,12 @@ export default function EventsSection() {
                     <span className="font-medium text-foreground">{confirmedBooking.customer_name}</span>
                   </div>
                   <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase">Tickets</span>
+                    <span className="font-semibold text-foreground">
+                      {confirmedBooking.ticket_quantity || 1} Ticket{(confirmedBooking.ticket_quantity || 1) > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div>
                     <span className="text-muted-foreground block text-[10px] uppercase">Total Paid</span>
                     <span className="font-semibold text-emerald-700">₹{confirmedBooking.total_amount?.toLocaleString("en-IN")}</span>
                   </div>
@@ -806,7 +903,7 @@ export default function EventsSection() {
                       {confirmedBooking.booking_status}
                     </Badge>
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <span className="text-muted-foreground block text-[10px] uppercase">Payment Ref</span>
                     <span className="font-mono text-[10px] text-muted-foreground truncate block">
                       {confirmedBooking.razorpay_payment_id || confirmedBooking.razorpay_order_id}
